@@ -436,6 +436,7 @@ function fitHeight() {
   cv.style.height = `max(clamp(600px, 78vh, 820px), ${need}px)`;
 }
 addEventListener("resize", fitHeight);
+
 function go(view) {
   state.view = view;
   $("#view").value = view;
@@ -443,7 +444,17 @@ function go(view) {
   $("#up").disabled = !parentOf(view);
   storm.sig = "";
   renderSide();
+
+  // Keep the current view in the URL for sharing.
+  try {
+    const url = new URL(location.href);
+    url.hash = view;
+    history.replaceState(null, "", url);
+  } catch (error) {
+    console.warn("Could not update view URL:", error);
+  }
 }
+
 $("#up").addEventListener("click", () => {
   const p = parentOf(state.view);
   if (p) go(p);
@@ -1153,7 +1164,20 @@ renderTables();
 renderMap();
 if (COUNTED.length === D.states.length) $("#uncounted").remove();
 // A tornado of every state is tall; with many states, open on the divisions.
-go(COUNTED.length > 20 ? "us" : "all");
+const defaultView = COUNTED.length > 20 ? "us" : "all";
+
+let requestedView = "";
+try {
+  requestedView = decodeURIComponent(location.hash.slice(1));
+} catch {
+  // Invalid hash: use the default view.
+}
+
+const validView = [...$("#view").options].some(
+  option => option.value === requestedView
+);
+
+go(validView ? requestedView : defaultView);
 {
   const fromUrl = new URLSearchParams(location.search).get("me");
   if (fromUrl && !ME) notFound(cleanLogin(fromUrl));
