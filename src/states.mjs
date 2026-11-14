@@ -6,7 +6,7 @@
 //
 //   1. A location that names another country, or is written in another script, is not placed,
 //      unless it also says USA.
-//   2. A trailing "City, ST" (optionally followed by USA) wins, so "Missouri City, TX" is Texas.
+//   2. A trailing state code (optionally followed by USA) wins, so "Missouri City, TX" is Texas.
 //      The city must not be a known place elsewhere that uses the same code, must not carry
 //      accents no US town of that state would (Florianópolis, Tübingen), and for Delaware and
 //      Idaho, whose codes are more often Germany's and Indonesia's, it must be a town listed there.
@@ -66,6 +66,7 @@ const SPANISH_STATES = new Set(["AZ", "CA", "CO", "FL", "NM", "NV", "TX"]);
 
 // Places elsewhere that write the same two letters after their name.
 const ELSEWHERE = {
+  AK: ["mirpur"],
   AL: ["maceio", "arapiraca", "alagoas", "tirana", "durres", "alessandria", "almeria"],
   AR: ["buenos aires", "caba", "capital federal", "cordoba", "rosario", "mendoza", "la plata", "mar del plata", "tucuman",
     "salta", "neuquen", "bahia blanca", "parana", "posadas", "resistencia", "corrientes", "san juan", "san luis", "jujuy",
@@ -98,7 +99,7 @@ const ELSEWHERE = {
   LA: ["los angeles", "hollywood", "santa monica", "pasadena", "burbank", "culver city", "venice beach", "long beach",
     "silver lake", "echo park", "koreatown", "dtla", "north hollywood", "studio city", "marina del rey", "playa vista",
     "beverly hills", "inglewood", "torrance", "sherman oaks", "encino", "van nuys", "westwood", "glendale", "el segundo",
-    "ucla", "santa clarita", "malibu", "vientiane", "lagos"],
+    "ucla", "santa clarita", "malibu", "vientiane", "lagos", "paris", "^west$"],
   MA: ["casablanca", "rabat", "marrakech", "marrakesh", "tangier", "tanger", "fes", "fez", "agadir", "meknes", "oujda", "kenitra", "malaga",
     "tetouan", "sao luis", "imperatriz", "maranhao", "timon"],
   MD: ["chisinau", "balti", "tiraspol"],
@@ -108,7 +109,7 @@ const ELSEWHERE = {
   MO: ["odintsovo", "podolsk", "khimki", "balashikha", "lyubertsy", "mytishchi", "korolev", "krasnogorsk", "zelenograd", "dubna",
     "reutov", "dolgoprudny", "zhukovsky", "moscow oblast", "moskovskaya", "modena", "carpi"],
   MS: ["campo grande", "dourados", "tres lagoas", "nioaque", "pedro gomes", "coxim", "nova andradina", "aquidauana", "corumba",
-    "ponta pora", "navirai", "sidrolandia", "maracaju", "chapadao do sul", "bonito", "mato grosso", "massa", "carrara"],
+    "ponta pora", "navirai", "sidrolandia", "maracaju", "chapadao do sul", "bonito", "mato grosso", "massa", "carrara", "amambai"],
   NH: ["amsterdam", "haarlem", "alkmaar", "hilversum", "zaandam", "hoofddorp", "amstelveen"],
   FL: ["almere", "lelystad"],
   MT: ["cuiaba", "varzea grande", "rondonopolis", "sinop", "mato grosso", "lucas do rio verde", "sorriso", "tangara da serra",
@@ -121,7 +122,7 @@ const ELSEWHERE = {
   RI: ["rieti"],
   SC: ["florianopolis", "blumenau", "joinville", "navegantes", "navegante", "sao jose", "chapeco", "criciuma", "itajai",
     "balneario camboriu", "camboriu", "jaragua do sul", "lages", "tubarao", "brusque", "palhoca", "videira", "porto uniao",
-    "concordia", "rio do sul", "santa catarina"],
+    "concordia", "rio do sul", "santa catarina", "chengdu"],
   SD: ["khartoum", "omdurman", "port sudan", "karachi", "sukkur", "larkana", "sindh"],
   TN: ["chennai", "madurai", "coimbatore", "trichy", "tiruchirappalli", "vellore", "tirunelveli", "erode", "tiruppur",
     "thanjavur", "kanchipuram", "tamil nadu", "tamilnadu", "hosur", "sousse", "sfax", "tunis", "monastir", "bizerte",
@@ -167,25 +168,38 @@ const IDAHO = words([
 const LA_CITY_ELSEWHERE = words(["jamaica", "manchester"]);
 
 const NAME_RES = NAMES.map(([ab, name]) => [ab, name.length, new RegExp(`\\b${name.toLowerCase().replace(/ /g, "\\s+")}\\b`, "g")]);
-const CODE_AT_END = /,\s*([A-Z]{2})\.?\s*(?:,?\s*(?:USA|U\.S\.A\.?|US|U\.S\.|United States(?: of America)?))?\s*$/;
+// A comma permits any case. Without one, capital letters distinguish codes from words like "in".
+const CODE_AT_END = /(?:,\s*([A-Za-z]{2})|(?<=[\p{L}\p{N}.)])\s+([A-Z]{2}))\.?\s*(?:,?\s*(?:USA|U\.S\.A\.?|US|U\.S\.|United States(?: of America)?))?\s*$/u;
+
+// Washington, D.C. is not a state; drop it and see what else the location says.
+const withoutDC = (location) => (location ?? "").replace(/washington,?\s*d\.?\s*c\.?|district of columbia/gi, " ").trim();
+
+function matchStateCode(loc) {
+  const match = loc.match(CODE_AT_END);
+  if (!match) return null;
+  const state = (match[1] ?? match[2]).toUpperCase();
+  return AB.has(state) ? { state, city: loc.slice(0, match.index).trim() } : null;
+}
+
+// The candidate code and city, before applying the placement guards.
+export const stateCodeAtEnd = (location) => matchStateCode(withoutDC(location));
 
 // The state a location names and the rule that placed it, or null.
 export function place(location) {
-  let loc = (location ?? "").trim();
-  if (!loc) return null;
-  // Washington, D.C. is not a state; drop it and see what else the location says.
-  loc = loc.replace(/washington,?\s*d\.?\s*c\.?|district of columbia/gi, " ").trim();
+  const loc = withoutDC(location);
   if (!loc) return null;
   const f = fold(loc);
-  const m = loc.match(CODE_AT_END);
-  if (m && TOWNS_LIKE_ABROAD[fold(loc.slice(0, m.index)).trim()]?.includes(m[1])) return { state: m[1], rule: "code" };
+  const code = matchStateCode(loc);
+  const city = code ? fold(code.city) : "";
+  if (code && Object.hasOwn(TOWNS_LIKE_ABROAD, city) && TOWNS_LIKE_ABROAD[city].includes(code.state)) {
+    return { state: code.state, rule: "code" };
+  }
   const saysUS = US_MARK.test(loc) || US_CAPS.test(loc);
   if (!saysUS && (COUNTRIES.test(f) || OTHER_SCRIPT.test(loc))) return null;
 
-  if (m && AB.has(m[1])) {
-    const ab = m[1];
-    const city = fold(loc.slice(0, m.index));
-    const accents = [...loc.slice(0, m.index)].filter((ch) => ACCENT.test(ch));
+  if (code) {
+    const ab = code.state;
+    const accents = [...code.city].filter((ch) => ACCENT.test(ch));
     const badAccent = !ACCENTED_TOWNS.test(city) && accents.some((ch) => !(SPANISH_STATES.has(ab) && SPANISH_ACCENT.test(ch)));
     const elsewhere = ELSEWHERE_RE[ab]?.test(city);
     const notListed = (ab === "DE" && !DELAWARE.test(city)) || (ab === "ID" && !IDAHO.test(city));
