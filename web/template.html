@@ -1031,7 +1031,8 @@ function renderRings() {
   else placeRings();
   // Say what the tornado shows now, once it settles: the view select changes it on every arrow key.
   if (ringsView && ringsView !== state.view) {
-    const [one, many] = { us: ["division", "divisions"], parish: ["parish", "parishes"], state: ["person", "people"] }[state.view.split(":")[0]] ?? ["state", "states"];
+    const [vk, vv] = state.view.split(":");
+    const [one, many] = isCounties(vk, vv) ? [COUNTIES[vv].kind, COUNTIES[vv].kinds] : ({ us: ["division", "divisions"], state: ["person", "people"] }[vk] ?? ["state", "states"]);
     const n = G.rings.length;
     const text = `${viewTitle(state.view)}. ${fmt(n)} ${n === 1 ? one : many}.`;
     clearTimeout(saying);
@@ -1203,15 +1204,15 @@ function csvCell(v) {
 // A file name that says what is in it: github-leaderboard-texas-total-2026-11-15.csv, dated by the data.
 const slug = (s) => s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 function csvName(scope, q) {
-  const [kind, val] = scope.split(":");
-  const place = kind === "state" ? STATE[val].name : kind === "region" ? `${val} region` : kind === "division" ? `${val} division` : kind === "parish" ? (val === "-" ? "Louisiana parish not given" : `${val} Parish`) : D.scopeName.replace(/^the /, "");
+  const [kind, val, county] = scope.split(":");
+  const place = kind === "state" ? STATE[val].name : kind === "region" ? `${val} region` : kind === "division" ? `${val} division` : isCounties(kind, val) ? (county === "-" ? `${STATE[val].name} ${notGiven(val)}` : `${county} ${kind} ${STATE[val].name}`) : D.scopeName.replace(/^the /, "");
   const day = new Date(D.refreshed).toISOString().slice(0, 10);
   return `github-leaderboard-${slug(place)}-${cat}${q ? `-matching-${slug(q.slice(0, 40)) || "search"}` : ""}-${day}.csv`;
 }
 $("#csv").addEventListener("click", () => {
   const scope = $("#scope").value;
   const q = $("#find").value.trim().toLowerCase();
-  const lines = [["Rank", "Login", "Name", "Location", "State", "Parish", ...CATS.map((c) => c[1])]];
+  const lines = [["Rank", "Login", "Name", "Location", "State", cap(KINDS.join(" or ")), ...CATS.map((c) => c[1])]];
   for (const [p, i] of boardRows(ranked(scope, cat), q)) {
     lines.push([i + 1, p[F.login], p[F.name] || "", p[F.location] || "", STATE[p[F.state]].name, p[F.parish] || "", ...CATS.map((c) => p[F[c[0]]])]);
   }

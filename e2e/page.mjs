@@ -164,7 +164,8 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   const rows = parse(all.text.replace(/^\ufeff/, ""));
   const people = Number((await sheet.locator("#count").innerText()).replace(/\D/g, ""));
   check(all.text.startsWith("\ufeff"), "Download CSV starts with a byte-order mark, so Excel reads UTF-8");
-  check(rows[0]?.join(",") === "Rank,Login,Name,Location,State,Parish,Total contributions,Public commits,Private contributions,Pull requests,Code reviews,Issues,New repositories,Followers", "the CSV has rank, login, name, location, state, parish, and every category");
+  const countyColumn = await sheet.evaluate(() => cap(KINDS.join(" or ")));
+  check(rows[0]?.join(",") === `Rank,Login,Name,Location,State,${countyColumn},Total contributions,Public commits,Private contributions,Pull requests,Code reviews,Issues,New repositories,Followers`, "the CSV has rank, login, name, location, state, parish, and every category");
   check(/^[^\n]*\r\n/.test(all.text), "its rows end in CRLF");
   check(people > 100 && rows.length - 1 === people, `it has every row, not only the 100 shown (${rows.length - 1} of ${people})`);
   check(/^github-leaderboard-[a-z0-9-]+-total-\d{4}-\d{2}-\d{2}\.csv$/.test(all.name), `its file name says what is in it (${all.name})`);
@@ -389,6 +390,30 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   check((await counties.locator("#you .tile .k").allInnerTexts()).some((k) => / County$/.test(k)), `finding a Mississippian (${mississippian}) shows their county rank`);
   check(!errors.some((e) => e.startsWith("counties:")), "no script errors in the county views");
   await counties.close();
+}
+// Counties with the other features: the keyboard's spoken summary counts counties, and a county's
+// CSV is named for it.
+{
+  const mix = await browser.newPage({ viewport: { width: 1340, height: 900 } });
+  watch(mix, "mix");
+  await mix.goto(url);
+  await mix.waitForTimeout(500);
+  const view = await mix.evaluate(() => Object.entries(COUNTIES).map(([ab, c]) => `${c.kind}:${ab}`).find((v) => v !== "parish:LA"));
+  await mix.selectOption("#view", "us");
+  await mix.waitForTimeout(400);
+  await mix.selectOption("#view", view);
+  await mix.waitForTimeout(700);
+  check(/, by county\. \d+ count(y|ies)\.$/.test(await mix.locator("#said").textContent()), `opening ${view}, a screen reader hears how many counties (${await mix.locator("#said").textContent()})`);
+  const scope = await mix.evaluate((v) => [...document.querySelectorAll("#scope option")].map((o) => o.value).find((s) => s.startsWith(`${v}:`) && !s.endsWith(":-")), view);
+  await mix.selectOption("#scope", scope);
+  await mix.waitForTimeout(300);
+  const [file] = await Promise.all([mix.waitForEvent("download", { timeout: 5000 }), mix.click("#csv")]).catch(() => [null]);
+  const name = file?.suggestedFilename() ?? "";
+  const [, ab, county] = scope.split(":");
+  const want = await mix.evaluate(([c, s]) => `${c} county ${STATE[s].name}`.toLowerCase().replace(/[^a-z0-9]+/g, "-"), [county, ab]);
+  check(name.includes(`-${want}-`), `a county's CSV is named for it (${name})`);
+  check(!errors.some((e) => e.startsWith("mix:")), "no script errors with counties and the other features together");
+  await mix.close();
 }
 await browser.close();
 
