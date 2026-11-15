@@ -56,6 +56,7 @@ check((await page.locator("#you .tile").count()) >= 3, `finding ${login} shows t
 check((await page.evaluate(() => new URLSearchParams(location.search).get("me"))) === login, "the address gets ?me=");
 check((await page.locator("#view").inputValue()) === `state:${home}`, "the tornado turns to their state");
 check((await page.locator("#board tr.me").count()) === 1, "their row is highlighted in the leaderboard");
+check(/^Found \S+: .+, #[\d,]+ of [\d,]+ in /.test(await page.locator("#findmsg").textContent()), "a screen reader is told who was found and their rank");
 
 await page.selectOption("#view", `state:${away}`);
 await page.waitForTimeout(700);
@@ -110,6 +111,77 @@ check((await phone.evaluate(() => document.documentElement.scrollWidth - window.
 await phone.locator("#cv").scrollIntoViewIfNeeded();
 await phone.waitForTimeout(800);
 check((await lit(phone)) > 1000, "the tornado draws on a phone");
+
+// The tornado from the keyboard and a screen reader: Tab into its rings, move with the arrow keys,
+// Enter to go down a level and Escape to come back up, with the focused ring drawn on the canvas
+// and each change said aloud. Reduced motion holds the canvas still.
+{
+  const kb = await browser.newPage({ viewport: { width: 1340, height: 900 }, reducedMotion: "reduce" });
+  watch(kb, "keyboard");
+  await kb.goto(url);
+  await kb.waitForTimeout(500);
+  // What a screen reader hears for the focused ring; empty when no ring has focus.
+  const heard = async () => {
+    const f = kb.locator("#rings :focus");
+    return (await f.count()) ? await f.ariaSnapshot() : "";
+  };
+  const viewNow = () => kb.locator("#view").inputValue();
+  const hashView = () => kb.evaluate(() => decodeURIComponent(location.hash.slice(1)));
+  const said = () => kb.evaluate(() => document.querySelector("#said")?.textContent ?? "");
+  // Lit pixels just left of ring i's name, where the focus box's left side is drawn.
+  const boxLit = (i) =>
+    kb.evaluate((i) => {
+      const G = geom();
+      const s = cv.width / storm.W;
+      const d = cx2.getImageData(Math.round((G.labelX - 8) * s), Math.round((G.rings[i].y - 10) * s), Math.round(4 * s), Math.round(7 * s)).data;
+      let n = 0;
+      for (let j = 3; j < d.length; j += 4) if (d[j] > 150) n++;
+      return n;
+    }, i);
+  const start = await viewNow();
+  const [first, second, down] = await kb.evaluate((top) => {
+    const by = [...(top === "us" ? D.divisions : D.states.filter((s) => s.counted))].sort((a, b) => b.total - a.total);
+    return [by[0].name, by[1].name, top === "us" ? `division:${by[1].name}` : `state:${by[1].ab}`];
+  }, start);
+
+  await kb.focus("#view");
+  for (let i = 0; i < 12 && !(await heard()); i++) await kb.keyboard.press("Tab");
+  check((await heard()).includes(`"#1 ${first}:`), `Tab reaches the tornado's rings, and a screen reader hears the busiest first: ${first}`);
+  check((await kb.locator("#stip").isVisible()) && /Enter to open it/.test(await kb.locator("#stip").innerText()), "the focused ring shows its numbers and the keys to press");
+  await kb.waitForTimeout(150);
+  check((await boxLit(0)) > 0, "and a focus ring is drawn on the canvas");
+  await kb.keyboard.press("ArrowDown");
+  check((await heard()).includes(`"#2 ${second}:`), "ArrowDown moves to the next ring");
+  const before = await said();
+  await kb.keyboard.press("Enter");
+  await kb.waitForTimeout(500);
+  check((await viewNow()) === down && (await hashView()) === down, `Enter goes down a level: the view and the address are ${down}`);
+  check((await heard()).includes('"#1 '), "and focus lands on the new view's first ring");
+  const after = await said();
+  check(after !== before && after.includes(second), `the new view is said aloud: "${after}"`);
+  await kb.keyboard.press("Escape");
+  await kb.waitForTimeout(500);
+  check((await viewNow()) === start && (await hashView()) === start, "Escape goes back up a level");
+  check((await heard()).includes(`"#2 ${second}:`), "with focus on the ring it came from");
+  check((await said()) !== after, "and that is said aloud too");
+  await kb.keyboard.press("End");
+  check(await kb.evaluate(() => document.activeElement === document.querySelector("#rings li:last-child button")), "End moves to the last ring");
+  await kb.keyboard.press("Home");
+  check((await heard()).includes(`"#1 ${first}:`), "Home moves back to the first");
+  await kb.keyboard.press("Shift+Tab");
+  await kb.waitForTimeout(150);
+  check(!(await kb.locator("#stip").isVisible()) && (await boxLit(0)) === 0, "leaving the tornado clears its focus ring");
+  await kb.fill("#find", "ab");
+  await kb.keyboard.press("Backspace");
+  await kb.keyboard.press("Escape");
+  check((await viewNow()) === start && (await kb.evaluate(() => document.activeElement?.id)) === "find", "Backspace and Escape typed in the search box leave the tornado alone");
+
+  await kb.goto(`${url}?me=${encodeURIComponent(login)}#state:${away}`);
+  await kb.waitForTimeout(500);
+  const ringsThere = (await kb.locator("#rings").count()) ? await kb.locator("#rings").ariaSnapshot() : "";
+  check(/\(if here\)[^"]*, you:/.test(ringsThere), `in ${away}, a screen reader hears where you would rank`);
+  await kb.close();
+}
 await browser.close();
 
 check(errors.length === 0, `no script errors${errors.length ? `:\n  ${errors.join("\n  ")}` : ""}`);
