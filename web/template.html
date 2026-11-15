@@ -145,6 +145,11 @@ canvas { display: block; width: 100%; height: clamp(600px, 78vh, 820px); touch-a
 .stip .r { display: flex; gap: 8px; align-items: center; }
 .stip .r i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; }
 .stip .r b { font-variant-numeric: tabular-nums; }
+.stip .keys { margin-top: 6px; padding-top: 5px; border-top: 1px solid var(--line); color: var(--muted); }
+/* The rings again as buttons, for the keyboard and screen readers: unseen, each over its own ring. */
+#rings { position: absolute; inset: 0; margin: 0; padding: 0; list-style: none; pointer-events: none; clip-path: inset(50%); }
+#rings button { position: absolute; left: 0; width: 100%; height: 56px; margin-top: -24px; overflow: hidden; }
+.sr { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--muted); padding: 8px 2px 2px; }
 .legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: 3px; }
 .legend i.dot { width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; }
@@ -226,7 +231,9 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
       </div>
       <div class="canvas-box">
         <canvas id="cv" role="img" aria-label="A spinning tornado of GitHub contributions; the same numbers are in the tables below."></canvas>
-        <div class="stip" id="stip"></div>
+        <div class="stip" id="stip" aria-hidden="true"></div>
+        <ul id="rings"></ul>
+        <p class="sr" id="said" role="status" aria-live="polite"></p>
       </div>
       <div class="legend" aria-hidden="true">
         <span><i style="background: var(--left)"></i>Public commits</span>
@@ -235,7 +242,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
         <span>Widest at the top: the busiest</span>
       </div>
     </div>
-    <aside id="side" aria-live="polite"></aside>
+    <aside id="side"></aside>
   </div>
 </section>
 
@@ -541,7 +548,7 @@ const parentOf = (view) => {
   return null;
 };
 
-const state = { view: "us", playing: !matchMedia("(prefers-reduced-motion: reduce)").matches, speed: 1, hover: -1 };
+const state = { view: "us", playing: !matchMedia("(prefers-reduced-motion: reduce)").matches, speed: 1, hover: -1, focus: -1 };
 function buildViewSelect() {
   const sel = $("#view");
   sel.textContent = "";
@@ -576,6 +583,7 @@ function go(view) {
   $("#up").disabled = !parentOf(view);
   storm.sig = "";
   renderSide();
+  renderRings();
 
   // Keep the current view in the URL for sharing.
   try {
@@ -605,6 +613,7 @@ function resize() {
   cv.width = Math.round(storm.W * dpr);
   cv.height = Math.round(storm.H * dpr);
   cx2.setTransform(dpr, 0, 0, dpr, 0, 0);
+  placeRings();
 }
 function geom() {
   const rows = viewRows(state.view).sort((a, b) => b.total - a.total);
@@ -821,6 +830,25 @@ function draw(dt) {
       c.fillText(r.sub.length > 46 ? `${r.sub.slice(0, 45)}…` : r.sub, lx, g.y + 18);
     }
   });
+  drawFocus(G);
+}
+// The keyboard focus ring: a line just outside the focused ring, and a box round its name, in the
+// theme's ink so it shows on both skies.
+function drawFocus(G) {
+  const g = G.rings[state.focus];
+  if (!g) return;
+  const c = cx2;
+  c.strokeStyle = THEME.ink;
+  c.lineWidth = 2;
+  c.beginPath();
+  c.ellipse(G.cx, g.y, g.rR + 5, g.ry + 5, 0, -Math.PI / 2, Math.PI / 2);
+  c.ellipse(G.cx, g.y, g.rL + 5, g.ry + 5, 0, Math.PI / 2, Math.PI * 1.5);
+  c.stroke();
+  const x = G.labelX - 6;
+  const y = g.y - 12;
+  c.beginPath();
+  c.roundRect(x, y, storm.W - 3 - x, G.narrow ? 22 : 37, 5);
+  c.stroke();
 }
 function nearest(e) {
   const box = cv.getBoundingClientRect();
@@ -846,9 +874,14 @@ cv.addEventListener("pointermove", (e) => {
     cv.style.cursor = "default";
     return;
   }
+  cv.style.cursor = n.G.rings[n.i].row.drill ? "pointer" : "default";
+  showTip(n);
+});
+// Highlight ring n.i and show its numbers by (n.x, n.y): under the pointer, or, for the keyboard
+// (n.keys), under the focused ring with the keys to press.
+function showTip(n) {
   state.hover = n.i;
   const r = n.G.rings[n.i].row;
-  cv.style.cursor = r.drill ? "pointer" : "default";
   stip.textContent = "";
   stip.appendChild(h("div", { class: "t", text: r.person ? `${r.label}${r.person[F.name] ? ` (${r.person[F.name]})` : ""}` : r.label }));
   if (r.person?.[F.location]) stip.appendChild(h("div", { class: "loc", text: r.person[F.location] }));
@@ -874,11 +907,17 @@ cv.addEventListener("pointermove", (e) => {
     row.appendChild(h("span", { text: label }));
     stip.appendChild(row);
   }
-  if (r.drill) stip.appendChild(h("div", { class: "r", text: "Click to open it" }));
+  if (n.keys) {
+    const keys = ["Arrow keys to move"];
+    if (r.drill) keys.push("Enter to open it");
+    else if (r.person) keys.push("Enter for their GitHub profile");
+    if (parentOf(state.view)) keys.push("Escape to go up");
+    stip.appendChild(h("div", { class: "keys", text: keys.join(", ") }));
+  } else if (r.drill) stip.appendChild(h("div", { class: "r", text: "Click to open it" }));
   stip.style.display = "block";
   stip.style.left = `${Math.min(n.x + 16, storm.W - stip.offsetWidth - 6)}px`;
   stip.style.top = `${Math.min(n.y + 16, storm.H - stip.offsetHeight - 6)}px`;
-});
+}
 cv.addEventListener("pointerleave", () => {
   state.hover = -1;
   stip.style.display = "none";
@@ -888,7 +927,7 @@ cv.addEventListener("click", (e) => {
   if (!n) return;
   const r = n.G.rings[n.i].row;
   if (r.drill) go(r.drill);
-  else if (r.person) window.open(`https://github.com/${r.person[0]}`, "_blank", "noopener");
+  else if (r.person) window.open(`https://github.com/${r.person[F.login]}`, "_blank", "noopener");
 });
 $("#spin").addEventListener("click", () => {
   state.playing = !state.playing;
@@ -907,6 +946,104 @@ if (!state.playing) {
   $("#spin").textContent = "Play";
   $("#motion").textContent = "Paused because your system asks for reduced motion.";
 }
+
+// ---------------------------------------------------------------- the tornado from the keyboard
+// The rings again as a list of buttons, unseen, in ring order, for the keyboard and screen readers.
+// Each sits over its own ring, so focusing one scrolls that ring into view. Only one is in the Tab
+// order. Arrow keys, Home and End move between them; Enter or Space does what a click does;
+// Escape or Backspace goes up a level.
+const rings = $("#rings");
+let ringsView = "";
+let saying = 0;
+// What a screen reader says for a ring: its rank and place, and the numbers the tooltip shows.
+const many = (v, one, more) => `${fmt(v)} ${v === 1 ? one : more}`;
+function ringName(r, i) {
+  const p = r.person;
+  const who = p ? `${r.label}${p[F.name] ? ` (${p[F.name]})` : ""}${p[F.location] ? `, ${p[F.location]}` : ""}` : r.label;
+  const you = r.me ? (p ? ", you" : ", where you are") : "";
+  const nums = [many(r.total, "contribution", "contributions"), many(r.left, "public commit", "public commits"), `${fmt(r.right)} everything else`];
+  if (p) nums.push(`${fmt(p[F.private])} private`, many(p[F.prs], "pull request", "pull requests"), many(p[F.reviews], "review", "reviews"), many(p[F.issues], "issue", "issues"));
+  else nums.push(`${many(r.people, "person", "people")} counted`);
+  return `#${r.rank ?? i + 1} ${who}${you}: ${nums.join(", ")}.${p ? " Opens their GitHub profile." : ""}`;
+}
+function renderRings() {
+  if (state.focus >= 0) {
+    state.focus = -1;
+    state.hover = -1;
+    stip.style.display = "none";
+  }
+  const G = geom();
+  rings.textContent = "";
+  rings.setAttribute("aria-label", viewTitle(state.view));
+  G.rings.forEach((g, i) => {
+    const r = g.row;
+    const b = h("button", { type: "button", tabindex: i ? "-1" : "0", text: ringName(r, i) });
+    b.addEventListener("click", () => {
+      if (r.drill) {
+        go(r.drill);
+        focusRing(null);
+      } else if (r.person) window.open(`https://github.com/${r.person[0]}`, "_blank", "noopener");
+    });
+    rings.appendChild(h("li", {}, [b]));
+  });
+  // The canvas may have just changed height for this view: measure it before placing the buttons.
+  const box = cv.getBoundingClientRect();
+  if (Math.abs(box.width - storm.W) > 0.5 || Math.abs(box.height - storm.H) > 0.5) resize();
+  else placeRings();
+  // Say what the tornado shows now, once it settles: the view select changes it on every arrow key.
+  if (ringsView && ringsView !== state.view) {
+    const [one, many] = { us: ["division", "divisions"], parish: ["parish", "parishes"], state: ["person", "people"] }[state.view.split(":")[0]] ?? ["state", "states"];
+    const n = G.rings.length;
+    const text = `${viewTitle(state.view)}. ${fmt(n)} ${n === 1 ? one : many}.`;
+    clearTimeout(saying);
+    saying = setTimeout(() => ($("#said").textContent = text), 300);
+  }
+  ringsView = state.view;
+}
+function placeRings() {
+  const G = geom();
+  rings.querySelectorAll("button").forEach((b, i) => {
+    if (G.rings[i]) b.style.top = `${G.rings[i].y}px`;
+  });
+}
+// After going down or up from the keyboard: focus the ring of the view we came from (going up),
+// or else the first.
+function focusRing(from) {
+  const i = from ? geom().rings.findIndex((g) => g.row.drill === from) : 0;
+  rings.querySelectorAll("button")[Math.max(0, i)]?.focus();
+}
+rings.addEventListener("focusin", (e) => {
+  const list = [...rings.querySelectorAll("button")];
+  const i = list.indexOf(e.target);
+  if (i < 0) return;
+  for (const b of list) b.tabIndex = b === e.target ? 0 : -1;
+  state.focus = i;
+  const G = geom();
+  showTip({ G, i, x: G.cx, y: G.rings[i].y + G.rings[i].ry, keys: true });
+  stip.scrollIntoView({ block: "nearest" });
+});
+rings.addEventListener("focusout", () => {
+  state.focus = -1;
+  state.hover = -1;
+  stip.style.display = "none";
+});
+rings.addEventListener("keydown", (e) => {
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+  const list = [...rings.querySelectorAll("button")];
+  const i = list.indexOf(document.activeElement);
+  const to = { ArrowDown: i + 1, ArrowRight: i + 1, ArrowUp: i - 1, ArrowLeft: i - 1, Home: 0, End: list.length - 1 }[e.key];
+  if (to !== undefined) {
+    e.preventDefault();
+    list[Math.max(0, Math.min(list.length - 1, to))]?.focus();
+  } else if (e.key === "Escape" || e.key === "Backspace") {
+    const up = parentOf(state.view);
+    if (!up) return;
+    e.preventDefault();
+    const from = state.view;
+    go(up);
+    focusRing(from);
+  }
+});
 
 function renderSide() {
   const side = $("#side");
@@ -1258,6 +1395,7 @@ function rerenderForMe() {
   renderSide();
   fitHeight();
   storm.sig = "";
+  renderRings();
   $("#forget").hidden = !ME;
 }
 function notFound(login) {
@@ -1306,6 +1444,9 @@ function setMe(input, { open = false } = {}) {
   $("#me").value = found[F.login];
   msg.textContent = "";
   rerenderForMe();
+  // For screen readers: the ranks are in the tiles, which are not read out on their own.
+  const home = rankOf(`state:${found[F.state]}`);
+  msg.appendChild(h("span", { class: "sr", text: `Found ${found[F.login]}: ${many(found[F.total], "contribution", "contributions")}${home ? `, #${fmt(home.rank)} of ${fmt(home.of)} in ${STATE[found[F.state]].name}` : ""}.` }));
   if (open) go(`state:${found[F.state]}`);
 }
 $("#findme").addEventListener("submit", (e) => {
