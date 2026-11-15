@@ -1,6 +1,6 @@
 // Opens the built page in a real browser and checks that it works: no script errors, the tornado
-// draws, the views change, Find yourself and "where you'd rank" work, and nothing scrolls sideways
-// on a phone. CI runs it on every pull request and before every deploy.
+// draws, the views change and links to them work, Find yourself and "where you'd rank" work, and
+// nothing scrolls sideways on a phone. CI runs it on every pull request and before every deploy.
 //   npm i --no-save --no-package-lock playwright && npx playwright install chromium   (once)
 //   npm run build && npm run e2e
 import { chromium } from "playwright";
@@ -71,6 +71,26 @@ for (const view of ["us", "all", `division:${await page.evaluate(() => D.divisio
   await page.waitForTimeout(500);
   check((await lit(page)) > 1000, `the ${await viewName(page)} view draws`);
 }
+
+// Links to a view: the hash follows the view, and opens it.
+await page.selectOption("#view", `state:${away}`);
+await page.waitForTimeout(200);
+check((await page.evaluate(() => location.hash)) === `#state:${away}`, "changing the view puts it in the address");
+check((await page.evaluate(() => new URLSearchParams(location.search).get("me"))) === login, "and keeps ?me=");
+await page.evaluate((v) => (location.hash = v), `#state:${home}`);
+await page.waitForTimeout(300);
+check((await page.locator("#view").inputValue()) === `state:${home}`, "a view link opened on the page turns the tornado");
+const division = await page.evaluate(() => D.divisions.at(-1).name);
+const linked = await browser.newPage({ viewport: { width: 1340, height: 900 } });
+watch(linked, "linked");
+await linked.goto(`${url}#division:${encodeURIComponent(division)}`);
+await linked.waitForTimeout(500);
+check((await linked.locator("#view").inputValue()) === `division:${division}`, `a link to #division:${division} opens it`);
+await linked.goto("about:blank");
+await linked.goto(`${url}#nonsense`);
+await linked.waitForTimeout(500);
+check(["us", "all"].includes(await linked.locator("#view").inputValue()), "a link to an unknown view opens the default");
+await linked.close();
 
 await page.fill("#me", "nobody-here-zz9");
 await page.click("#findme .go");
