@@ -1,13 +1,13 @@
 // Builds site/leaderboard.html from data/: each person placed in a state from their profile
-// location (src/states.mjs), then regions, divisions, states, Louisiana parishes, and rankings by
-// category, written into web/template.html.
+// location (src/states.mjs), then regions, divisions, states, counties (Louisiana's parishes), and
+// rankings by category, written into web/template.html.
 //   node scripts/build.mjs   (or: npm run build)
 //   VIEWER=<login>   whose ranks the page shows as "you" (they must be in data/users.json)
 //   SCOPE=LA,MS,AR   only some states (default: all)
 //   HISTORY=<file>   the daily history to show (default: data/history.json, if there is one)
 //   OUT=<file>       where to write the page (default: site/leaderboard.html)
 import { readFileSync, writeFileSync } from "node:fs";
-import { PARISHES, parishOf } from "../src/parishes.mjs";
+import { COUNTY_STATES, countiesOf, countyKind, countyOf, hasCounties } from "../src/counties.mjs";
 import { isBot, optedOut } from "../src/exclude.mjs";
 import { stateOf } from "../src/states.mjs";
 import { markSample, refreshedAt } from "../src/sample.mjs";
@@ -20,8 +20,8 @@ const cands = JSON.parse(readFileSync(new URL("../data/candidates.json", import.
 const users = JSON.parse(readFileSync(new URL("../data/users.json", import.meta.url), "utf8"));
 const profiles = JSON.parse(readFileSync(new URL("../data/profiles.json", import.meta.url), "utf8"));
 // States are compared on the same sample everywhere: the collector's rule, the PER_STATE likeliest
-// to be most active among people who pushed in the last year. Louisiana has more (everyone active),
-// used only for Louisiana's own view and its parishes.
+// to be most active among people who pushed in the last year. States with county lists have more
+// (everyone active), used only for their own views and their counties.
 const PER_STATE = Number(process.env.PER_STATE ?? 80);
 const OPT_OUT = optedOut();
 
@@ -61,8 +61,8 @@ for (const [login, u] of Object.entries(users)) {
   const ab = stateOf(u.location);
   if (!ab || (SCOPE && !SCOPE.has(ab))) continue;
   const s = BY_AB[ab];
-  const parish = ab === "LA" ? (parishOf(u.location) ?? "") : "";
-  people.push({ login, ...u, state: ab, region: s.region, division: s.division, parish });
+  const county = hasCounties(ab) ? (countyOf(ab, u.location) ?? "") : "";
+  people.push({ login, ...u, state: ab, region: s.region, division: s.division, county });
 }
 // When the data was last fetched (the newest lookup). The sample's year counts back from it, so the
 // page and the daily history (scripts/history.mjs) pick the same people.
@@ -95,16 +95,24 @@ const regions = regionNames.map((r) => ({ name: r, ...agg(fair.filter((p) => p.r
 const divisionNames = [...new Set(STATES.map((s) => s[3]))];
 const divisions = divisionNames.map((d) => ({ name: d, region: STATES.find((s) => s[3] === d)[2], ...agg(fair.filter((p) => p.division === d)) })).filter((d) => d.people > 0);
 const us = agg(fair);
-const la = people.filter((p) => p.state === "LA");
-const parishes = [...PARISHES, ""].map((name) => ({ name: name || "Parish not given", ...agg(la.filter((p) => p.parish === name)) }));
+// Each state with a county list, county by county, then everyone who named only the state.
+const counties = Object.fromEntries(
+  COUNTY_STATES.filter((ab) => !SCOPE || SCOPE.has(ab)).map((ab) => {
+    const [kind, kinds] = countyKind(ab);
+    const here = people.filter((p) => p.state === ab);
+    const notGiven = `${kind[0].toUpperCase()}${kind.slice(1)} not given`;
+    const rows = [...countiesOf(ab), ""].map((name) => ({ name: name || notGiven, ...agg(here.filter((p) => p.county === name)) }));
+    return [ab, { kind, kinds, rows }];
+  }),
+);
 
-// Compact people: [login, name, state, total, commits, private, prs, reviews, issues, repos, followers, parish, fair, location]
-const P = people.map((p) => [p.login, p.name, p.state, p.total, p.commits, p.private, p.prs, p.reviews, p.issues, p.repos, p.followers, p.parish, p.fair ? 1 : 0, (p.location ?? "").trim()]);
+// Compact people: [login, name, state, total, commits, private, prs, reviews, issues, repos, followers, county, fair, location]
+const P = people.map((p) => [p.login, p.name, p.state, p.total, p.commits, p.private, p.prs, p.reviews, p.issues, p.repos, p.followers, p.county, p.fair ? 1 : 0, (p.location ?? "").trim()]);
 const me = people.find((p) => p.login === VIEWER) ?? null;
 // The daily refresh's time, from the workflow.
 const cron = readFileSync(new URL("../.github/workflows/refresh.yml", import.meta.url), "utf8").match(/cron:\s*"(\d+) (\d+) \* \* \*"/);
 const schedule = cron ? { hour: Number(cron[2]), minute: Number(cron[1]) } : null;
-const data = { generated: new Date().toISOString(), refreshed, schedule, scopeName: SCOPE_NAME, perState: PER_STATE, compared: fair.length, viewer: VIEWER, me, us, regions, divisions, states, parishes, P, candidates: Object.values(cands).reduce((a, s) => a + s.logins.length, 0), fetched: Object.keys(users).length };
+const data = { generated: new Date().toISOString(), refreshed, schedule, scopeName: SCOPE_NAME, perState: PER_STATE, compared: fair.length, viewer: VIEWER, me, us, regions, divisions, states, counties, P, candidates: Object.values(cands).reduce((a, s) => a + s.logins.length, 0), fetched: Object.keys(users).length };
 // The daily history (scripts/history.mjs), its last year: a sparkline per state, and a chart of one.
 data.history = lastYear(readHistory(process.env.HISTORY ?? new URL("../data/history.json", import.meta.url)));
 

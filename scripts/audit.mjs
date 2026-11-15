@@ -54,7 +54,7 @@ const lines = [
   "",
   "## By state",
   "",
-  "| State | Placed | By state code | By state name | By Louisiana town | Contributions looked up |",
+  "| State | Placed | By state code | By state name | By a town alone | Contributions looked up |",
   "|---|---:|---:|---:|---:|---:|",
   ...NAMES.map(([ab, name]) => {
     const s = byState[ab];

@@ -358,6 +358,38 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   }
   rmSync(dir, { recursive: true, force: true });
 }
+
+// Counties: Mississippi's next to Louisiana's parishes, by link, in the table, and in your ranks.
+{
+  const counties = await browser.newPage({ viewport: { width: 1340, height: 900 } });
+  watch(counties, "counties");
+  const text = (sel) => counties.locator(sel).first().innerText({ timeout: 2000 }).catch(() => "");
+  await counties.goto(`${url}#county:MS`);
+  await counties.waitForTimeout(600);
+  const isMS = (await counties.locator("#view").inputValue()) === "county:MS";
+  check(isMS && (await viewName(counties)) === "Mississippi, by county", "a link to #county:MS opens Mississippi, by county");
+  await counties.locator("#cv").scrollIntoViewIfNeeded();
+  await counties.waitForTimeout(600);
+  check(isMS && (await lit(counties)) > 1000, "and it draws");
+  await counties.goto("about:blank");
+  await counties.goto(`${url}#parish:LA`);
+  await counties.waitForTimeout(500);
+  check((await counties.locator("#view").inputValue()) === "parish:LA" && (await viewName(counties)) === "Louisiana, by parish", "a link to #parish:LA still opens Louisiana, by parish");
+  const msButton = counties.locator("#countyState button", { hasText: "Mississippi" });
+  if (await msButton.count()) await msButton.click();
+  check((await text("#countyTitle")) === "Mississippi, county by county", "the county table switches to Mississippi");
+  check((await counties.locator("#parishTable tbody tr").count()) === 83 && (await text("#parishTable th")).startsWith("County"), "and lists its 82 counties and County not given");
+  const county = await counties.locator('#scope optgroup[label="Mississippi counties"] option').first().getAttribute("value").catch(() => null);
+  if (county) await counties.selectOption("#scope", county);
+  check(Boolean(county) && /^[1-9]/.test(await counties.locator("#count").innerText()), `a leaderboard can be filtered to a Mississippi county (${county})`);
+  const mississippian = await counties.evaluate(() => D.P.find((p) => p[2] === "MS" && p[11])?.[0]);
+  await counties.goto("about:blank");
+  await counties.goto(`${url}?me=${encodeURIComponent(mississippian)}`);
+  await counties.waitForTimeout(600);
+  check((await counties.locator("#you .tile .k").allInnerTexts()).some((k) => / County$/.test(k)), `finding a Mississippian (${mississippian}) shows their county rank`);
+  check(!errors.some((e) => e.startsWith("counties:")), "no script errors in the county views");
+  await counties.close();
+}
 await browser.close();
 
 check(errors.length === 0, `no script errors${errors.length ? `:\n  ${errors.join("\n  ")}` : ""}`);
