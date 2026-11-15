@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GitHub Contribution Tornado</title>
-<meta name="description" content="A spinning tornado of a year of GitHub contributions across the United States: every state, division, and region, Louisiana parish by parish, and leaderboards in eight categories. Open source and refreshed daily.">
+<meta name="description" content="A spinning tornado of a year of GitHub contributions across the United States: every state, division, and region, Louisiana parish by parish, Mississippi county by county, and leaderboards in eight categories. Open source and refreshed daily.">
 <meta property="og:title" content="GitHub Contribution Tornado">
-<meta property="og:description" content="A year of GitHub contributions across the United States, by state, division, region, and Louisiana parish. Refreshed daily.">
+<meta property="og:description" content="A year of GitHub contributions across the United States, by state, division, region, Louisiana parish, and Mississippi county. Refreshed daily.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://wbp318.github.io/github-leaderboard/">
 <meta name="theme-color" content="#0b1430">
@@ -169,7 +169,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
 
 <section id="lists">
   <h2>Leaderboards</h2>
-  <p class="lede">Ranked by category, for the whole country, a region, a division, a state, or a Louisiana parish. Your row is gold; if you are outside the top 100, your row is added at the end.</p>
+  <p class="lede">Ranked by category, for the whole country, a region, a division, a state, or a Louisiana parish or Mississippi county. Your row is gold; if you are outside the top 100, your row is added at the end.</p>
   <div class="panel">
     <div class="bar">
       <span class="lbl">Category</span>
@@ -1020,6 +1020,8 @@ function renderCountyTable() {
     ],
     c.rows.map((p) => ({ ...p, me: p.name === mine })),
     (r) => {
+      // A county with nobody counted yet has no leaderboard to open.
+      if (!r.people) return;
       $("#scope").value = `${c.kind}:${ab}:${r.name === notGiven(ab) ? "-" : r.name}`;
       renderBoard();
       $("#lists").scrollIntoView({ behavior: "smooth" });

@@ -11,8 +11,9 @@
 // To add a state, write its file and add it to STATES below. Everyone active in a state listed
 // here has their contributions looked up (scripts/collect.mjs), and the page gets its county view.
 import * as LA from "./counties/la.mjs";
+import * as MS from "./counties/ms.mjs";
 
-const STATES = [LA];
+const STATES = [LA, MS];
 
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "\\s+");
 // "St." may also be written "St" or "Saint".

@@ -46,17 +46,27 @@ flowchart TD
     listed -->|no| st
     code -->|no| name{"Names a state?"}
     name -->|yes| last["The state named last"]
-    name -->|no| town{"A Louisiana town<br/>that means nowhere else?"}
-    town -->|yes| la["Louisiana"]
+    name -->|no| town{"A Louisiana or Mississippi town<br/>that means nowhere else?"}
+    town -->|yes| la["Its state"]
     town -->|no| none
 ```
 
 1. **Another country.** A location that names another country (Brazil, India, Germany, and about a hundred more) or uses a script no US town is written in is not placed, unless it also says USA. US towns that share a country's name are listed so they still count: Norway, ME; Poland, OH; Little Canada, MN; Brazil, IN.
 2. **A trailing state code wins.** A two-letter code can follow a comma in any case ("Atlanta, Ga"), or it can be uppercase after a space ("Austin TX"). Either form can be followed by USA. The code counts only if the city is not in the `ELSEWHERE` list for that code and carries no accents a US town in that state would not. Delaware and Idaho are stricter: their codes are written far more often by people in Germany and Indonesia, so only towns listed for those states count.
 3. **The state named last.** "Kansas City, Missouri" is Missouri and "Washington Heights, New York" is New York. On a tie the longer name wins, so "West Virginia" is not Virginia.
-4. **Louisiana towns.** "New Orleans", "Shreveport", "Ruston", and other names that mean only Louisiana place someone there; Louisiana then goes down to the parish with [src/counties/la.mjs](../src/counties/la.mjs).
+4. **Towns that mean only one state.** "New Orleans", "Shreveport", "Ruston", and other names that mean only Louisiana place someone there, and so do "Hattiesburg", "Starkville", "Tupelo", "Biloxi", "Ole Miss", and others that mean only Mississippi. A name shared with a town anywhere else, in the US or abroad, is not on these lists: Jackson (Wyoming too), Columbus, Oxford, Columbia, Meridian (Idaho), Greenville, Clinton, Madison, Gulfport (Florida), Vicksburg (Michigan). Each list is `ONLY` in the state's file: [src/counties/la.mjs](../src/counties/la.mjs) and [src/counties/ms.mjs](../src/counties/ms.mjs).
 
 Anything else, including "Remote", "Earth", "Georgia" next to Tbilisi, and two places at once in different countries, is left out. Leaving someone out costs a little coverage; placing them wrongly misleads everyone.
+
+## Counties
+
+Louisiana goes down to the parish and Mississippi to the county, for people already placed in the state. [src/counties.mjs](../src/counties.mjs) reads the location:
+
+1. **A county named in full wins**: "East Carroll Parish", "Jackson County", "Jackson Co.". So "Jackson County, MS" is on the coast, not in the city of Jackson.
+2. **Otherwise the longest town, city, or university named**: "West Hattiesburg" is Lamar County and "Hattiesburg" Forrest; "University of Mississippi Medical Center" is Hinds and "University of Mississippi" Lafayette.
+3. **Otherwise none**: people who wrote only the state are under "Parish not given" or "County not given".
+
+A city in more than one county is in its principal one: Jackson is Hinds, Hattiesburg is Forrest. The lists run only for people already in the state, so a town that shares its name with one in another state (Monroe, Jackson, Columbus) is safe there. Each state's file lists its counties, its towns and universities, and its `ONLY` names; [CONTRIBUTING.md](../CONTRIBUTING.md#add-your-states-counties) says how to add a state.
 
 ## Checking the rules
 
@@ -71,11 +81,13 @@ Read the audit in both directions: a US town in "turned away" means a rule is to
 2. Change [src/states.mjs](../src/states.mjs) until `npm test` passes. Usually that means adding a city to the `ELSEWHERE` list for its code, or a US town to `TOWNS_LIKE_ABROAD`, `ACCENTED_TOWNS`, `DELAWARE`, or `IDAHO`.
 3. Run `npm run audit` and check nothing else moved.
 
+A wrong parish or county is fixed the same way, in [test/counties.test.mjs](../test/counties.test.mjs) and the state's file in `src/counties/`.
+
 Or [open an issue](https://github.com/wbp318/github-leaderboard/issues/new/choose) with the exact location text.
 
 ## Not on the leaderboard?
 
-Each state looks up only its 80 likeliest-busiest people (and Louisiana everyone active), so most people are not on it. On the page, typing a login that is not there offers **Add me**, a one-click [issue](https://github.com/wbp318/github-leaderboard/issues/new?template=add-me.yml): the bot places whoever opens it with these same rules and replies with their ranks, or with why it could not place them.
+Each state looks up only its 80 likeliest-busiest people (and Louisiana and Mississippi everyone active, up to 500), so most people are not on it. On the page, typing a login that is not there offers **Add me**, a one-click [issue](https://github.com/wbp318/github-leaderboard/issues/new?template=add-me.yml): the bot places whoever opens it with these same rules and replies with their ranks, or with why it could not place them.
 
 ## Other people who are left off
 

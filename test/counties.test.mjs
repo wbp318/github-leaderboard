@@ -17,6 +17,39 @@ const CASES = [
   ["LA", "Louisiana State University", "East Baton Rouge"],
   ["LA", "Louisiana", ""],
   ["LA", "Louisiana, USA", ""],
+
+  // Mississippi's counties. A city in two counties is in its principal one.
+  ["MS", "Jackson, MS", "Hinds"],
+  ["MS", "Greater Jackson Area, Mississippi", "Hinds"],
+  ["MS", "Jackson County, MS", "Jackson"],
+  ["MS", "Jackson Co., Mississippi", "Jackson"],
+  ["MS", "Pascagoula, MS", "Jackson"],
+  ["MS", "Hattiesburg, MS", "Forrest"],
+  ["MS", "West Hattiesburg, Mississippi", "Lamar"],
+  ["MS", "Forrest County, MS", "Forrest"],
+  ["MS", "Oxford, MS", "Lafayette"],
+  ["MS", "Ole Miss", "Lafayette"],
+  ["MS", "University of Mississippi", "Lafayette"],
+  ["MS", "University of Mississippi Medical Center", "Hinds"],
+  ["MS", "325 Wise Center Drive, Mississippi State, MS 39762", "Oktibbeha"],
+  ["MS", "Starkville, Mississippi", "Oktibbeha"],
+  ["MS", "University of Southern Mississippi", "Forrest"],
+  ["MS", "Jackson State University", "Hinds"],
+  ["MS", "Southaven, MS", "DeSoto"],
+  ["MS", "Desoto County, Mississippi", "DeSoto"],
+  ["MS", "De Soto County, MS", "DeSoto"],
+  ["MS", "Pearl, MS", "Rankin"],
+  ["MS", "Pearl River County, MS", "Pearl River"],
+  ["MS", "Picayune, MS", "Pearl River"],
+  ["MS", "Bay Saint Louis, MS", "Hancock"],
+  ["MS", "Jefferson Davis County, MS", "Jefferson Davis"],
+  ["MS", "Jefferson County, MS", "Jefferson"],
+  ["MS", "Columbus, MS", "Lowndes"],
+  ["MS", "Tupelo, MS", "Lee"],
+  ["MS", "Biloxi, Mississippi", "Harrison"],
+  ["MS", "Mississippi Gulf Coast", ""],
+  ["MS", "Golden Triangle, Mississippi", ""],
+  ["MS", "Mississippi", ""],
 ];
 
 for (const [state, location, want] of CASES) {
@@ -40,4 +73,9 @@ for (const state of COUNTY_STATES) {
 test("Louisiana has 64 parishes", () => {
   assert.equal(countiesOf("LA").length, 64);
   assert.deepEqual(countyKind("LA"), ["parish", "parishes"]);
+});
+
+test("Mississippi has 82 counties", () => {
+  assert.equal(new Set(countiesOf("MS")).size, 82);
+  assert.deepEqual(countyKind("MS"), ["county", "counties"]);
 });

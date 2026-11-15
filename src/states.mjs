@@ -13,7 +13,7 @@
 //   3. Otherwise the state named last: "Kansas City, Missouri" is Missouri, and
 //      "Washington Heights, New York" is New York.
 //   4. Otherwise a place name that means nowhere else, for the states with county lists
-//      (src/counties.mjs): "New Orleans" is Louisiana.
+//      (src/counties.mjs): "New Orleans" is Louisiana and "Hattiesburg" Mississippi.
 //
 // test/states.test.mjs holds the cases; scripts/audit.mjs lists what each rule placed.
 import { COUNTY_STATES, onlyTownsRe } from "./counties.mjs";

@@ -27,7 +27,7 @@ Register-ScheduledTask -TaskName "Update Chromium" -Force `
 To stop it: `Unregister-ScheduledTask -TaskName "Update Chromium"`.
 </details>
 
-A year of GitHub contributions across the United States, drawn as a spinning tornado: all 50 states, the nine Census divisions and four regions, Louisiana parish by parish, and leaderboards in eight categories. About 34,000 developers found, the likeliest-busiest 80 in each state compared, refreshed every day by GitHub Actions. One HTML file, no frameworks, no dependencies.
+A year of GitHub contributions across the United States, drawn as a spinning tornado: all 50 states, the nine Census divisions and four regions, Louisiana parish by parish, Mississippi county by county, and leaderboards in eight categories. About 34,000 developers found, the likeliest-busiest 80 in each state compared, refreshed every day by GitHub Actions. One HTML file, no frameworks, no dependencies.
 
 **See it live: https://wbp318.github.io/github-leaderboard/** and type your GitHub login to see where you rank. Not on it? One click adds you.
 
@@ -35,12 +35,12 @@ A year of GitHub contributions across the United States, drawn as a spinning tor
 
 ## What is on the page
 
-- **The tornado.** Each ring is a place, the busiest at the top. Its red half is public commits; its blue half is everything else: pull requests, reviews, issues, new repositories, and private contributions for people who show them. Click a ring to go down a level, from divisions to states to a state's busiest people.
-- **Find yourself.** Type your GitHub login to see your ranks in your parish, state, division, region, and the country, with you in gold in the tornado, the lists, and the map. `?me=<login>` links straight to anyone's ranks. Open any other state to see where you would rank there, and the states table shows your rank in all 50 at once.
+- **The tornado.** Each ring is a place, the busiest at the top. Its red half is public commits; its blue half is everything else: pull requests, reviews, issues, new repositories, and private contributions for people who show them. Click a ring to go down a level, from divisions to states to a state's busiest people. Louisiana by parish and Mississippi by county have tornadoes of their own.
+- **Find yourself.** Type your GitHub login to see your ranks in your parish or county, state, division, region, and the country, with you in gold in the tornado, the lists, and the map. `?me=<login>` links straight to anyone's ranks. Open any other state to see where you would rank there, and the states table shows your rank in all 50 at once.
 - **Add yourself.** Not on it? The **Add me** button opens a one-click issue; [a bot](https://github.com/wbp318/github-leaderboard/blob/main/.github/workflows/add-me.yml) checks your profile location, adds you, and replies with a link to your ranks in a few minutes. You are refreshed daily after that.
-- **Leaderboards** in eight categories (total, public commits, private, pull requests, reviews, issues, new repositories, followers) for any state, division, region, or Louisiana parish, with each person's location. Search by login, name, or place.
+- **Leaderboards** in eight categories (total, public commits, private, pull requests, reviews, issues, new repositories, followers) for any state, division, region, Louisiana parish, or Mississippi county, with each person's location. Search by login, name, or place.
 - **A map** of all 50 states, coloured by contributions, people counted, or average.
-- **Tables** of the states, the regions and divisions, and all 64 Louisiana parishes.
+- **Tables** of the states, the regions and divisions, all 64 Louisiana parishes, and all 82 Mississippi counties.
 
 ## How it works
 
@@ -49,17 +49,17 @@ flowchart TD
     search["GitHub search<br/>users whose location names each state,<br/>by followers and by repositories"] --> cands[("candidates")]
     cands --> prof["GitHub GraphQL<br/>location, followers, public repos, last push"]
     prof --> place{"src/states.mjs<br/>which state, if any?"}
-    place -->|"pushed in the last year:<br/>the likeliest 80 a state"| contrib["GitHub GraphQL<br/>a year of contributions"]
+    place -->|"pushed in the last year:<br/>the likeliest 80 a state,<br/>everyone in Louisiana and Mississippi"| contrib["GitHub GraphQL<br/>a year of contributions"]
     contrib --> audit["scripts/audit.mjs<br/>what each rule placed and turned away"]
-    audit --> build["scripts/build.mjs<br/>states, divisions, regions, parishes, rankings"]
+    audit --> build["scripts/build.mjs<br/>states, divisions, regions, parishes and counties, rankings"]
     build --> page["site/leaderboard.html<br/>published to GitHub Pages"]
     daily(["GitHub Actions, every day"]) -.-> search
     daily -.-> page
 ```
 
 1. **Find people.** [scripts/collect.mjs](scripts/collect.mjs) searches GitHub for users whose location names each state, by its name and by its two-letter code, and Louisiana again by its towns.
-2. **Place them.** [src/states.mjs](src/states.mjs) reads each free-text location. Two-letter codes are shared around the world (MS is also Mato Grosso do Sul in Brazil, DE is Germany, IN is India, WA is Western Australia), so a code only counts when the city in front of it is not a known place abroad that uses the same code. Louisiana goes down to the parish with [src/counties/la.mjs](src/counties/la.mjs). [docs/placement.md](docs/placement.md) explains the rules, and the [tests](test/states.test.mjs) hold the hard cases.
-3. **Look up contributions.** For each state, the 80 people most likely to be busiest (by public repositories and followers, among those who pushed code in the last year) get their year of contributions looked up, and every active Louisianan does for the parish view. States are always compared on the same 80 each. The busiest accounts are too big for GitHub to count in one query, so they are counted the long way rather than dropped; bot and test accounts are left off.
+2. **Place them.** [src/states.mjs](src/states.mjs) reads each free-text location. Two-letter codes are shared around the world (MS is also Mato Grosso do Sul in Brazil, DE is Germany, IN is India, WA is Western Australia), so a code only counts when the city in front of it is not a known place abroad that uses the same code. Louisiana goes down to the parish and Mississippi to the county with [src/counties.mjs](src/counties.mjs), and a few town names that mean only one of them ("New Orleans", "Hattiesburg") place someone there without the state. [docs/placement.md](docs/placement.md) explains the rules, and the [tests](test/states.test.mjs) hold the hard cases.
+3. **Look up contributions.** For each state, the 80 people most likely to be busiest (by public repositories and followers, among those who pushed code in the last year) get their year of contributions looked up. In Louisiana and Mississippi everyone active is looked up (up to 500 a state), for the parish and county views. States are always compared on the same 80 each. The busiest accounts are too big for GitHub to count in one query, so they are counted the long way rather than dropped; bot and test accounts are left off.
 4. **Audit and build.** [scripts/audit.mjs](scripts/audit.mjs) lists what each rule placed and what it turned away; [scripts/build.mjs](scripts/build.mjs) adds everything up and writes it into [web/template.html](web/template.html).
 5. **Every day** at about 4 a.m. Central, [a GitHub Actions workflow](.github/workflows/refresh.yml) refreshes what has gone stale (contributions daily, searches and profiles weekly), saves the data to the [`data` branch](https://github.com/wbp318/github-leaderboard/tree/data), audits it, and publishes the page. It uses the workflow's own token, so there are no secrets. [docs/data.md](docs/data.md) describes every file.
 

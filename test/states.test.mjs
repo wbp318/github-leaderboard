@@ -78,9 +78,32 @@ const CASES = [
   ["East Carroll Parish, Louisiana", "LA"],
   ["New Orleans, LA, USA, Earth, Solar System, Local Group", "LA"],
 
+  // Mississippi towns without the state.
+  ["Hattiesburg", "MS"],
+  ["Starkville", "MS"],
+  ["Tupelo", "MS"],
+  ["Pascagoula, USA", "MS"],
+  ["Ocean Springs", "MS"],
+  ["Bay St Louis", "MS"],
+  ["Ole Miss", "MS"],
+  ["Southern Miss", "MS"],
+  // But not names shared with a town elsewhere, and a state code still wins.
+  ["Jackson", null],
+  ["Columbus", null],
+  ["Oxford", null],
+  ["Meridian", null],
+  ["Gulfport", null],
+  ["Vicksburg", null],
+  ["Tupelo, OK", "OK"],
+  ["Natchez, LA", "LA"],
+  ["Southern Missouri", "MO"],
+  ["Tupelo, Brazil", null],
+  ["Biloxi, Deutschland", null],
+
   // Brazil: Mato Grosso do Sul (MS), Santa Catarina (SC), Alagoas (AL).
   ["Campo Grande, MS", null],
   ["Campo Grande MS", null],
+  ["Dourados, MS", null],
   ["Amambai MS", null],
   ["Campo Grande - MS", null],
   ["Nova Andradina, MS.", null],
@@ -162,4 +185,5 @@ test("place says which rule placed a location", () => {
   assert.deepEqual(place("Jackson, MS"), { state: "MS", rule: "code" });
   assert.deepEqual(place("Austin, Texas"), { state: "TX", rule: "name" });
   assert.deepEqual(place("New Orleans"), { state: "LA", rule: "city" });
+  assert.deepEqual(place("Hattiesburg"), { state: "MS", rule: "city" });
 });

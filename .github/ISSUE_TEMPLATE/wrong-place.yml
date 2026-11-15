@@ -1,5 +1,5 @@
 name: Someone is in the wrong place
-description: A person is counted in the wrong state or parish, counted when they are not in the US, or left out.
+description: A person is counted in the wrong state, parish, or county, counted when they are not in the US, or left out.
 title: "Wrong place: "
 labels: [placement]
 body:
