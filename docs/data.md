@@ -60,6 +60,24 @@ The list of people added is the authors of issues labelled `added`; GitHub is th
 
 The [placement audit](placement.md#checking-the-rules): what each rule placed, what the guards turned away, and every city accepted under a shared code.
 
+### history.json
+
+One record a day of what the page showed for each state, for the sparklines in the states table and the chart beside a state's tornado. It is stored in columns to stay small: the dates once, then one number a day for each state.
+
+```json
+{
+  "dates": ["2026-11-13", "2026-11-15"],
+  "people": { "AL": [80, 80], "AK": [80, 80], "...": [] },
+  "total": { "AL": [182987, 175737], "AK": [165021, 166707], "...": [] }
+}
+```
+
+- `dates`: the days with a record, oldest first. A day is the data's own refresh date (the newest lookup in users.json, in UTC), not the day the script ran, so a second refresh on the same day replaces that day's record.
+- `people`: how many people the state was compared on that day (its sample of 80). `total`: their contributions. These are the states table's numbers; the average is `total / people`. `null` means no record for that state that day.
+- Added by [scripts/history.mjs](../scripts/history.mjs) after each refresh that finished with data that looks whole, then saved with the rest. Builds for a push or a pull request only read it. The first refresh without a history starts it from the data it begins with, so it starts with two days.
+- About 180 KB for a year of all 50 states. `npm run check:data` fails if a year of records like these would take more than 1 MB, if the arrays do not match the dates, or if the file is not well formed; having no history yet is fine. The page shows the last year.
+- Each record uses the placement rules of the day it was added. `node scripts/history.mjs --backfill` rebuilds missing days, using today's rules, from the data branch's commits and their reflog. The branch is replaced each day, so only a clone that fetched it over several days has older ones.
+
 ## How it is collected
 
 [scripts/collect.mjs](../scripts/collect.mjs) uses GitHub's search API (30 searches a minute) and GraphQL API. It saves as it goes and rerunning it fetches only what is missing or stale, so it can stop at any point. GitHub limits GraphQL by compute time as well as by points: the collector runs two or three queries at once and drops to one when GitHub pushes back, and waits for the hourly reset when the points run out. The daily run uses the workflow's own token (1,000 points an hour), which is enough because only contributions are refreshed every day.

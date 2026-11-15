@@ -110,6 +110,82 @@ check((await phone.evaluate(() => document.documentElement.scrollWidth - window.
 await phone.locator("#cv").scrollIntoViewIfNeeded();
 await phone.waitForTimeout(800);
 check((await lit(phone)) > 1000, "the tornado draws on a phone");
+
+// History: a sparkline for each state and a chart beside a state's tornado. The page is built again,
+// into a temporary folder, from a small history made here, so the test does not depend on how many
+// days the data branch has; then from one day and from none, when a note says when history starts.
+{
+  const { execFileSync } = await import("node:child_process");
+  const { mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { fileURLToPath, pathToFileURL } = await import("node:url");
+  const { NAMES } = await import("../src/states.mjs");
+  const dir = mkdtempSync(join(tmpdir(), "history-"));
+  const build = (days, name) => {
+    let history = join(dir, "none.json");
+    if (days.length) {
+      history = join(dir, `${name}.json`);
+      const each = (f) => Object.fromEntries(NAMES.map(([ab]) => [ab, days.map(f)]));
+      writeFileSync(history, JSON.stringify({ dates: days.map((d) => d[0]), people: each(() => 80), total: each((d) => d[1]) }));
+    }
+    const out = join(dir, `${name}.html`);
+    execFileSync(process.execPath, [fileURLToPath(new URL("../scripts/build.mjs", import.meta.url))], { env: { ...process.env, HISTORY: history, OUT: out }, stdio: ["ignore", "ignore", "inherit"] });
+    return pathToFileURL(out).href;
+  };
+  // Without waiting for what is not there: a missing element is a failed check, not a timeout.
+  const attr = async (loc, name) => ((await loc.count()) ? loc.first().getAttribute(name) : null);
+  const text = async (loc) => ((await loc.count()) ? loc.first().innerText() : "");
+  // Every state: 100,000 on Jan 5, then up 4% by Jan 8, with Jan 7 missing.
+  const three = build([["2026-01-05", 100000], ["2026-01-06", 101000], ["2026-01-08", 104000]], "three");
+  const hist = await browser.newPage({ viewport: { width: 1340, height: 900 } });
+  watch(hist, "history");
+  await hist.goto(three);
+  await hist.waitForTimeout(500);
+  const ab = await hist.evaluate(() => D.states.find((s) => s.counted && s.people > 0).ab);
+  check((await hist.locator("#stateTable thead th", { hasText: "Since Jan 5" }).count()) === 1, "with a history, the states table has a Since column");
+  const rows = await hist.locator("#stateTable tbody tr").count();
+  check(rows > 0 && (await hist.locator("#stateTable td.spark svg[role=img] polyline").count()) === rows, `every state in it has a sparkline (${rows})`);
+  check((await attr(hist.locator("#stateTable td.spark svg"), "aria-label")) === "Contributions up 4.0% since Jan 5", "a sparkline says how the state moved, in words");
+  check((await hist.locator("#histNote").count()) === 1 && (await hist.locator("#histNote").isHidden()), "and there is no note about when history starts");
+  await hist.evaluate((v) => (location.hash = v), `#state:${ab}`);
+  await hist.waitForTimeout(400);
+  const points = await attr(hist.locator("#side svg.chart polyline.line"), "points");
+  check(points?.trim().split(/\s+/).length === 3, `a state's tornado (${ab}) has a chart of its total, a point a day`);
+  const readout = () => text(hist.locator("#side p.readout"));
+  check((await readout()) === "104,000 on Jan 8 · up 4.0% since Jan 5", "under it, the latest day and the change since the first");
+  const chart = hist.locator("#side svg.chart");
+  if (await chart.count()) {
+    await chart.focus();
+    await hist.keyboard.press("Home");
+  }
+  check((await readout()) === "100,000 on Jan 5 · 80 people, 1,250 average", "the arrow keys read each day");
+  await hist.keyboard.press("ArrowRight");
+  check((await readout()).startsWith("101,000 on Jan 6"), "one day at a time");
+  await hist.close();
+
+  const histPhone = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  watch(histPhone, "history phone");
+  await histPhone.goto(`${three}#state:${ab}`);
+  await histPhone.waitForTimeout(500);
+  check((await histPhone.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0, "with the history, nothing scrolls sideways on a phone");
+  const box = (await histPhone.locator("#side svg.chart").count()) ? await histPhone.locator("#side svg.chart").boundingBox() : null;
+  check(box !== null && box.width > 200 && box.x + box.width <= 390, "and the chart fits the phone");
+  await histPhone.close();
+
+  for (const [days, start] of [[[["2026-01-05", 100000]], "History starts Jan 5."], [[], "History starts with the next daily refresh."]]) {
+    const one = await browser.newPage({ viewport: { width: 1340, height: 900 } });
+    watch(one, `history, ${days.length} days`);
+    await one.goto(`${build(days, `days${days.length}`)}#state:${ab}`);
+    await one.waitForTimeout(400);
+    const note = await text(one.locator("#histNote"));
+    check(note.startsWith(start) && (await one.locator("#stateTable td.spark").count()) === 0, `with ${days.length ? "one day" : "no history"}, the table says "${start}" instead of drawing lines`);
+    check((await one.locator("#side").innerText()).includes(`${start} The chart appears after a second day.`) && (await one.locator("#side svg.chart").count()) === 0, "and so does the side panel, with no chart");
+    check((await lit(one)) > 1000, "and the tornado still draws");
+    await one.close();
+  }
+  rmSync(dir, { recursive: true, force: true });
+}
 await browser.close();
 
 check(errors.length === 0, `no script errors${errors.length ? `:\n  ${errors.join("\n  ")}` : ""}`);

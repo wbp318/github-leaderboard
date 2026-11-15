@@ -12,6 +12,7 @@
     "collect": "node scripts/collect.mjs",
     "audit": "node scripts/audit.mjs",
     "build": "node scripts/build.mjs",
+    "history": "node scripts/history.mjs",
     "test": "node --test",
     "e2e": "node e2e/page.mjs",
     "check:links": "node scripts/check-links.mjs",
