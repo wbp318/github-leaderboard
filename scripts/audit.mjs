@@ -4,7 +4,7 @@
 // two-letter codes other places share, every city that was accepted, for a human to read.
 //   node scripts/audit.mjs   (or: npm run audit)
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { NAMES, place } from "../src/states.mjs";
+import { NAMES, place, stateCodeAtEnd } from "../src/states.mjs";
 
 const file = (n) => new URL(`../data/${n}`, import.meta.url);
 if (!existsSync(file("profiles.json"))) {
@@ -16,7 +16,6 @@ const users = existsSync(file("users.json")) ? JSON.parse(readFileSync(file("use
 
 // Codes that other countries, states, or provinces also write after a city.
 const SHARED = ["AL", "AR", "AZ", "CA", "CO", "CT", "DE", "FL", "GA", "ID", "IL", "IN", "KY", "LA", "MA", "MD", "ME", "MI", "MN", "MO", "MS", "MT", "NC", "NE", "NH", "OR", "PA", "RI", "SC", "SD", "TN", "UT", "VA", "VT", "WA"];
-const CODE_AT_END = /,\s*([A-Z]{2})\.?\s*(?:,?\s*(?:USA|U\.S\.A\.?|US|U\.S\.|United States(?: of America)?))?\s*$/;
 
 const byState = Object.fromEntries(NAMES.map(([ab]) => [ab, { code: 0, name: 0, city: 0, looked: 0, cities: new Map() }]));
 const turnedAway = new Map(); // code -> Map(location -> people)
@@ -28,11 +27,11 @@ for (const [login, p] of Object.entries(profiles)) {
   const r = place(loc);
   if (!r) {
     unplaced++;
-    const m = loc.match(CODE_AT_END);
-    if (m && byState[m[1]]) {
-      const t = turnedAway.get(m[1]) ?? new Map();
+    const code = stateCodeAtEnd(loc);
+    if (code) {
+      const t = turnedAway.get(code.state) ?? new Map();
       t.set(loc, (t.get(loc) ?? 0) + 1);
-      turnedAway.set(m[1], t);
+      turnedAway.set(code.state, t);
     }
     continue;
   }
@@ -41,7 +40,7 @@ for (const [login, p] of Object.entries(profiles)) {
   s[r.rule]++;
   if (users[login]) s.looked++;
   if (r.rule === "code") {
-    const city = loc.slice(0, loc.match(CODE_AT_END).index).trim();
+    const { city } = stateCodeAtEnd(loc);
     s.cities.set(city, (s.cities.get(city) ?? 0) + 1);
   }
 }
@@ -55,7 +54,7 @@ const lines = [
   "",
   "## By state",
   "",
-  "| State | Placed | By \"City, ST\" | By state name | By Louisiana town | Contributions looked up |",
+  "| State | Placed | By state code | By state name | By Louisiana town | Contributions looked up |",
   "|---|---:|---:|---:|---:|---:|",
   ...NAMES.map(([ab, name]) => {
     const s = byState[ab];
