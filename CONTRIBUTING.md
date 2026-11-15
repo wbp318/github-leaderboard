@@ -19,7 +19,8 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 | Path | What it is |
 |---|---|
 | [src/states.mjs](src/states.mjs) | Reads a free-text profile location and decides which state it names, if any. The rules most likely to need you. |
-| [src/parishes.mjs](src/parishes.mjs) | Louisiana's 64 parishes and the towns and universities in each. |
+| [src/counties.mjs](src/counties.mjs) | The states with county lists, and which county a location names. |
+| [src/counties/la.mjs](src/counties/la.mjs) | Louisiana's 64 parishes and the towns and universities in each. |
 | [src/opt-out.txt](src/opt-out.txt) | People who asked to be left off. |
 | [src/exclude.mjs](src/exclude.mjs) | Who is left off: bot and test accounts, and the opt-out list. |
 | [scripts/collect.mjs](scripts/collect.mjs) | Gathers people and their contributions from GitHub's API into `data/`. |

@@ -212,9 +212,15 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
 </section>
 
 <section id="parishes">
-  <h2>Louisiana, parish by parish</h2>
-  <p class="lede">All 64 parishes. People are placed by the town, city, university, or parish named in their GitHub location; those who wrote only "Louisiana" are under "Parish not given". Louisiana was also searched by city name, so it is covered more deeply than other states.</p>
-  <div class="panel"><div class="scroll"><table id="parishTable"></table></div></div>
+  <h2 id="countyTitle">Louisiana, parish by parish</h2>
+  <p class="lede" id="countyLede">All 64 parishes. People are placed by the town, city, university, or parish named in their GitHub location; those who wrote only "Louisiana" are under "Parish not given". Louisiana was also searched by city name, so it is covered more deeply than other states.</p>
+  <div class="panel">
+    <div class="bar" id="countyBar">
+      <span class="lbl">State</span>
+      <fieldset class="seg" id="countyState" aria-label="Whose counties"></fieldset>
+    </div>
+    <div class="scroll"><table id="parishTable"></table></div>
+  </div>
 </section>
 
 <footer><p id="method"></p><p>Built with no frameworks: one HTML file, a canvas, and GitHub's API. The code, the placement rules, and the daily refresh are at <a href="https://github.com/wbp318/github-leaderboard">github.com/wbp318/github-leaderboard</a>. Someone in the wrong state? <a href="https://github.com/wbp318/github-leaderboard/issues/new">Open an issue</a> or add a test case and send a pull request.</p></footer>
@@ -237,6 +243,7 @@ function h(tag, attrs = {}, kids = []) {
 
 // ---------------------------------------------------------------- the data
 // P rows: [login, name, state, total, commits, private, prs, reviews, issues, repos, followers, parish]
+// parish is the county (a parish in Louisiana), for the states with county lists, else "".
 const F = { login: 0, name: 1, state: 2, total: 3, commits: 4, private: 5, prs: 6, reviews: 7, issues: 8, repos: 9, followers: 10, parish: 11, fair: 12, location: 13 };
 const CATS = [
   ["total", "Total contributions"], ["commits", "Public commits"], ["private", "Private contributions"],
@@ -246,6 +253,15 @@ const STATE = Object.fromEntries(D.states.map((s) => [s.ab, s]));
 const COUNTED = D.states.filter((s) => s.counted);
 const REGIONS = D.regions.map((r) => r.name);
 const SCOPE = D.scopeName.charAt(0).toUpperCase() + D.scopeName.slice(1);
+// The states with county lists, everyone active there looked up: D.counties.LA = { kind: "parish",
+// kinds: "parishes", rows }. A view or scope of one names the kind and the state: parish:LA, county:MS.
+const COUNTIES = D.counties;
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const isCounties = (kind, ab) => COUNTIES[ab]?.kind === kind;
+const notGiven = (ab) => `${cap(COUNTIES[ab].kind)} not given`;
+const andList = (xs) => (xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")}, and ${xs.at(-1)}`);
+const DEEP = Object.keys(COUNTIES).map((ab) => STATE[ab].name);
+const KINDS = [...new Set(Object.values(COUNTIES).map((c) => c.kind))];
 document.title = `GitHub Contribution Tornado: ${SCOPE}`;
 $("#title").textContent = `GitHub Contribution Tornado: ${SCOPE}`;
 // Whoever the visitor says they are (setMe, below); null until then.
@@ -253,12 +269,13 @@ let ME = null;
 const BY_LOGIN = new Map(D.P.map((p) => [p[F.login].toLowerCase(), p]));
 const fairOrMe = (p) => p[F.fair] === 1 || p === ME;
 const inScope = (scope) => {
-  const [kind, val] = scope.split(":");
+  const [kind, val, county] = scope.split(":");
   if (kind === "us" || kind === "all") return fairOrMe;
   if (kind === "region") return (p) => fairOrMe(p) && STATE[p[F.state]].region === val;
   if (kind === "division") return (p) => fairOrMe(p) && STATE[p[F.state]].division === val;
   if (kind === "state") return (p) => p[F.state] === val;
-  if (kind === "parish") return (p) => p[F.state] === "LA" && p[F.parish] === (val === "-" ? "" : val);
+  // One county: parish:LA:Caddo, county:MS:Hinds, or parish:LA:- for those who named none.
+  if (isCounties(kind, val)) return (p) => p[F.state] === val && p[F.parish] === (county === "-" ? "" : county);
   return () => false;
 };
 function ranked(scope, cat) {
@@ -280,7 +297,12 @@ const rankOf = (scope, cat = "total") => {
 };
 
 // ---------------------------------------------------------------- header and your ranks
-$("#sub").textContent = `The last 12 months of GitHub contributions for ${fmt(D.P.length)} people whose profile places them in ${D.scopeName}. States, divisions and regions are compared on the same ${D.perState} a state (${fmt(D.compared)} people), the likeliest to be busiest; Louisiana's own view and its parishes count everyone active there. Private contributions count for people who show them on their profile.`;
+{
+  // "Louisiana's own view and its parishes", or for more states "...own views and their parishes and counties".
+  const kinds = [...new Set(Object.values(COUNTIES).map((c) => c.kinds))];
+  const deep = DEEP.length === 1 ? `${DEEP[0]}'s own view and its ${kinds[0]}` : `${andList(DEEP.map((n) => `${n}'s`))} own views and their ${andList(kinds)}`;
+  $("#sub").textContent = `The last 12 months of GitHub contributions for ${fmt(D.P.length)} people whose profile places them in ${D.scopeName}. States, divisions and regions are compared on the same ${D.perState} a state (${fmt(D.compared)} people), the likeliest to be busiest${DEEP.length ? `; ${deep} count everyone active there` : ""}. Private contributions count for people who show them on their profile.`;
+}
 // When the data was refreshed and when it next will be, in the visitor's own time; kept current while the page is open.
 function renderFresh() {
   const at = new Date(D.refreshed);
@@ -335,9 +357,10 @@ function renderYou() {
   const tiles = [
     [`${ME[F.login]}: contributions`, fmt(ME[F.total]), `${fmt(ME[F.commits])} public commits · ${fmt(ME[F.private])} private`],
   ];
-  if (ME[F.parish]) {
-    const r = rankOf(`parish:${ME[F.parish]}`);
-    if (r) tiles.push([`${ME[F.parish]} Parish`, `#${r.rank}`, `of ${fmt(r.of)} counted`]);
+  const c = COUNTIES[ME[F.state]];
+  if (c && ME[F.parish]) {
+    const r = rankOf(`${c.kind}:${ME[F.state]}:${ME[F.parish]}`);
+    if (r) tiles.push([`${ME[F.parish]} ${cap(c.kind)}`, `#${r.rank}`, `of ${fmt(r.of)} counted`]);
   }
   for (const [label, scope] of [[st.name, `state:${st.ab}`], [st.division, `division:${st.division}`], [`The ${st.region}`, `region:${st.region}`], [SCOPE, "us"]]) {
     const r = rankOf(scope);
@@ -368,8 +391,8 @@ function viewRows(view) {
   if (kind === "region") {
     return COUNTED.filter((s) => s.region === val).map((s) => ({ ...sumRows(s, s.name, `state:${s.ab}`), me: ME && ME[F.state] === s.ab, tip: s.division }));
   }
-  if (kind === "parish") {
-    return D.parishes.filter((p) => p.people > 0).map((p) => ({ ...sumRows(p, p.name, null), me: ME && ME[F.state] === "LA" && (ME[F.parish] || "Parish not given") === p.name, tip: "Louisiana" }));
+  if (isCounties(kind, val)) {
+    return COUNTIES[val].rows.filter((p) => p.people > 0).map((p) => ({ ...sumRows(p, p.name, null), me: ME && ME[F.state] === val && (ME[F.parish] || notGiven(val)) === p.name, tip: STATE[val].name }));
   }
   // One state: its 12 busiest people, plus you: where you are if you live there, and where you
   // would be if you did not.
@@ -397,7 +420,7 @@ const viewTitle = (view) => {
   if (kind === "us") return `${SCOPE}, by division`;
   if (kind === "region") return `The ${val}, by state`;
   if (kind === "division") return `${val}, by state`;
-  if (kind === "parish") return "Louisiana, by parish";
+  if (isCounties(kind, val)) return `${STATE[val].name}, by ${kind}`;
   return `${STATE[val].name}: its busiest people`;
 };
 const parentOf = (view) => {
@@ -405,7 +428,7 @@ const parentOf = (view) => {
   if (kind === "us" || kind === "all") return null;
   if (kind === "region" || kind === "division") return COUNTED.length > 20 ? "us" : "all";
   if (kind === "state") return COUNTED.length > 20 ? `division:${STATE[val].division}` : "all";
-  if (kind === "parish") return "state:LA";
+  if (isCounties(kind, val)) return `state:${val}`;
   return null;
 };
 
@@ -421,7 +444,7 @@ function buildViewSelect() {
   const g3 = h("optgroup", { label: "A division, by state" });
   for (const d of D.divisions) g3.appendChild(h("option", { value: `division:${d.name}`, text: d.name }));
   sel.appendChild(g3);
-  sel.appendChild(h("option", { value: "parish:LA", text: "Louisiana, by parish" }));
+  for (const [ab, c] of Object.entries(COUNTIES)) sel.appendChild(h("option", { value: `${c.kind}:${ab}`, text: viewTitle(`${c.kind}:${ab}`) }));
   const g2 = h("optgroup", { label: "A state, by person" });
   for (const s of [...COUNTED].sort((a, b) => a.name.localeCompare(b.name))) g2.appendChild(h("option", { value: `state:${s.ab}`, text: s.name }));
   sel.appendChild(g2);
@@ -783,8 +806,8 @@ function renderSide() {
   const card = (title, kids) => h("div", { class: "card" }, [h("h4", { text: title }), ...kids]);
   const kv = (k, v) => h("div", { class: "kv" }, [h("span", { text: k }), h("b", { text: v })]);
   const [kind, val] = state.view.split(":");
-  const scope = kind === "parish" ? "state:LA" : state.view;
-  const agg = kind === "us" || kind === "all" ? D.us : kind === "region" ? D.regions.find((r) => r.name === val) : kind === "division" ? D.divisions.find((d) => d.name === val) : STATE[kind === "parish" ? "LA" : val].all;
+  const scope = isCounties(kind, val) ? `state:${val}` : state.view;
+  const agg = kind === "us" || kind === "all" ? D.us : kind === "region" ? D.regions.find((r) => r.name === val) : kind === "division" ? D.divisions.find((d) => d.name === val) : STATE[val].all;
   side.appendChild(card(viewTitle(state.view), [
     h("div", { class: "big", text: fmt(agg.total) }),
     h("p", { text: "contributions in the last 12 months" }),
@@ -833,7 +856,7 @@ function buildLists() {
   g("Regions", REGIONS.map((r) => [`region:${r}`, r]));
   g("Divisions", D.divisions.map((d) => [`division:${d.name}`, d.name]));
   g("States", [...COUNTED].sort((a, b) => a.name.localeCompare(b.name)).map((s) => [`state:${s.ab}`, s.name]));
-  g("Louisiana parishes", D.parishes.filter((p) => p.people > 0).map((p) => [`parish:${p.name === "Parish not given" ? "-" : p.name}`, p.name]));
+  for (const [ab, c] of Object.entries(COUNTIES)) g(`${STATE[ab].name} ${c.kinds}`, c.rows.filter((p) => p.people > 0).map((p) => [`${c.kind}:${ab}:${p.name === notGiven(ab) ? "-" : p.name}`, p.name]));
   sel.value = "us";
   sel.addEventListener("change", renderBoard);
   $("#find").addEventListener("input", renderBoard);
@@ -845,7 +868,10 @@ function renderBoard() {
   const q = $("#find").value.trim().toLowerCase();
   const t = $("#board");
   t.textContent = "";
-  t.appendChild(h("thead", {}, [h("tr", {}, [h("th", { class: "num", text: "#" }), h("th", { text: "Login" }), h("th", { text: "Location" }), h("th", { text: "Name" }), h("th", { text: "State" }), h("th", { text: "Parish" }), h("th", { class: "num", text: CATS.find((c) => c[0] === cat)[1] }), h("th", { class: "num", text: "Total" })])]));
+  // "Parish" in Louisiana, "County" in Mississippi, both where the list can hold either.
+  const here = COUNTIES[scope.split(":")[1]];
+  const countyHead = here ? cap(here.kind) : cap(KINDS.join(" or "));
+  t.appendChild(h("thead", {}, [h("tr", {}, [h("th", { class: "num", text: "#" }), h("th", { text: "Login" }), h("th", { text: "Location" }), h("th", { text: "Name" }), h("th", { text: "State" }), h("th", { text: countyHead }), h("th", { class: "num", text: CATS.find((c) => c[0] === cat)[1] }), h("th", { class: "num", text: "Total" })])]));
   const tb = h("tbody");
   const row = (p, i) => {
     const tr = h("tr", { class: p === ME ? "me" : "" }, [
@@ -854,7 +880,7 @@ function renderBoard() {
       h("td", { class: "loc", title: p[F.location] || "", text: p[F.location] || "" }),
       h("td", { text: p[F.name] || "" }),
       h("td", { text: STATE[p[F.state]].name }),
-      h("td", { text: p[F.state] === "LA" ? p[F.parish] || "not given" : "" }),
+      h("td", { text: COUNTIES[p[F.state]] ? p[F.parish] || "not given" : "" }),
       h("td", { class: "num", text: fmt(p[k]) }),
       h("td", { class: "num", text: fmt(p[F.total]) }),
     ]);
@@ -953,11 +979,38 @@ function renderTables() {
       $("#tornado").scrollIntoView({ behavior: "smooth" });
     },
   );
-  const myParish = ME && ME[F.state] === "LA" ? ME[F.parish] || "Parish not given" : null;
+  renderCountyTable();
+}
+// One state's counties at a time: yours, if your state has them, until you pick another.
+let countyAb = null;
+const COUNTY_NOTE = { LA: "Louisiana was also searched by city name, so it is covered more deeply than other states." };
+function buildCountySwitch() {
+  const abs = Object.keys(COUNTIES);
+  if (!abs.length) return $("#parishes").remove();
+  if (abs.length < 2) return $("#countyBar").remove();
+  for (const ab of abs) {
+    const b = h("button", { type: "button", "data-ab": ab, "aria-pressed": "false", text: STATE[ab].name });
+    b.addEventListener("click", () => {
+      countyAb = ab;
+      renderCountyTable();
+    });
+    $("#countyState").appendChild(b);
+  }
+}
+function renderCountyTable() {
+  const abs = Object.keys(COUNTIES);
+  if (!abs.length) return;
+  const ab = countyAb ?? (COUNTIES[ME?.[F.state]] ? ME[F.state] : abs[0]);
+  const c = COUNTIES[ab];
+  const name = STATE[ab].name;
+  $("#countyTitle").textContent = `${name}, ${c.kind} by ${c.kind}`;
+  $("#countyLede").textContent = `All ${fmt(c.rows.length - 1)} ${c.kinds}. People are placed by the town, city, university, or ${c.kind} named in their GitHub location; those who wrote only "${name}" are under "${notGiven(ab)}".${COUNTY_NOTE[ab] ? ` ${COUNTY_NOTE[ab]}` : ""}`;
+  for (const b of document.querySelectorAll("#countyState button")) b.setAttribute("aria-pressed", String(b.dataset.ab === ab));
+  const mine = ME && ME[F.state] === ab ? ME[F.parish] || notGiven(ab) : null;
   sortable(
     $("#parishTable"),
     [
-      { label: "Parish", get: (r) => r.name },
+      { label: cap(c.kind), get: (r) => r.name },
       { label: "People counted", get: (r) => r.people, num: true, fmt },
       { label: "Contributions", get: (r) => r.total, num: true, fmt, sort: true },
       { label: "Average", get: (r) => r.average, num: true, fmt },
@@ -965,9 +1018,9 @@ function renderTables() {
       { label: "Private", get: (r) => r.private, num: true, fmt },
       topCell,
     ],
-    D.parishes.map((p) => ({ ...p, me: p.name === myParish })),
+    c.rows.map((p) => ({ ...p, me: p.name === mine })),
     (r) => {
-      $("#scope").value = `parish:${r.name === "Parish not given" ? "-" : r.name}`;
+      $("#scope").value = `${c.kind}:${ab}:${r.name === notGiven(ab) ? "-" : r.name}`;
       renderBoard();
       $("#lists").scrollIntoView({ behavior: "smooth" });
     },
@@ -1051,7 +1104,7 @@ for (const b of document.querySelectorAll("#mapby button")) {
 }
 
 // ---------------------------------------------------------------- method
-$("#method").textContent = `How this was made: GitHub's search found users whose profile location names a state in ${D.scopeName} (its full name, or "City, ST"), the top few hundred per state by followers and by number of repositories, plus Louisiana by city name. Of those who pushed code in the last year, up to ${D.perState} a state with the most public repositories and followers (and everyone in Louisiana) had their contributions looked up, so very active people who work mostly in private can be missed. Each person's last 12 months of contributions came from GitHub's API. People are placed by what their profile says, and a two-letter code is checked against the places abroad that share it (MS is also Mato Grosso do Sul in Brazil, DE is Germany, IN is India); locations that stay ambiguous (Georgia the country, Washington DC) are left out, and so are accounts named as bots. It is a sample of each state's most visible GitHub users, not a census: ${fmt(D.candidates)} search results, ${fmt(D.fetched)} people looked up, ${fmt(D.P.length)} placed in a state.`;
+$("#method").textContent = `How this was made: GitHub's search found users whose profile location names a state in ${D.scopeName} (its full name, or "City, ST"), the top few hundred per state by followers and by number of repositories, plus Louisiana by city name. Of those who pushed code in the last year, up to ${D.perState} a state with the most public repositories and followers${DEEP.length ? ` (and everyone in ${andList(DEEP)})` : ""} had their contributions looked up, so very active people who work mostly in private can be missed. Each person's last 12 months of contributions came from GitHub's API. People are placed by what their profile says, and a two-letter code is checked against the places abroad that share it (MS is also Mato Grosso do Sul in Brazil, DE is Germany, IN is India); locations that stay ambiguous (Georgia the country, Washington DC) are left out, and so are accounts named as bots. It is a sample of each state's most visible GitHub users, not a census: ${fmt(D.candidates)} search results, ${fmt(D.fetched)} people looked up, ${fmt(D.P.length)} placed in a state.`;
 
 // ---------------------------------------------------------------- find yourself
 const REMEMBER = "github-leaderboard.me";
@@ -1098,7 +1151,7 @@ function notFound(login) {
     .slice(0, 5);
   const add = h("a", { class: "btn go addme", href: "https://github.com/wbp318/github-leaderboard/issues/new?template=add-me.yml", target: "_blank", rel: "noopener", text: "Add me" });
   msg.append(
-    `${login} is not on the leaderboard yet: each state looks up only the ${D.perState} people likeliest to be busiest (and Louisiana everyone active). `,
+    `${login} is not on the leaderboard yet: each state looks up only the ${D.perState} people likeliest to be busiest${DEEP.length ? ` (and ${andList(DEEP)} everyone active)` : ""}. `,
     add,
     " opens a one-click GitHub issue; a bot adds whoever opens it and replies with a link to their ranks in a few minutes. Your profile's location must name a US state. ",
   );
@@ -1158,6 +1211,7 @@ $("#forget").addEventListener("click", () => setMe(""));
 // ---------------------------------------------------------------- start
 buildViewSelect();
 buildLists();
+buildCountySwitch();
 renderYou();
 renderBoard();
 renderTables();

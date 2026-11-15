@@ -54,7 +54,7 @@ flowchart TD
 1. **Another country.** A location that names another country (Brazil, India, Germany, and about a hundred more) or uses a script no US town is written in is not placed, unless it also says USA. US towns that share a country's name are listed so they still count: Norway, ME; Poland, OH; Little Canada, MN; Brazil, IN.
 2. **A trailing state code wins.** A two-letter code can follow a comma in any case ("Atlanta, Ga"), or it can be uppercase after a space ("Austin TX"). Either form can be followed by USA. The code counts only if the city is not in the `ELSEWHERE` list for that code and carries no accents a US town in that state would not. Delaware and Idaho are stricter: their codes are written far more often by people in Germany and Indonesia, so only towns listed for those states count.
 3. **The state named last.** "Kansas City, Missouri" is Missouri and "Washington Heights, New York" is New York. On a tie the longer name wins, so "West Virginia" is not Virginia.
-4. **Louisiana towns.** "New Orleans", "Shreveport", "Ruston", and other names that mean only Louisiana place someone there; Louisiana then goes down to the parish with [src/parishes.mjs](../src/parishes.mjs).
+4. **Louisiana towns.** "New Orleans", "Shreveport", "Ruston", and other names that mean only Louisiana place someone there; Louisiana then goes down to the parish with [src/counties/la.mjs](../src/counties/la.mjs).
 
 Anything else, including "Remote", "Earth", "Georgia" next to Tbilisi, and two places at once in different countries, is left out. Leaving someone out costs a little coverage; placing them wrongly misleads everyone.
 

@@ -12,10 +12,11 @@
 //      Idaho, whose codes are more often Germany's and Indonesia's, it must be a town listed there.
 //   3. Otherwise the state named last: "Kansas City, Missouri" is Missouri, and
 //      "Washington Heights, New York" is New York.
-//   4. Otherwise a Louisiana place name that means nowhere else (src/parishes.mjs).
+//   4. Otherwise a place name that means nowhere else, for the states with county lists
+//      (src/counties.mjs): "New Orleans" is Louisiana.
 //
 // test/states.test.mjs holds the cases; scripts/audit.mjs lists what each rule placed.
-import { laOnlyRe } from "./parishes.mjs";
+import { COUNTY_STATES, onlyTownsRe } from "./counties.mjs";
 
 export const NAMES = [
   ["AL", "Alabama"], ["AK", "Alaska"], ["AZ", "Arizona"], ["AR", "Arkansas"], ["CA", "California"],
@@ -164,8 +165,8 @@ const IDAHO = words([
   "kamiah", "genesee", "troy", "potlatch", "plummer", "worley", "st. maries", "saint maries", "spirit lake", "athol",
   "dalton gardens", "ponderay", "sagle", "clark fork", "hope", "boise state", "treasure valley", "magic valley",
 ]);
-// Louisiana town names that also name places abroad.
-const LA_CITY_ELSEWHERE = words(["jamaica", "manchester"]);
+// Places abroad with a town of the same name as one in those lists: Mandeville, Jamaica.
+const TOWN_ELSEWHERE = words(["jamaica", "manchester"]);
 
 const NAME_RES = NAMES.map(([ab, name]) => [ab, name.length, new RegExp(`\\b${name.toLowerCase().replace(/ /g, "\\s+")}\\b`, "g")]);
 // A comma permits any case. Without one, capital letters distinguish codes from words like "in".
@@ -218,7 +219,8 @@ export function place(location) {
   }
   if (best) return { state: best.ab, rule: "name" };
 
-  if (laOnlyRe.test(loc) && !LA_CITY_ELSEWHERE.test(f) && !OTHER_SCRIPT.test(loc)) return { state: "LA", rule: "city" };
+  if (TOWN_ELSEWHERE.test(f) || OTHER_SCRIPT.test(loc)) return null;
+  for (const ab of COUNTY_STATES) if (onlyTownsRe(ab).test(loc)) return { state: ab, rule: "city" };
   return null;
 }
 

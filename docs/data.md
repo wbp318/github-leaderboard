@@ -75,4 +75,4 @@ The [placement audit](placement.md#checking-the-rules): what each rule placed, w
 
 ## Building something new
 
-`scripts/build.mjs` writes everything the page shows into one object in the page (`D` in [web/template.html](../web/template.html)): totals for the country, regions, divisions, states, and parishes, and one row a person. A new view usually needs only a change to the template. If it needs something the build does not compute yet, add it to the `data` object at the end of the build.
+`scripts/build.mjs` writes everything the page shows into one object in the page (`D` in [web/template.html](../web/template.html)): totals for the country, regions, divisions, states, and the counties of each state with a county list (`D.counties`; Louisiana's are parishes), and one row a person. A new view usually needs only a change to the template. If it needs something the build does not compute yet, add it to the `data` object at the end of the build.

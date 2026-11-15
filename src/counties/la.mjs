@@ -1,7 +1,11 @@
 // Louisiana's 64 parishes, and the towns, cities, and universities people write in their GitHub
 // location, mapped to the parish they are in. Used only for people already placed in Louisiana,
 // so town names shared with other states (Monroe, Lafayette, Alexandria) are safe here.
-export const PARISHES = [
+// The shape every state's county file follows; src/counties.mjs reads it.
+export const STATE = "LA";
+// What the state calls its counties, one and many.
+export const KIND = ["parish", "parishes"];
+export const COUNTIES = [
   "Acadia", "Allen", "Ascension", "Assumption", "Avoyelles", "Beauregard", "Bienville", "Bossier",
   "Caddo", "Calcasieu", "Caldwell", "Cameron", "Catahoula", "Claiborne", "Concordia", "De Soto",
   "East Baton Rouge", "East Carroll", "East Feliciana", "Evangeline", "Franklin", "Grant", "Iberia",
@@ -13,7 +17,8 @@ export const PARISHES = [
   "Webster", "West Baton Rouge", "West Carroll", "West Feliciana", "Winn",
 ];
 
-// Place → parish. Longest names are tried first, so "West Monroe" wins over "Monroe".
+// Place → parish. Longest names are tried first, so "West Monroe" wins over "Monroe". A parish
+// named in full ("East Carroll Parish") wins over any place.
 export const PLACES = {
   // Orleans and the metro
   "New Orleans": "Orleans", NOLA: "Orleans", Tulane: "Orleans", Loyola: "Orleans", "Algiers": "Orleans",
@@ -78,26 +83,9 @@ export const PLACES = {
 
 // Louisiana place names unlikely to mean anywhere else: enough to place someone in Louisiana
 // when they did not write the state.
-export const LA_ONLY = [
+export const ONLY = [
   "New Orleans", "NOLA", "Baton Rouge", "Shreveport", "Lake Charles", "Metairie", "Houma", "Slidell",
   "Bossier City", "Ruston", "Thibodaux", "Natchitoches", "Mandeville", "Denham Springs", "Prairieville",
   "Opelousas", "New Iberia", "West Monroe", "Lake Providence", "Chalmette", "Ponchatoula", "Breaux Bridge",
   "Bogalusa", "LaPlace", "Broussard", "Marrero", "Harahan", "DeRidder", "Tallulah", "Mer Rouge", "Kenner",
 ];
-
-const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "\\s+");
-const placeRes = Object.keys(PLACES)
-  .sort((a, b) => b.length - a.length)
-  .map((name) => [new RegExp(`\\b${esc(name).replace(/^St\\\./, "(?:St\\.?|Saint)")}\\b`, "i"), PLACES[name]]);
-const parishRes = [...PARISHES]
-  .sort((a, b) => b.length - a.length)
-  .map((p) => [new RegExp(`\\b${esc(p).replace(/^St\\\./, "(?:St\\.?|Saint)")}\\s+Parish\\b`, "i"), p]);
-export const laOnlyRe = new RegExp(`\\b(?:${LA_ONLY.map(esc).join("|")})\\b`, "i");
-
-/** The parish for a Louisiana location, or null when it names only the state. */
-export function parishOf(location) {
-  const loc = location ?? "";
-  for (const [re, p] of parishRes) if (re.test(loc)) return p;
-  for (const [re, p] of placeRes) if (re.test(loc)) return p;
-  return null;
-}
