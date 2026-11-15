@@ -39,10 +39,10 @@ flowchart TD
     abroad -->|yes| none["Not placed"]
     abroad -->|no| code{"Ends in a state code?"}
     code -->|yes| guard{"Is the city a known place abroad<br/>for that code, or accented<br/>like no US town there?"}
-    guard -->|yes| none
+    guard -->|yes| name
     guard -->|no| listed{"DE or ID?"}
     listed -->|"yes, and the town is<br/>in Delaware or Idaho"| st["That state"]
-    listed -->|"yes, and it is not"| none
+    listed -->|"yes, and it is not"| name
     listed -->|no| st
     code -->|no| name{"Names a state?"}
     name -->|yes| last["The state named last"]
@@ -52,8 +52,8 @@ flowchart TD
 ```
 
 1. **Another country.** A location that names another country (Brazil, India, Germany, and about a hundred more) or uses a script no US town is written in is not placed, unless it also says USA. US towns that share a country's name are listed so they still count: Norway, ME; Poland, OH; Little Canada, MN; Brazil, IN.
-2. **A trailing state code wins.** A two-letter code can follow a comma in any case ("Atlanta, Ga"), or it can be uppercase after a space ("Austin TX"). Either form can be followed by USA. The code counts only if the city is not in the `ELSEWHERE` list for that code and carries no accents a US town in that state would not. Delaware and Idaho are stricter: their codes are written far more often by people in Germany and Indonesia, so only towns listed for those states count.
-3. **The state named last.** "Kansas City, Missouri" is Missouri and "Washington Heights, New York" is New York. On a tie the longer name wins, so "West Virginia" is not Virginia.
+2. **A trailing state code wins.** A two-letter code can follow a comma in any case ("Atlanta, Ga"), or it can be uppercase after a space ("Austin TX"). Either form can be followed by a ZIP code ("Denver, CO 80223") and by USA. The code counts only if the city is not in the `ELSEWHERE` list for that code and carries no accents a US town in that state would not. Delaware and Idaho are stricter: their codes are written far more often by people in Germany and Indonesia, so only towns listed for those states count. A code that does not count is not proof of anything either: the rest of the location is read as below, so "2600 Pasadena Ave, Metairie, LA 70001" is still Metairie, Louisiana.
+3. **The state named last.** "Kansas City, Missouri" is Missouri and "Washington Heights, New York" is New York. On a tie the longer name wins, so "West Virginia" is not Virginia. A river named after a state is the river: "West of the Mississippi" and "44th Parallel N and Mississippi River" are not Mississippi.
 4. **Towns that mean only one state.** "New Orleans", "Shreveport", "Ruston", and other names that mean only Louisiana place someone there, and so do "Hattiesburg", "Starkville", "Tupelo", "Biloxi", "Ole Miss", and others that mean only Mississippi. A name shared with a town anywhere else, in the US or abroad, is not on these lists: Jackson (Wyoming too), Columbus, Oxford, Columbia, Meridian (Idaho), Greenville, Clinton, Madison, Gulfport (Florida), Vicksburg (Michigan). Each list is `ONLY` in the state's file: [src/counties/la.mjs](../src/counties/la.mjs) and [src/counties/ms.mjs](../src/counties/ms.mjs).
 
 Anything else, including "Remote", "Earth", "Georgia" next to Tbilisi, and two places at once in different countries, is left out. Leaving someone out costs a little coverage; placing them wrongly misleads everyone.

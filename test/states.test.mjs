@@ -21,6 +21,18 @@ const CASES = [
   ["Austin TX", "TX"],
   ["Raleigh NC", "NC"],
   ["Atlanta, Ga", "GA"],
+  // A ZIP code after the state code.
+  ["Denver, CO 80223", "CO"],
+  ["1905 W Mississippi Ave, Denver, CO 80223", "CO"],
+  ["Austin TX 78701-1234, USA", "TX"],
+  ["Kansas City, MO 64138", "MO"],
+  // A doubtful code does not rule out the town: Pasadena is on the LA list for Los Angeles.
+  ["2600 Pasadena Ave, Metairie, LA 70001", "LA"],
+  // Rivers named after a state are the river, not the state.
+  ["West of the Mississippi, by 1,899 miles", null],
+  ["44th Parallel N and Mississippi River", null],
+  ["Hattiesburg, on the Mississippi Gulf Coast", "MS"],
+  ["Vicksburg, Mississippi", "MS"],
   ["Reno, Nv", "NV"],
   ["Pittsburgh, Pa", "PA"],
   ["Austin, tx, USA", "TX"],
@@ -103,6 +115,7 @@ const CASES = [
   // Brazil: Mato Grosso do Sul (MS), Santa Catarina (SC), Alagoas (AL).
   ["Campo Grande, MS", null],
   ["Campo Grande MS", null],
+  ["Campo Grande, MS 79002", null],
   ["Dourados, MS", null],
   ["Amambai MS", null],
   ["Campo Grande - MS", null],
@@ -127,6 +140,9 @@ const CASES = [
   // Germany (DE), India (IN, TN), Tunisia (TN), Argentina (AR), Moscow Oblast and Modena (MO), Varese (VA).
   ["Ingolstadt, DE", null],
   ["Stuttgart DE", null],
+  ["Berlin, DE 10115", null],
+  ["Perth, WA 6000", null],
+  ["Milano, MI 20121", null],
   ["Tübingen, DE", null],
   ["Augsburg, DE", null],
   ["Bangalore, IN", null],

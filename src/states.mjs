@@ -6,12 +6,13 @@
 //
 //   1. A location that names another country, or is written in another script, is not placed,
 //      unless it also says USA.
-//   2. A trailing state code (optionally followed by USA) wins, so "Missouri City, TX" is Texas.
-//      The city must not be a known place elsewhere that uses the same code, must not carry
-//      accents no US town of that state would (Florianópolis, Tübingen), and for Delaware and
+//   2. A trailing state code (optionally followed by a ZIP code and USA) wins, so "Missouri City,
+//      TX" is Texas. The city must not be a known place elsewhere that uses the same code, must not
+//      carry accents no US town of that state would (Florianópolis, Tübingen), and for Delaware and
 //      Idaho, whose codes are more often Germany's and Indonesia's, it must be a town listed there.
+//      A code that fails these does not count, and the rules below still read the rest.
 //   3. Otherwise the state named last: "Kansas City, Missouri" is Missouri, and
-//      "Washington Heights, New York" is New York.
+//      "Washington Heights, New York" is New York. Rivers named after states are dropped first.
 //   4. Otherwise a place name that means nowhere else, for the states with county lists
 //      (src/counties.mjs): "New Orleans" is Louisiana and "Hattiesburg" Mississippi.
 //
@@ -169,8 +170,12 @@ const IDAHO = words([
 const TOWN_ELSEWHERE = words(["jamaica", "manchester"]);
 
 const NAME_RES = NAMES.map(([ab, name]) => [ab, name.length, new RegExp(`\\b${name.toLowerCase().replace(/ /g, "\\s+")}\\b`, "g")]);
+// Rivers named after a state, and "west of the Mississippi": the river, not the state. Dropped
+// before the state names are read, so "44th Parallel N and Mississippi River" is not Mississippi.
+const RIVERS = new RegExp(`\\b(?:${NAMES.map(([, name]) => name.toLowerCase()).join("|")})\\s+river\\b|\\b(?:east|west|north|south)\\s+of\\s+the\\s+mississippi\\b`, "g");
 // A comma permits any case. Without one, capital letters distinguish codes from words like "in".
-const CODE_AT_END = /(?:,\s*([A-Za-z]{2})|(?<=[\p{L}\p{N}.)])\s+([A-Z]{2}))\.?\s*(?:,?\s*(?:USA|U\.S\.A\.?|US|U\.S\.|United States(?: of America)?))?\s*$/u;
+// A ZIP code may follow: "Denver, CO 80223".
+const CODE_AT_END = /(?:,\s*([A-Za-z]{2})|(?<=[\p{L}\p{N}.)])\s+([A-Z]{2}))\.?\s*(?:\d{5}(?:-\d{4})?\s*)?(?:,?\s*(?:USA|U\.S\.A\.?|US|U\.S\.|United States(?: of America)?))?\s*$/u;
 
 // Washington, D.C. is not a state; drop it and see what else the location says.
 const withoutDC = (location) => (location ?? "").replace(/washington,?\s*d\.?\s*c\.?|district of columbia/gi, " ").trim();
@@ -205,14 +210,16 @@ export function place(location) {
     const elsewhere = ELSEWHERE_RE[ab]?.test(city);
     const notListed = (ab === "DE" && !DELAWARE.test(city)) || (ab === "ID" && !IDAHO.test(city));
     if (!badAccent && !elsewhere && !notListed) return { state: ab, rule: "code" };
-    return null;
+    // A doubtful code does not count, but does not rule out the rest: "2600 Pasadena Ave,
+    // Metairie, LA 70001" is still in Metairie.
   }
 
   // The state named last, the longer name winning a tie (West Virginia over Virginia).
   let best = null;
+  const named = f.replace(RIVERS, " ");
   for (const [ab, len, re] of NAME_RES) {
     re.lastIndex = 0;
-    for (const hit of f.matchAll(re)) {
+    for (const hit of named.matchAll(re)) {
       const end = hit.index + hit[0].length;
       if (!best || end > best.end || (end === best.end && len > best.len)) best = { ab, end, len };
     }
