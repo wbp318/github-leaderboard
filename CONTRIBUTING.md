@@ -63,10 +63,7 @@ Each of these is an issue with what to build, where in the code, and how to know
 
 Good first issues:
 
-- [Links to a view: put the current view in the URL](https://github.com/wbp318/github-leaderboard/issues/2)
-- [Download a leaderboard as CSV](https://github.com/wbp318/github-leaderboard/issues/3)
 - [A light theme](https://github.com/wbp318/github-leaderboard/issues/4)
-- [Place "Austin TX" and "Atlanta, Ga"](https://github.com/wbp318/github-leaderboard/issues/5)
 
 Bigger ones:
 
