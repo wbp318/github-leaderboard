@@ -1166,18 +1166,23 @@ if (COUNTED.length === D.states.length) $("#uncounted").remove();
 // A tornado of every state is tall; with many states, open on the divisions.
 const defaultView = COUNTED.length > 20 ? "us" : "all";
 
-let requestedView = "";
-try {
-  requestedView = decodeURIComponent(location.hash.slice(1));
-} catch {
-  // Invalid hash: use the default view.
+// The view a link names in its hash (#state:TX, #division:Mountain), if it is one the page has.
+function viewFromHash() {
+  let requestedView = "";
+  try {
+    requestedView = decodeURIComponent(location.hash.slice(1));
+  } catch {
+    // Invalid hash: no view.
+  }
+  return [...$("#view").options].some((option) => option.value === requestedView) ? requestedView : null;
 }
 
-const validView = [...$("#view").options].some(
-  option => option.value === requestedView
-);
-
-go(validView ? requestedView : defaultView);
+go(viewFromHash() ?? defaultView);
+// A view link opened in a tab already on the page changes only the hash; follow it.
+addEventListener("hashchange", () => {
+  const view = viewFromHash();
+  if (view && view !== state.view) go(view);
+});
 {
   const fromUrl = new URLSearchParams(location.search).get("me");
   if (fromUrl && !ME) notFound(cleanLogin(fromUrl));
