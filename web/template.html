@@ -179,6 +179,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
       <span class="lbl">Where</span>
       <select id="scope" aria-label="Where"></select>
       <input type="search" id="find" placeholder="Find a login, name, or place" aria-label="Find a login, name, or place">
+      <button type="button" class="btn" id="csv" title="Every row of this list, as filtered, for Excel or Google Sheets">Download CSV</button>
       <span class="lbl" id="count"></span>
     </div>
     <div class="scroll"><table id="board"></table></div>
@@ -838,6 +839,13 @@ function buildLists() {
   sel.addEventListener("change", renderBoard);
   $("#find").addEventListener("input", renderBoard);
 }
+// Everyone in a ranked list who matches the search box, each with their place in the full ranking.
+// The page shows the first 100; Download CSV takes them all.
+function boardRows(list, q) {
+  const rows = list.map((p, i) => [p, i]);
+  if (!q) return rows;
+  return rows.filter(([p]) => p[0].toLowerCase().includes(q) || (p[F.name] || "").toLowerCase().includes(q) || (p[F.location] || "").toLowerCase().includes(q));
+}
 function renderBoard() {
   const scope = $("#scope").value;
   const k = F[cat];
@@ -860,7 +868,7 @@ function renderBoard() {
     ]);
     tb.appendChild(tr);
   };
-  const shown = q ? list.map((p, i) => [p, i]).filter(([p]) => p[0].toLowerCase().includes(q) || (p[F.name] || "").toLowerCase().includes(q) || (p[F.location] || "").toLowerCase().includes(q)).slice(0, 100) : list.slice(0, 100).map((p, i) => [p, i]);
+  const shown = boardRows(list, q).slice(0, 100);
   for (const [p, i] of shown) row(p, i);
   if (!q && ME) {
     const i = list.indexOf(ME);
@@ -869,6 +877,41 @@ function renderBoard() {
   t.appendChild(tb);
   $("#count").textContent = `${fmt(list.length)} people here`;
 }
+
+// ---------------------------------------------------------------- download as CSV
+// The leaderboard as shown (place, category, search), every row and every category, as a file for
+// Excel or Google Sheets: RFC 4180 quoting, CRLF line ends, and a byte-order mark so Excel reads
+// accented names as UTF-8.
+function csvCell(v) {
+  if (typeof v === "number") return String(v);
+  // Names and locations are free text from GitHub profiles. A cell that starts with =, +, -, @, a
+  // tab, or a line break could run as a formula in a spreadsheet, so it gets a leading ' (OWASP's advice).
+  let s = String(v ?? "");
+  if (/^[=+\-@\t\r\n]/.test(s)) s = `'${s}`;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+// A file name that says what is in it: github-leaderboard-texas-total-2026-11-15.csv, dated by the data.
+const slug = (s) => s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+function csvName(scope, q) {
+  const [kind, val] = scope.split(":");
+  const place = kind === "state" ? STATE[val].name : kind === "region" ? `${val} region` : kind === "division" ? `${val} division` : kind === "parish" ? (val === "-" ? "Louisiana parish not given" : `${val} Parish`) : D.scopeName.replace(/^the /, "");
+  const day = new Date(D.refreshed).toISOString().slice(0, 10);
+  return `github-leaderboard-${slug(place)}-${cat}${q ? `-matching-${slug(q.slice(0, 40)) || "search"}` : ""}-${day}.csv`;
+}
+$("#csv").addEventListener("click", () => {
+  const scope = $("#scope").value;
+  const q = $("#find").value.trim().toLowerCase();
+  const lines = [["Rank", "Login", "Name", "Location", "State", "Parish", ...CATS.map((c) => c[1])]];
+  for (const [p, i] of boardRows(ranked(scope, cat), q)) {
+    lines.push([i + 1, p[F.login], p[F.name] || "", p[F.location] || "", STATE[p[F.state]].name, p[F.parish] || "", ...CATS.map((c) => p[F[c[0]]])]);
+  }
+  const csv = `\ufeff${lines.map((r) => r.map(csvCell).join(",")).join("\r\n")}\r\n`;
+  const a = h("a", { href: URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })), download: csvName(scope, q) });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+});
 
 // ---------------------------------------------------------------- tables
 function sortable(table, cols, rows, onClick) {
