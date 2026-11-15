@@ -41,6 +41,7 @@ A year of GitHub contributions across the United States, drawn as a spinning tor
 - **Leaderboards** in eight categories (total, public commits, private, pull requests, reviews, issues, new repositories, followers) for any state, division, region, or Louisiana parish, with each person's location. Search by login, name, or place.
 - **A map** of all 50 states, coloured by contributions, people counted, or average.
 - **Tables** of the states, the regions and divisions, and all 64 Louisiana parishes.
+- **Light or dark.** The page follows your system's setting; the switch at the top changes it and remembers your choice.
 
 ## How it works
 

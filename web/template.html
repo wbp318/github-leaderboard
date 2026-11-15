@@ -22,16 +22,68 @@
   --gold: #f2b705;
   --left: #e66767;
   --right: #3987e5;
+  --on-gold: #0b1430;
+  --gold-hover: #ffd23f;
+  --link: #86b6ef;
+  --hover: #1d2b55;
+  --faint: #8591b2;
+  --live: #1baf7a;
+  --tip: #0e1836;
+  --storm-top: #1b2a57;
+  --me-row: rgba(242, 183, 5, 0.12);
+  /* Only the canvas and the map use these; the script reads them into THEME. Colours it fades
+     (gold, left, right, dust, glow) must be 6-digit hex. The map's ramp: brighter means more. */
+  --left-me: #ef8a8a;
+  --right-me: #5ea3ee;
+  --dust-left: #f6c4c4;
+  --dust-right: #c8defa;
+  --glow: #f2b705;
+  --where: #8fa0c8;
+  --ramp: #184f95 #1c5cab #256abf #2975d3 #5598e7 #86b6ef #cde2fb;
+  --ramp-ink: #ffffff #ffffff #ffffff #ffffff #0b1430 #0b1430 #0b1430;
+  --tile-empty: #1a2547;
+}
+/* The same storm by day: the pale green-grey of tornado weather, inked in the night sky's navy.
+   Gold turns to a deep amber so it still reads as text; the map's ramp: darker means more. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --sky: #e6ebe7;
+  --panel: #f6f8f5;
+  --line: #c4cec8;
+  --ink: #131d35;
+  --muted: #4b5870;
+  --gold: #7f5700;
+  --left: #c33b3b;
+  --right: #2362c0;
+  --on-gold: #ffffff;
+  --gold-hover: #664600;
+  --link: #1d5bb5;
+  --hover: #dde5df;
+  --faint: #5c6679;
+  --live: #12865d;
+  --tip: #ffffff;
+  --storm-top: #d3dbd6;
+  --me-row: rgba(127, 87, 0, 0.12);
+  --left-me: #9e2626;
+  --right-me: #174c99;
+  --dust-left: #b56f6f;
+  --dust-right: #6d8bbf;
+  --glow: #b39b6a;
+  --where: #56637a;
+  --ramp: #d3e2f4 #b0caeb #89afe0 #5f90d2 #3b72bd #2556a0 #153a73;
+  --ramp-ink: #131d35 #131d35 #131d35 #131d35 #ffffff #ffffff #ffffff;
+  --tile-empty: #e4e9e5;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--sky); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
 body { padding: 20px clamp(12px, 3vw, 32px) 40px; }
-a { color: #86b6ef; }
+a { color: var(--link); }
 header h1 { margin: 0; font-size: clamp(26px, 4vw, 40px); letter-spacing: 0.01em; }
+#theme { float: right; margin: clamp(4px, 1.4vw, 15px) 0 0 14px; }
 header p { margin: 4px 0 0; color: var(--muted); max-width: 980px; }
 header p.fresh { display: inline-flex; align-items: center; gap: 8px; margin: 6px 0 2px; padding: 4px 12px; border: 1px solid var(--line);
   border-radius: 999px; background: var(--panel); color: var(--ink); font-size: 13.5px; }
-header p.fresh::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #1baf7a; box-shadow: 0 0 6px #1baf7a; flex: none; }
+header p.fresh::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--live); box-shadow: 0 0 6px var(--live); flex: none; }
 .repo { display: inline-block; margin-top: 8px; color: var(--gold); font-weight: 600; text-decoration: none; }
 .repo:hover { text-decoration: underline; }
 footer a { color: var(--gold); }
@@ -46,7 +98,7 @@ section > h2 { margin: 0 0 4px; font-size: 21px; }
 section > p.lede { margin: 0 0 12px; color: var(--muted); max-width: 980px; }
 .storm {
   display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; align-items: start;
-  background: radial-gradient(ellipse at 50% 0%, #1b2a57 0%, var(--sky) 70%);
+  background: radial-gradient(ellipse at 50% 0%, var(--storm-top) 0%, var(--sky) 70%);
   border: 1px solid var(--line); border-radius: 12px; padding: 12px;
 }
 @media (max-width: 920px) { .storm { grid-template-columns: 1fr; } }
@@ -58,11 +110,15 @@ fieldset.seg { display: inline-flex; border: 1px solid var(--line); border-radiu
   border: 0; padding: 6px 10px; cursor: pointer;
 }
 .seg button + button { border-left: 1px solid var(--line); }
-.seg button[aria-pressed="true"] { background: var(--gold); color: var(--sky); }
+.seg button[aria-pressed="true"] { background: var(--gold); color: var(--on-gold); }
 .btn { border: 1px solid var(--line); border-radius: 6px; }
-.btn:hover, .seg button:hover { background: #1d2b55; }
+.btn:hover, .seg button:hover { background: var(--hover); }
 .seg button[aria-pressed="true"]:hover { background: var(--gold); }
 button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+/* Let a keyboard focus ring show past the group's edge, with the pressed button still rounded to fit. */
+fieldset.seg:has(:focus-visible) { overflow: visible; }
+.seg button:first-child { border-radius: 5px 0 0 5px; }
+.seg button:last-child { border-radius: 0 5px 5px 0; }
 select, input[type="search"] {
   font: 13px system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--panel);
   border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
@@ -73,17 +129,17 @@ select, input[type="search"] {
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
 .findme label { font-weight: 700; color: var(--gold); }
 .findme input { min-width: 200px; flex: 0 1 260px; }
-.findme .go { background: var(--gold); color: var(--sky); border-color: var(--gold); font-weight: 600; }
-.findme .go:hover { background: #ffd23f; }
+.findme .go { background: var(--gold); color: var(--on-gold); border-color: var(--gold); font-weight: 600; }
+.findme .go:hover { background: var(--gold-hover); }
 #findmsg { flex-basis: 100%; margin: 0; color: var(--muted); font-size: 13px; }
 #findmsg:empty { display: none; }
 #findmsg button { font: inherit; color: var(--gold); background: none; border: 0; padding: 0 2px; cursor: pointer; text-decoration: underline; }
 #findmsg a { color: var(--gold); }
-#findmsg a.addme { display: inline-block; color: var(--sky); text-decoration: none; padding: 3px 10px; margin: 0 2px; }
+#findmsg a.addme { display: inline-block; color: var(--on-gold); text-decoration: none; padding: 3px 10px; margin: 0 2px; }
 canvas { display: block; width: 100%; height: clamp(600px, 78vh, 820px); touch-action: pan-y; }
 .stip {
   position: absolute; pointer-events: none; display: none; z-index: 3; min-width: 210px; max-width: 300px;
-  background: #0e1836; border: 1px solid var(--gold); border-radius: 6px; padding: 8px 10px; font-size: 12.5px; line-height: 1.45;
+  background: var(--tip); border: 1px solid var(--gold); border-radius: 6px; padding: 8px 10px; font-size: 12.5px; line-height: 1.45;
 }
 .stip .t { color: var(--gold); font-weight: 600; margin-bottom: 2px; }
 .stip .r { display: flex; gap: 8px; align-items: center; }
@@ -105,10 +161,10 @@ table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: nowrap; }
 th { color: var(--muted); font-weight: 600; cursor: pointer; user-select: none; }
 th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
-tr.me td { background: rgba(242, 183, 5, 0.12); color: var(--gold); font-weight: 600; }
+tr.me td { background: var(--me-row); color: var(--gold); font-weight: 600; }
 tr.click { cursor: pointer; }
-tr.click:hover td { background: #1d2b55; }
-td.zero { color: #56618a; }
+tr.click:hover td { background: var(--hover); }
+td.zero { color: var(--faint); }
 td.loc { color: var(--muted); max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
 .kv > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .where { color: var(--muted); opacity: 0.85; font-size: 11.5px; margin-left: 6px; }
@@ -118,9 +174,25 @@ td.loc { color: var(--muted); max-width: 240px; overflow: hidden; text-overflow:
 .note { color: var(--muted); font-size: 12.5px; }
 footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 980px; }
 </style>
+<script>
+// Set the theme before the page paints, so a light page never flashes dark: the one picked with
+// the switch at the top (remembered), or else the system's. The script below keeps it current.
+{
+  let theme = null;
+  try {
+    theme = localStorage.getItem("github-leaderboard.theme");
+  } catch {}
+  if (theme !== "light" && theme !== "dark") theme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  document.documentElement.dataset.theme = theme;
+}
+</script>
 </head>
 <body>
 <header>
+  <fieldset class="seg" id="theme" aria-label="Theme">
+    <button type="button" value="dark" aria-pressed="true">Dark</button>
+    <button type="button" value="light" aria-pressed="false">Light</button>
+  </fieldset>
   <h1 id="title">GitHub Contribution Tornado</h1>
   <p class="fresh" id="fresh"></p>
   <p id="sub"></p>
@@ -234,6 +306,65 @@ function h(tag, attrs = {}, kids = []) {
   for (const k of kids) e.appendChild(typeof k === "string" ? document.createTextNode(k) : k);
   return e;
 }
+
+// ---------------------------------------------------------------- the theme
+// Dark or light: the one picked with the switch at the top, or else the system's. Picking the
+// system's own theme forgets the pick, so the page follows the system again.
+// THEME holds the colours the canvas and the map draw with. They are the CSS tokens on :root, read
+// once each time the theme changes, never per frame. Anything drawn in script takes its colours
+// from THEME, not from a hex code.
+const THEME_KEY = "github-leaderboard.theme";
+const lightSystem = matchMedia("(prefers-color-scheme: light)");
+const pickedTheme = {
+  get() {
+    try {
+      return localStorage.getItem(THEME_KEY);
+    } catch {
+      return null;
+    }
+  },
+  set(name) {
+    try {
+      if (name) localStorage.setItem(THEME_KEY, name);
+      else localStorage.removeItem(THEME_KEY);
+    } catch {}
+  },
+};
+const THEME = {};
+function readTheme() {
+  const css = getComputedStyle(document.documentElement);
+  const v = (name) => css.getPropertyValue(`--${name}`).trim();
+  // A 6-digit hex colour, see-through: fade("#f2b705", 0.3) is "#f2b7054d".
+  const fade = (hex, a) => hex + Math.round(a * 255).toString(16).padStart(2, "0");
+  const [gold, left, right, dustL, dustR, glow] = ["gold", "left", "right", "dust-left", "dust-right", "glow"].map(v);
+  Object.assign(THEME, {
+    name: document.documentElement.dataset.theme,
+    sky: v("sky"), ink: v("ink"), muted: v("muted"), faint: v("faint"), where: v("where"), gold,
+    left, right, leftMe: v("left-me"), rightMe: v("right-me"), leftBack: fade(left, 0.28), rightBack: fade(right, 0.28),
+    dustLeft: fade(dustL, 0.24), dustRight: fade(dustR, 0.24), dustBackLeft: fade(dustL, 0.09), dustBackRight: fade(dustR, 0.09),
+    glow: fade(glow, 0.1), glowEnd: fade(glow, 0), beamTop: fade(glow, 0.08), beamBottom: fade(glow, 0.24),
+    guide: fade(gold, 0.3), guideNarrow: fade(gold, 0.25), guideMe: fade(gold, 0.7),
+    ramp: v("ramp").split(/\s+/), rampInk: v("ramp-ink").split(/\s+/), tileEmpty: v("tile-empty"),
+  });
+}
+function setTheme(name, redraw = true) {
+  document.documentElement.dataset.theme = name;
+  readTheme();
+  document.querySelector('meta[name="theme-color"]').content = THEME.sky;
+  for (const b of document.querySelectorAll("#theme button")) b.setAttribute("aria-pressed", String(b.value === name));
+  // The canvas picks up THEME on its next frame; the map is drawn once, so draw it again.
+  if (redraw) renderMap();
+}
+setTheme(document.documentElement.dataset.theme, false);
+for (const b of document.querySelectorAll("#theme button")) {
+  b.addEventListener("click", () => {
+    pickedTheme.set(b.value === (lightSystem.matches ? "light" : "dark") ? null : b.value);
+    setTheme(b.value);
+  });
+}
+lightSystem.addEventListener("change", () => {
+  if (!pickedTheme.get()) setTheme(lightSystem.matches ? "light" : "dark");
+});
 
 // ---------------------------------------------------------------- the data
 // P rows: [login, name, state, total, commits, private, prs, reviews, issues, repos, followers, parish]
@@ -463,7 +594,6 @@ $("#up").addEventListener("click", () => {
 // ---------------------------------------------------------------- the storm
 const cv = $("#cv");
 const cx2 = cv.getContext("2d");
-const SKY = "#0b1430";
 const storm = { W: 0, H: 0, dots: [], sig: "", dust: [], unit: 1 };
 for (let i = 0; i < 700; i++) storm.dust.push({ h: Math.random() ** 0.9 * 1.1 - 0.05, a: Math.random() * Math.PI * 2, j: 0.72 + Math.random() * 0.55, l: 0.05 + Math.random() * 0.2 });
 function resize() {
@@ -540,8 +670,8 @@ function draw(dt) {
   const omega = (r) => 0.55 * (G.rMax / Math.max(r, 10)) ** 0.65;
   const gy = G.bot + 34;
   const grd = c.createLinearGradient(0, gy - 10, 0, H);
-  grd.addColorStop(0, "rgba(242,183,5,0.10)");
-  grd.addColorStop(1, "rgba(242,183,5,0)");
+  grd.addColorStop(0, THEME.glow);
+  grd.addColorStop(1, THEME.glowEnd);
   c.fillStyle = grd;
   c.fillRect(0, gy - 6, W, H - gy + 6);
   const back = [];
@@ -564,10 +694,10 @@ function draw(dt) {
   }
   const arcs = (g, frontHalf, hot) => {
     const parts = frontHalf
-      ? [[0, Math.PI / 2, g.rR, "#3987e5"], [Math.PI / 2, Math.PI, g.rL, "#e66767"]]
-      : [[Math.PI, Math.PI * 1.5, g.rL, "rgba(230,103,103,0.28)"], [Math.PI * 1.5, Math.PI * 2, g.rR, "rgba(57,135,229,0.28)"]];
+      ? [[0, Math.PI / 2, g.rR, THEME.right], [Math.PI / 2, Math.PI, g.rL, THEME.left]]
+      : [[Math.PI, Math.PI * 1.5, g.rL, THEME.leftBack], [Math.PI * 1.5, Math.PI * 2, g.rR, THEME.rightBack]];
     for (const [a0, a1, rx, color] of parts) {
-      c.strokeStyle = g.row.me && frontHalf ? (a0 === 0 ? "#5ea3ee" : "#ef8a8a") : color;
+      c.strokeStyle = g.row.me && frontHalf ? (a0 === 0 ? THEME.rightMe : THEME.leftMe) : color;
       c.lineWidth = frontHalf ? (hot ? 3.5 : g.row.me ? 2.6 : 2) : hot ? 2 : 1;
       c.beginPath();
       c.ellipse(G.cx, g.y, rx, g.ry, 0, a0, a1);
@@ -583,7 +713,7 @@ function draw(dt) {
         const a2 = d.a - d.l;
         const r2 = (Math.cos(a2) < 0 ? f.rL : f.rR) * d.j + 6;
         const left = Math.cos(d.a) < 0;
-        c.strokeStyle = z < 0 ? (left ? "rgba(240,170,170,0.09)" : "rgba(170,200,245,0.09)") : left ? "rgba(246,196,196,0.24)" : "rgba(200,222,250,0.24)";
+        c.strokeStyle = z < 0 ? (left ? THEME.dustBackLeft : THEME.dustBackRight) : left ? THEME.dustLeft : THEME.dustRight;
         c.lineWidth = z < 0 ? 1 : 1.4;
         c.beginPath();
         c.moveTo(G.cx + r2 * Math.cos(a2), y + r2 * G.tilt * Math.sin(a2));
@@ -599,16 +729,16 @@ function draw(dt) {
         const x = G.cx + r * Math.cos(p.a);
         const y = g.y + g.ry * z;
         c.globalAlpha = z < 0 ? (p.me ? 0.75 : 0.45) : 1;
-        c.fillStyle = p.me ? "#f2b705" : Math.cos(p.a) < 0 ? "#e66767" : "#3987e5";
+        c.fillStyle = p.me ? THEME.gold : Math.cos(p.a) < 0 ? THEME.left : THEME.right;
         c.beginPath();
         c.arc(x, y, p.me ? (z < 0 ? 5 : 6.5) : z < 0 ? 2.8 : 3.8, 0, Math.PI * 2);
         c.fill();
         c.lineWidth = 2;
-        c.strokeStyle = SKY;
+        c.strokeStyle = THEME.sky;
         c.stroke();
         if (p.me && z >= 0) {
           c.lineWidth = 1.2;
-          c.strokeStyle = "#f2b705";
+          c.strokeStyle = THEME.gold;
           c.beginPath();
           c.arc(x, y, 10, 0, Math.PI * 2);
           c.stroke();
@@ -619,8 +749,8 @@ function draw(dt) {
   };
   paint(back);
   const beam = c.createLinearGradient(0, G.top - 40, 0, G.bot + 40);
-  beam.addColorStop(0, "rgba(242,183,5,0.08)");
-  beam.addColorStop(1, "rgba(242,183,5,0.24)");
+  beam.addColorStop(0, THEME.beamTop);
+  beam.addColorStop(1, THEME.beamBottom);
   c.fillStyle = beam;
   c.beginPath();
   c.moveTo(G.cx - 9, G.top - 40);
@@ -632,17 +762,17 @@ function draw(dt) {
   paint(front);
   const font = (w, px) => `${w} ${px}px system-ui, -apple-system, 'Segoe UI', sans-serif`;
   c.textAlign = "center";
-  c.fillStyle = "#f2b705";
+  c.fillStyle = THEME.gold;
   c.font = font(700, 16);
   c.fillText(viewTitle(state.view).toUpperCase(), G.narrow ? storm.W / 2 : G.cx, G.top - 56);
-  c.fillStyle = "#9aa6c4";
+  c.fillStyle = THEME.muted;
   c.font = font(400, 12);
   c.fillText("public commits  ·  everything else", G.narrow ? storm.W / 2 : G.cx, G.top - 40);
   c.fillText("widest at the top: the busiest", G.narrow ? storm.W / 2 : G.cx, G.bot + 56);
   G.rings.forEach((g, i) => {
     const r = g.row;
     c.font = font(600, 12);
-    c.fillStyle = "#e9eef9";
+    c.fillStyle = THEME.ink;
     c.textAlign = "right";
     c.fillText(short(r.left), G.cx - g.rL - 8, g.y + 4);
     c.textAlign = "left";
@@ -650,7 +780,7 @@ function draw(dt) {
     const name = `${r.rank ?? i + 1}  ${r.label.toUpperCase()}${r.me && !r.person ? "  ★" : ""}`;
     if (G.narrow) {
       const lx = G.labelX;
-      c.strokeStyle = r.me ? "rgba(242,183,5,0.7)" : "rgba(242,183,5,0.25)";
+      c.strokeStyle = r.me ? THEME.guideMe : THEME.guideNarrow;
       c.lineWidth = 1;
       c.beginPath();
       c.moveTo(G.cx + g.rR + 4, g.y);
@@ -658,14 +788,14 @@ function draw(dt) {
       c.stroke();
       c.textAlign = "left";
       c.font = font(700, 10.5);
-      c.fillStyle = r.me || state.hover === i ? "#f2b705" : "#e9eef9";
+      c.fillStyle = r.me || state.hover === i ? THEME.gold : THEME.ink;
       let text = name;
       const room = storm.W - lx - 4;
       while (text.length > 4 && c.measureText(text).width > room) text = text.slice(0, -1);
       c.fillText(text === name ? text : `${text.slice(0, -1)}…`, lx, g.y + 4);
     } else {
       const lx = G.labelX;
-      c.strokeStyle = r.me ? "rgba(242,183,5,0.7)" : "rgba(242,183,5,0.3)";
+      c.strokeStyle = r.me ? THEME.guideMe : THEME.guide;
       c.lineWidth = 1;
       c.beginPath();
       c.moveTo(G.cx + g.rR + 4, g.y);
@@ -673,20 +803,20 @@ function draw(dt) {
       c.stroke();
       c.textAlign = "left";
       c.font = font(700, 13);
-      c.fillStyle = r.me || state.hover === i ? "#f2b705" : "#e9eef9";
+      c.fillStyle = r.me || state.hover === i ? THEME.gold : THEME.ink;
       c.fillText(name, lx, g.y + 4);
       const where = r.person?.[F.location];
       if (where) {
         const x = lx + c.measureText(name).width + 10;
         c.font = font(400, 11.5);
-        c.fillStyle = "#8fa0c8";
+        c.fillStyle = THEME.where;
         let text = where;
         const room = storm.W - x - 6;
         while (text.length > 3 && c.measureText(text).width > room) text = text.slice(0, -1);
         if (room > 30) c.fillText(text === where ? text : `${text.slice(0, -1)}…`, x, g.y + 4);
       }
       c.font = font(400, 11.5);
-      c.fillStyle = "#9aa6c4";
+      c.fillStyle = THEME.muted;
       c.fillText(r.sub.length > 46 ? `${r.sub.slice(0, 45)}…` : r.sub, lx, g.y + 18);
     }
   });
@@ -722,8 +852,8 @@ cv.addEventListener("pointermove", (e) => {
   stip.appendChild(h("div", { class: "t", text: r.person ? `${r.label}${r.person[F.name] ? ` (${r.person[F.name]})` : ""}` : r.label }));
   if (r.person?.[F.location]) stip.appendChild(h("div", { class: "loc", text: r.person[F.location] }));
   const rows = [
-    ["#3987e5", fmt(r.total), "contributions in all"],
-    ["#e66767", fmt(r.left), "public commits"],
+    [THEME.right, fmt(r.total), "contributions in all"],
+    [THEME.left, fmt(r.left), "public commits"],
     [null, fmt(r.right), "everything else"],
   ];
   if (r.person) {
@@ -984,8 +1114,6 @@ const TILES = {
   OK: [6, 4], LA: [6, 5], MS: [6, 6], AL: [6, 7], GA: [6, 8],
   HI: [7, 0], TX: [7, 4], FL: [7, 9],
 };
-// Dark surface: brighter means more (sequential blue, one hue).
-const RAMP = ["#184f95", "#1c5cab", "#256abf", "#2a78d6", "#5598e7", "#86b6ef", "#cde2fb"];
 let mapBy = "total";
 function renderMap() {
   const SVGNS = "http://www.w3.org/2000/svg";
@@ -998,7 +1126,7 @@ function renderMap() {
   const vals = COUNTED.map((s) => s[mapBy]).sort((a, b) => a - b);
   const q = (v) => {
     const i = vals.findIndex((x) => x >= v);
-    return Math.min(RAMP.length - 1, Math.floor((i / vals.length) * RAMP.length));
+    return Math.min(THEME.ramp.length - 1, Math.floor((i / vals.length) * THEME.ramp.length));
   };
   for (const s of D.states) {
     const [r, c] = TILES[s.ab];
@@ -1007,13 +1135,13 @@ function renderMap() {
     g.style.cursor = "pointer";
     const rect = document.createElementNS(SVGNS, "rect");
     const bin = s.counted ? q(s[mapBy]) : -1;
-    Object.entries({ x: c * (size + gap), y: r * (size + gap), width: size, height: size, rx: 6, fill: s.counted ? RAMP[bin] : "#1a2547" }).forEach(([k, v]) => rect.setAttribute(k, v));
+    Object.entries({ x: c * (size + gap), y: r * (size + gap), width: size, height: size, rx: 6, fill: s.counted ? THEME.ramp[bin] : THEME.tileEmpty }).forEach(([k, v]) => rect.setAttribute(k, v));
     if (ME && ME[F.state] === s.ab) {
-      rect.setAttribute("stroke", "#f2b705");
+      rect.setAttribute("stroke", THEME.gold);
       rect.setAttribute("stroke-width", "3");
     }
     const t = document.createElementNS(SVGNS, "text");
-    Object.entries({ x: c * (size + gap) + size / 2, y: r * (size + gap) + size / 2 + 5, "text-anchor": "middle", "font-size": "14", "font-weight": "700", fill: !s.counted ? "#56618a" : bin >= 5 ? "#0b1430" : "#ffffff" }).forEach(([k, v]) => t.setAttribute(k, v));
+    Object.entries({ x: c * (size + gap) + size / 2, y: r * (size + gap) + size / 2 + 5, "text-anchor": "middle", "font-size": "14", "font-weight": "700", fill: !s.counted ? THEME.faint : THEME.rampInk[bin] }).forEach(([k, v]) => t.setAttribute(k, v));
     t.textContent = s.ab;
     const title = document.createElementNS(SVGNS, "title");
     title.textContent = s.counted ? `${s.name}: ${fmt(s.total)} contributions, ${fmt(s.people)} people, ${fmt(s.average)} average` : `${s.name}: not counted yet`;
@@ -1033,7 +1161,7 @@ function renderMap() {
   const leg = $("#mapLegend");
   leg.textContent = "";
   leg.appendChild(h("span", { text: "Fewer" }));
-  for (const c of RAMP) {
+  for (const c of THEME.ramp) {
     const i = h("i");
     i.style.background = c;
     i.style.width = "22px";

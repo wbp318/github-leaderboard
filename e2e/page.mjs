@@ -110,6 +110,29 @@ check((await phone.evaluate(() => document.documentElement.scrollWidth - window.
 await phone.locator("#cv").scrollIntoViewIfNeeded();
 await phone.waitForTimeout(800);
 check((await lit(phone)) > 1000, "the tornado draws on a phone");
+
+// A light theme: a light system gets a light page, and the switch at the top overrides it and is
+// remembered. Brightness is the page background's average of red, green, and blue (0 to 255).
+const lightSystem = await browser.newContext({ colorScheme: "light", viewport: { width: 1340, height: 900 } });
+const day = await lightSystem.newPage();
+watch(day, "light");
+const brightness = () => day.evaluate(() => getComputedStyle(document.body).backgroundColor.match(/\d+/g).slice(0, 3).reduce((a, n) => a + Number(n), 0) / 3);
+const themeSwitch = (name) => day.locator("#theme button", { hasText: name });
+await day.goto(url);
+await day.waitForTimeout(500);
+check((await brightness()) > 200, "a light system gets a light page");
+await day.locator("#cv").scrollIntoViewIfNeeded();
+await day.waitForTimeout(800);
+check((await lit(day)) > 1000 && (await day.evaluate(() => document.documentElement.dataset.theme)) === "light", "the tornado draws in the light theme");
+check((await themeSwitch("Light").getAttribute("aria-pressed").catch(() => null)) === "true", "the theme switch shows Light as on");
+await themeSwitch("Dark").click({ timeout: 2000 }).catch(() => {});
+await day.waitForTimeout(300);
+check((await brightness()) < 60 && (await themeSwitch("Dark").getAttribute("aria-pressed").catch(() => null)) === "true", "the theme switch turns the page dark");
+await day.reload();
+await day.waitForTimeout(500);
+check((await brightness()) < 60 && (await themeSwitch("Dark").getAttribute("aria-pressed").catch(() => null)) === "true", "and the choice survives a reload");
+check(!errors.some((e) => e.startsWith("light:")), "no script errors in the light theme");
+await lightSystem.close();
 await browser.close();
 
 check(errors.length === 0, `no script errors${errors.length ? `:\n  ${errors.join("\n  ")}` : ""}`);
