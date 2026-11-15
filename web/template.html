@@ -1647,8 +1647,9 @@ function notFound(login) {
     .sort((a, b) => b[F.total] - a[F.total])
     .slice(0, 5);
   const add = h("a", { class: "btn go addme", href: "https://github.com/wbp318/github-leaderboard/issues/new?template=add-me.yml", target: "_blank", rel: "noopener", text: "Add me" });
+  // The login is whatever was typed or put in ?me=, so it goes in as text, never as HTML.
   msg.append(
-    `${login} is not on the leaderboard yet: each state looks up only the ${D.perState} people likeliest to be busiest${DEEP.length ? ` (and ${andList(DEEP)} everyone active)` : ""}. `,
+    document.createTextNode(`${login} is not on the leaderboard yet: each state looks up only the ${D.perState} people likeliest to be busiest${DEEP.length ? ` (and ${andList(DEEP)} everyone active)` : ""}. `),
     add,
     " opens a one-click GitHub issue; a bot adds whoever opens it and replies with a link to their ranks in a few minutes. Your profile's location must name a US state. ",
   );

@@ -98,6 +98,20 @@ await page.click("#findme .go");
 await page.waitForTimeout(300);
 check((await page.locator("#findmsg").innerText()).includes("is not on the leaderboard"), "an unknown login is explained");
 check(((await page.locator("#findmsg a.addme").getAttribute("href")) ?? "").includes("template=add-me.yml"), "and offered Add me");
+// A login is shown as text, never run as HTML, whether typed or in ?me=.
+{
+  const bait = '<img src=x onerror="window.__xss=1">';
+  await page.fill("#me", bait);
+  await page.click("#findme .go");
+  await page.waitForTimeout(300);
+  const typed = await page.evaluate(() => [window.__xss ?? null, document.querySelectorAll("#findmsg img").length]);
+  const linked = await browser.newPage();
+  await linked.goto(`${url}?me=${encodeURIComponent(bait)}`);
+  await linked.waitForTimeout(500);
+  const viaUrl = await linked.evaluate(() => [window.__xss ?? null, document.querySelectorAll("#findmsg img").length, document.querySelector("#findmsg").textContent]);
+  await linked.close();
+  check(typed[0] === null && typed[1] === 0 && viaUrl[0] === null && viaUrl[1] === 0 && viaUrl[2].startsWith(bait), "a login with HTML in it is shown as text, typed or in ?me=");
+}
 await page.click("#forget");
 await page.waitForTimeout(300);
 check((await page.locator("#you .tile").count()) === 0, "Forget me clears you");
