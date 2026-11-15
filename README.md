@@ -42,6 +42,7 @@ A year of GitHub contributions across the United States, drawn as a spinning tor
 - **A map** of all 50 states, coloured by contributions, people counted, or average.
 - **Tables** of the states, the regions and divisions, and all 64 Louisiana parishes.
 - **Light or dark.** The page follows your system's setting; the switch at the top changes it and remembers your choice.
+- **History.** In the states table, a small line for each state shows how its contributions have moved since the history started. Open a state's tornado for a chart of its total, day by day.
 
 ## How it works
 
@@ -62,7 +63,7 @@ flowchart TD
 2. **Place them.** [src/states.mjs](src/states.mjs) reads each free-text location. Two-letter codes are shared around the world (MS is also Mato Grosso do Sul in Brazil, DE is Germany, IN is India, WA is Western Australia), so a code only counts when the city in front of it is not a known place abroad that uses the same code. Louisiana goes down to the parish with [src/parishes.mjs](src/parishes.mjs). [docs/placement.md](docs/placement.md) explains the rules, and the [tests](test/states.test.mjs) hold the hard cases.
 3. **Look up contributions.** For each state, the 80 people most likely to be busiest (by public repositories and followers, among those who pushed code in the last year) get their year of contributions looked up, and every active Louisianan does for the parish view. States are always compared on the same 80 each. The busiest accounts are too big for GitHub to count in one query, so they are counted the long way rather than dropped; bot and test accounts are left off.
 4. **Audit and build.** [scripts/audit.mjs](scripts/audit.mjs) lists what each rule placed and what it turned away; [scripts/build.mjs](scripts/build.mjs) adds everything up and writes it into [web/template.html](web/template.html).
-5. **Every day** at about 4 a.m. Central, [a GitHub Actions workflow](.github/workflows/refresh.yml) refreshes what has gone stale (contributions daily, searches and profiles weekly), saves the data to the [`data` branch](https://github.com/wbp318/github-leaderboard/tree/data), audits it, and publishes the page. It uses the workflow's own token, so there are no secrets. [docs/data.md](docs/data.md) describes every file.
+5. **Every day** at about 4 a.m. Central, [a GitHub Actions workflow](.github/workflows/refresh.yml) refreshes what has gone stale (contributions daily, searches and profiles weekly), adds the day's numbers for each state to a small history ([scripts/history.mjs](scripts/history.mjs)), saves the data to the [`data` branch](https://github.com/wbp318/github-leaderboard/tree/data), audits it, and publishes the page. It uses the workflow's own token, so there are no secrets. [docs/data.md](docs/data.md) describes every file.
 
 ## Run it yourself
 

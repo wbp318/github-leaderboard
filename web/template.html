@@ -177,6 +177,21 @@ td.loc { color: var(--muted); max-width: 240px; overflow: hidden; text-overflow:
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 14px; }
 #map svg { display: block; width: 100%; height: auto; }
 .note { color: var(--muted); font-size: 12.5px; }
+/* History: a sparkline for each state in the states table, and a chart beside a state's tornado. */
+#histNote { margin: 8px 2px 0; }
+td.spark { text-align: right; }
+td.spark svg { vertical-align: middle; margin-right: 6px; overflow: visible; }
+td.spark span { display: inline-block; min-width: 3.4em; font-variant-numeric: tabular-nums; }
+.spark .line, .chart .line { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.spark .end, .chart .dot { fill: var(--ink); }
+.chart { display: block; width: 100%; height: auto; margin: 8px 0 2px; overflow: visible; }
+.chart:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.chart .line { stroke: var(--ink); stroke-width: 2; }
+.chart .dot { stroke: var(--panel); stroke-width: 2; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .hair { stroke: var(--muted); stroke-width: 1; }
+.chart text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.card p.readout { color: var(--ink); }
 footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 980px; }
 </style>
 <script>
@@ -288,6 +303,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
   </div>
   <div class="panel" style="margin-top: 14px">
     <div class="scroll"><table id="stateTable"></table></div>
+    <p class="note" id="histNote" hidden></p>
   </div>
 </section>
 
@@ -1076,6 +1092,7 @@ function renderSide() {
       h("p", { class: "note", text: `Both among the ${D.perState} people each state is compared on.` }),
     ]));
   }
+  if (kind === "state") renderHistory(side, val);
 }
 
 // ---------------------------------------------------------------- leaderboards
@@ -1180,6 +1197,173 @@ $("#csv").addEventListener("click", () => {
   setTimeout(() => URL.revokeObjectURL(a.href), 10000);
 });
 
+// ---------------------------------------------------------------- history
+// One record a day (scripts/history.mjs): per state, the people compared and their total. It
+// draws a sparkline for each state in the states table and a chart beside a state's tornado.
+const HIST = D.history?.dates?.length ? D.history : null;
+const svgEl = (tag, attrs = {}) => {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  return e;
+};
+// Days are UTC dates, shown as "Nov 13" (with the year once the history spans two).
+const dayTime = (d) => Date.parse(`${d}T00:00:00Z`);
+const withYear = HIST ? HIST.dates[0].slice(0, 4) !== HIST.dates.at(-1).slice(0, 4) : false;
+const dayName = (d) => new Date(dayTime(d)).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC", ...(withYear ? { year: "numeric" } : {}) });
+const historyStart = () => (HIST ? `History starts ${dayName(HIST.dates[0])}.` : "History starts with the next daily refresh.");
+// A state's days with a record, oldest first.
+const seriesMemo = {};
+function seriesOf(ab) {
+  if (!seriesMemo[ab]) {
+    const people = HIST?.people?.[ab] ?? [];
+    const total = HIST?.total?.[ab] ?? [];
+    seriesMemo[ab] = (HIST?.dates ?? []).map((d, i) => ({ d, t: dayTime(d), people: people[i], total: total[i] })).filter((p) => Number.isFinite(p.total) && p.people > 0);
+  }
+  return seriesMemo[ab];
+}
+// How a series moved from its first day to its last: "+4.2%", and "up 4.2% since Nov 13".
+function change(s) {
+  const pct = s[0].total ? ((s.at(-1).total - s[0].total) / s[0].total) * 100 : 0;
+  const size = Math.abs(pct) < 10 ? Math.abs(pct).toFixed(1) : String(Math.round(Math.abs(pct)));
+  const flat = Number(size) === 0;
+  return {
+    pct,
+    label: flat ? "0%" : `${pct > 0 ? "+" : "−"}${size}%`,
+    words: `${flat ? "about the same" : `${pct > 0 ? "up" : "down"} ${size}%`} since ${dayName(s[0].d)}`,
+  };
+}
+// The range a line is drawn over: at least 2% of its largest value, so a small wobble looks small.
+function rangeOf(s) {
+  const xs = s.map((p) => p.total);
+  let lo = Math.min(...xs);
+  let hi = Math.max(...xs);
+  const least = Math.max(1, hi * 0.02);
+  if (hi - lo < least) {
+    lo = Math.max(0, (lo + hi) / 2 - least / 2);
+    hi = lo + least;
+  }
+  return [lo, hi];
+}
+const niceStep = (x) => {
+  const m = 10 ** Math.floor(Math.log10(x));
+  return Math.max(1, m * (x <= m ? 1 : x <= 2 * m ? 2 : x <= 5 * m ? 5 : 10));
+};
+const tick = (v, step) => (step >= 1e6 ? `${fmt(v / 1e6)}M` : step >= 1e3 ? `${fmt(v / 1e3)}k` : fmt(v));
+
+// The states table's sparkline: the state's total a day at a time, its change beside it, and the
+// change in words for screen readers and on hover.
+function sparkline(ab) {
+  const s = seriesOf(ab);
+  if (s.length < 2) return [];
+  const W = 80;
+  const H = 20;
+  const pad = 3;
+  const [lo, hi] = rangeOf(s);
+  const x = (p) => pad + ((p.t - s[0].t) / (s.at(-1).t - s[0].t)) * (W - 2 * pad);
+  const y = (p) => H - pad - ((p.total - lo) / (hi - lo)) * (H - 2 * pad);
+  const c = change(s);
+  const svg = svgEl("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `Contributions ${c.words}` });
+  const title = svgEl("title");
+  title.textContent = `Contributions ${c.words}`;
+  svg.append(title, svgEl("polyline", { class: "line", points: s.map((p) => `${x(p).toFixed(1)},${y(p).toFixed(1)}`).join(" ") }), svgEl("circle", { class: "end", cx: x(s.at(-1)), cy: y(s.at(-1)), r: 2.5 }));
+  return [svg, h("span", { "aria-hidden": "true", text: c.label })];
+}
+{
+  // Until there are two days to draw, a note under the states table says when history starts.
+  const note = $("#histNote");
+  note.hidden = (HIST?.dates.length ?? 0) > 1;
+  note.textContent = `${historyStart()} From the second day, a line for each state shows how it moves.`;
+}
+
+// Beside a state's tornado: its total over time. Point at a day, or focus the chart and use the
+// arrow keys, to read it. With fewer than two days, a note says when history starts.
+function renderHistory(side, ab) {
+  const s = seriesOf(ab);
+  const card = h("div", { class: "card" }, [h("h4", { text: "Over time" })]);
+  side.appendChild(card);
+  if (s.length < 2) {
+    card.appendChild(h("p", { text: `${historyStart()} The chart appears after a second day.` }));
+    return;
+  }
+  const name = STATE[ab].name;
+  const c = change(s);
+  const first = s[0];
+  const last = s.at(-1);
+  card.appendChild(h("p", { text: `Total contributions of the ${D.perState} people ${name} is compared on, as in the states table, a day at a time.` }));
+  const box = h("div");
+  const readout = h("p", { class: "readout" });
+  card.append(box, readout);
+  let width = 0;
+  let at = s.length - 1;
+  const draw = () => {
+    width = box.clientWidth;
+    const W = Math.max(200, width);
+    const [H, L, R, T, B] = [120, 44, 6, 8, 20];
+    const [lo0, hi0] = rangeOf(s);
+    const step = niceStep((hi0 - lo0) / 3);
+    const lo = Math.floor(lo0 / step) * step;
+    const hi = Math.ceil(hi0 / step) * step;
+    const x = (p) => L + ((p.t - first.t) / (last.t - first.t)) * (W - L - R);
+    const y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+    const svg = svgEl("svg", {
+      class: "chart", viewBox: `0 0 ${W} ${H}`, role: "img", tabindex: "0",
+      "aria-label": `${name}, total contributions by day: ${fmt(first.total)} on ${dayName(first.d)}, ${fmt(last.total)} on ${dayName(last.d)}, ${c.words}. Use the arrow keys to read each day.`,
+    });
+    for (let v = lo; v <= hi + step / 2; v += step) {
+      const label = svgEl("text", { x: L - 6, y: y(v) + 4, "text-anchor": "end" });
+      label.textContent = tick(v, step);
+      svg.append(svgEl("line", { class: "grid", x1: L, x2: W - R, y1: y(v), y2: y(v) }), label);
+    }
+    for (const [p, anchor] of [[first, "start"], [last, "end"]]) {
+      const label = svgEl("text", { x: x(p), y: H - 4, "text-anchor": anchor });
+      label.textContent = dayName(p.d);
+      svg.append(label);
+    }
+    const hair = svgEl("line", { class: "hair", y1: T, y2: H - B, visibility: "hidden" });
+    const dot = svgEl("circle", { class: "dot", r: 4 });
+    svg.append(hair, svgEl("polyline", { class: "line", points: s.map((p) => `${x(p).toFixed(1)},${y(p.total).toFixed(1)}`).join(" ") }), dot);
+    // One day (i), or the latest with its change since the first when nothing is pointed at (null).
+    const show = (i) => {
+      const p = s[i ?? s.length - 1];
+      if (i !== null) at = i;
+      for (const [k, v] of Object.entries({ cx: x(p), cy: y(p.total) })) dot.setAttribute(k, v);
+      for (const [k, v] of Object.entries({ x1: x(p), x2: x(p), visibility: i === null ? "hidden" : "visible" })) hair.setAttribute(k, v);
+      readout.textContent = "";
+      readout.append(h("b", { text: fmt(p.total) }), ` on ${dayName(p.d)} · ${i === null ? c.words : `${fmt(p.people)} people, ${fmt(p.total / p.people)} average`}`);
+    };
+    const point = (e) => {
+      const r = svg.getBoundingClientRect();
+      const px = ((e.clientX - r.left) / r.width) * W;
+      let best = 0;
+      s.forEach((p, i) => {
+        if (Math.abs(x(p) - px) < Math.abs(x(s[best]) - px)) best = i;
+      });
+      show(best);
+    };
+    svg.addEventListener("pointermove", point);
+    svg.addEventListener("pointerdown", point);
+    // A tapped day stays shown; a mouse leaving goes back to the latest.
+    svg.addEventListener("pointerleave", (e) => e.pointerType === "mouse" && show(null));
+    svg.addEventListener("focus", () => show(at));
+    svg.addEventListener("blur", () => show(null));
+    svg.addEventListener("keydown", (e) => {
+      const to = { ArrowLeft: at - 1, ArrowRight: at + 1, Home: 0, End: s.length - 1 }[e.key];
+      if (to === undefined) return;
+      e.preventDefault();
+      show(Math.max(0, Math.min(s.length - 1, to)));
+    });
+    box.replaceChildren(svg);
+    show(null);
+  };
+  draw();
+  // Drawn at the panel's width; drawn again if that changes (a phone turned, a window resized).
+  const ro = new ResizeObserver(() => {
+    if (!box.isConnected) ro.disconnect();
+    else if (Math.abs(box.clientWidth - width) > 8) draw();
+  });
+  ro.observe(box);
+}
+
 // ---------------------------------------------------------------- tables
 function sortable(table, cols, rows, onClick) {
   let key = cols.findIndex((c) => c.sort) ?? 0;
@@ -1210,7 +1394,7 @@ function sortable(table, cols, rows, onClick) {
       const row = h("tr", { class: `${onClick ? "click" : ""}${r.me ? " me" : ""}` });
       for (const c of cols) {
         const v = c.get(r);
-        row.appendChild(h("td", { class: `${c.num ? "num" : ""}${c.num && v === 0 ? " zero" : ""}`, text: c.fmt ? c.fmt(v, r) : v }));
+        row.appendChild(c.node ? h("td", { class: "spark" }, c.node(v, r)) : h("td", { class: `${c.num ? "num" : ""}${c.num && v === 0 ? " zero" : ""}`, text: c.fmt ? c.fmt(v, r) : v }));
       }
       if (onClick) row.addEventListener("click", () => onClick(r));
       tb.appendChild(row);
@@ -1230,6 +1414,7 @@ function renderTables() {
       { label: "Division", get: (r) => r.division },
       { label: "People counted", get: (r) => r.people, num: true, fmt },
       { label: "Contributions", get: (r) => r.total, num: true, fmt, sort: true },
+      ...(HIST?.dates.length > 1 ? [{ label: `Since ${dayName(HIST.dates[0])}`, get: (r) => (seriesOf(r.ab).length > 1 ? change(seriesOf(r.ab)).pct : 0), num: true, node: (v, r) => sparkline(r.ab) }] : []),
       { label: "Average", get: (r) => r.average, num: true, fmt },
       { label: "Median", get: (r) => r.median, num: true, fmt },
       { label: "Public commits", get: (r) => r.commits, num: true, fmt },

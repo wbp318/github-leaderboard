@@ -4,10 +4,14 @@
 //   node scripts/build.mjs   (or: npm run build)
 //   VIEWER=<login>   whose ranks the page shows as "you" (they must be in data/users.json)
 //   SCOPE=LA,MS,AR   only some states (default: all)
+//   HISTORY=<file>   the daily history to show (default: data/history.json, if there is one)
+//   OUT=<file>       where to write the page (default: site/leaderboard.html)
 import { readFileSync, writeFileSync } from "node:fs";
 import { PARISHES, parishOf } from "../src/parishes.mjs";
 import { isBot, optedOut } from "../src/exclude.mjs";
 import { stateOf } from "../src/states.mjs";
+import { markSample, refreshedAt } from "../src/sample.mjs";
+import { lastYear, readHistory } from "../src/history.mjs";
 
 const VIEWER = process.env.VIEWER ?? "wbp318";
 const SCOPE = process.env.SCOPE && process.env.SCOPE !== "all" ? new Set(process.env.SCOPE.split(",")) : null;
@@ -60,20 +64,10 @@ for (const [login, u] of Object.entries(users)) {
   const parish = ab === "LA" ? (parishOf(u.location) ?? "") : "";
   people.push({ login, ...u, state: ab, region: s.region, division: s.division, parish });
 }
-{
-  const yearAgo = Date.now() - 365 * 86400000;
-  const byState = {};
-  for (const p of people) {
-    const pr = profiles[p.login];
-    p.fair = false;
-    if (!pr || !pr.pushed || Date.parse(pr.pushed) < yearAgo) continue;
-    (byState[p.state] ??= []).push([p, 2 * pr.repos + pr.followers / 5]);
-  }
-  for (const list of Object.values(byState)) {
-    list.sort((a, b) => b[1] - a[1]);
-    for (const [p] of list.slice(0, PER_STATE)) p.fair = true;
-  }
-}
+// When the data was last fetched (the newest lookup). The sample's year counts back from it, so the
+// page and the daily history (scripts/history.mjs) pick the same people.
+const refreshed = refreshedAt(users) || Date.now();
+markSample(people, profiles, PER_STATE, refreshed);
 const fair = people.filter((p) => p.fair);
 const CATS = ["total", "commits", "private", "prs", "reviews", "issues", "repos", "followers"];
 const sum = (list, k) => list.reduce((a, p) => a + p[k], 0);
@@ -107,13 +101,14 @@ const parishes = [...PARISHES, ""].map((name) => ({ name: name || "Parish not gi
 // Compact people: [login, name, state, total, commits, private, prs, reviews, issues, repos, followers, parish, fair, location]
 const P = people.map((p) => [p.login, p.name, p.state, p.total, p.commits, p.private, p.prs, p.reviews, p.issues, p.repos, p.followers, p.parish, p.fair ? 1 : 0, (p.location ?? "").trim()]);
 const me = people.find((p) => p.login === VIEWER) ?? null;
-// When the data was last fetched (the newest lookup), and the daily refresh's time from the workflow.
-const refreshed = Math.max(0, ...Object.values(users).map((u) => u?.at ?? 0)) || Date.now();
+// The daily refresh's time, from the workflow.
 const cron = readFileSync(new URL("../.github/workflows/refresh.yml", import.meta.url), "utf8").match(/cron:\s*"(\d+) (\d+) \* \* \*"/);
 const schedule = cron ? { hour: Number(cron[2]), minute: Number(cron[1]) } : null;
 const data = { generated: new Date().toISOString(), refreshed, schedule, scopeName: SCOPE_NAME, perState: PER_STATE, compared: fair.length, viewer: VIEWER, me, us, regions, divisions, states, parishes, P, candidates: Object.values(cands).reduce((a, s) => a + s.logins.length, 0), fetched: Object.keys(users).length };
+// The daily history (scripts/history.mjs), its last year: a sparkline per state, and a chart of one.
+data.history = lastYear(readHistory(process.env.HISTORY ?? new URL("../data/history.json", import.meta.url)));
 
 const tpl = readFileSync(new URL("../web/template.html", import.meta.url), "utf8");
-writeFileSync(new URL("../site/leaderboard.html", import.meta.url), tpl.replace("/*__DATA__*/null", () => JSON.stringify(data).replace(/</g, String.fromCharCode(92) + "x3c")));
+writeFileSync(process.env.OUT ?? new URL("../site/leaderboard.html", import.meta.url), tpl.replace("/*__DATA__*/null", () => JSON.stringify(data).replace(/</g, String.fromCharCode(92) + "x3c")));
 console.log(`placed ${people.length} of ${Object.keys(users).length} users in a state (${fair.length} in the per-state sample); leaderboard.html written`);
 if (me) console.log(`you: ${me.state}, ${me.total} contributions`);

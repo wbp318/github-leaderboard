@@ -5,6 +5,7 @@
 # opens the built page in a real browser before it can go live.
 #
 # The data lives on the `data` branch, one commit replaced each day, so history does not grow.
+# Instead data/history.json, carried from each run to the next, keeps one small record a day.
 # It uses the workflow's own token, so there is no secret to manage; that token's GraphQL budget
 # (1,000 points an hour) is enough for a daily refresh, and the collector waits for the hourly
 # reset if it runs out.
@@ -61,6 +62,15 @@ jobs:
           if git fetch --depth=1 origin data; then git archive FETCH_HEAD data | tar -x; fi
           ls -la data
 
+      # The history (data/history.json) comes from the data branch with the rest. The branch keeps
+      # no older commits to backfill from, so the first refresh without a history starts it from the
+      # data this run begins with, and the page has two days at once. The history must never stop
+      # a refresh, so a failure here is only a warning.
+      - name: Start the history from the latest data
+        if: env.COLLECT == 'true' && hashFiles('data/history.json') == '' && hashFiles('data/users.json') != ''
+        continue-on-error: true
+        run: if node scripts/check-data.mjs; then node scripts/history.mjs; fi
+
       # People who added themselves: the authors of issues labelled "added" (see add-me.yml).
       - name: List the people who added themselves
         if: env.COLLECT == 'true'
@@ -81,7 +91,20 @@ jobs:
         if: always() && hashFiles('data/profiles.json') != ''
         run: node scripts/audit.mjs
 
+      # Today's record in the history: the numbers the page shows for each state, keyed by the data's
+      # own date, so a second refresh on the same day replaces that day's record. Only after a
+      # refresh that finished, and only data that looks whole, so a bad day at GitHub's API never
+      # becomes a dip in the history. Like the step above, a failure here is only a warning.
+      - name: Add today to the history
+        if: env.COLLECT == 'true'
+        continue-on-error: true
+        env:
+          REQUIRE_FRESH_HOURS: 30
+        run: |
+          if node scripts/check-data.mjs; then node scripts/history.mjs; else echo "The data looks broken, so today is not added to the history."; fi
+
       # Saved even when collecting stopped part way, so the next run picks up where this one left off.
+      # The history is saved too, so it carries over even on a day it was not added to.
       # The branch gets .github/data-branch-README.md as its README, saying not to edit, merge, or delete it.
       - name: Save the data to the data branch
         if: always() && env.COLLECT == 'true' && hashFiles('data/users.json') != ''
@@ -89,7 +112,7 @@ jobs:
           # Fixed file names only: nothing from the data is ever run as a command.
           export GIT_INDEX_FILE="$RUNNER_TEMP/data-index"
           git read-tree --empty
-          for f in data/candidates.json data/profiles.json data/users.json data/audit.md; do
+          for f in data/candidates.json data/profiles.json data/users.json data/audit.md data/history.json; do
             if [ -f "$f" ]; then git add -f -- "$f"; fi
           done
           git update-index --add --cacheinfo "100644,$(git hash-object -w .github/data-branch-README.md),README.md"

@@ -7,9 +7,14 @@ import { mkdirSync, writeFileSync } from "node:fs";
 const repo = process.env.DATA_REPO ?? "wbp318/github-leaderboard";
 const dir = new URL("../data/", import.meta.url);
 mkdirSync(dir, { recursive: true });
-for (const name of ["candidates.json", "profiles.json", "users.json", "audit.md"]) {
+for (const name of ["candidates.json", "profiles.json", "users.json", "audit.md", "history.json"]) {
   const url = `https://raw.githubusercontent.com/${repo}/data/data/${name}`;
   const r = await fetch(url);
+  // The daily history starts with the first daily run after it was added (or a fork's first).
+  if (r.status === 404 && name === "history.json") {
+    console.log("data/history.json  none yet");
+    continue;
+  }
   if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
   const body = Buffer.from(await r.arrayBuffer());
   writeFileSync(new URL(name, dir), body);

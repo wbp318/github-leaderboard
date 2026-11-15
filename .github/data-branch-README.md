@@ -14,6 +14,7 @@ This branch holds the data behind the [GitHub Contribution Tornado](https://wbp3
 | [data/profiles.json](data/profiles.json) | Location, followers, public repositories, and last push for everyone found |
 | [data/users.json](data/users.json) | A year of contributions for the people looked up |
 | [data/audit.md](data/audit.md) | The placement audit: what each rule placed and turned away |
+| [data/history.json](data/history.json) | One record a day for each state: the people compared and their total contributions |
 
 Every field is described in [docs/data.md](https://github.com/wbp318/github-leaderboard/blob/main/docs/data.md). To use the data, clone `main` and run `npm run data`, which downloads these files into `data/`.
 
