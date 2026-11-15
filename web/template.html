@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GitHub Contribution Tornado</title>
-<meta name="description" content="A spinning tornado of a year of GitHub contributions across the United States: every state, division, and region, Louisiana parish by parish, and leaderboards in eight categories. Open source and refreshed daily.">
+<meta name="description" content="A spinning tornado of a year of GitHub contributions across the United States: every state, division, and region, Louisiana parish by parish, Mississippi county by county, and leaderboards in eight categories. Open source and refreshed daily.">
 <meta property="og:title" content="GitHub Contribution Tornado">
-<meta property="og:description" content="A year of GitHub contributions across the United States, by state, division, region, and Louisiana parish. Refreshed daily.">
+<meta property="og:description" content="A year of GitHub contributions across the United States, by state, division, region, Louisiana parish, and Mississippi county. Refreshed daily.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://wbp318.github.io/github-leaderboard/">
 <meta name="theme-color" content="#0b1430">
@@ -22,16 +22,68 @@
   --gold: #f2b705;
   --left: #e66767;
   --right: #3987e5;
+  --on-gold: #0b1430;
+  --gold-hover: #ffd23f;
+  --link: #86b6ef;
+  --hover: #1d2b55;
+  --faint: #8591b2;
+  --live: #1baf7a;
+  --tip: #0e1836;
+  --storm-top: #1b2a57;
+  --me-row: rgba(242, 183, 5, 0.12);
+  /* Only the canvas and the map use these; the script reads them into THEME. Colours it fades
+     (gold, left, right, dust, glow) must be 6-digit hex. The map's ramp: brighter means more. */
+  --left-me: #ef8a8a;
+  --right-me: #5ea3ee;
+  --dust-left: #f6c4c4;
+  --dust-right: #c8defa;
+  --glow: #f2b705;
+  --where: #8fa0c8;
+  --ramp: #184f95 #1c5cab #256abf #2975d3 #5598e7 #86b6ef #cde2fb;
+  --ramp-ink: #ffffff #ffffff #ffffff #ffffff #0b1430 #0b1430 #0b1430;
+  --tile-empty: #1a2547;
+}
+/* The same storm by day: the pale green-grey of tornado weather, inked in the night sky's navy.
+   Gold turns to a deep amber so it still reads as text; the map's ramp: darker means more. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --sky: #e6ebe7;
+  --panel: #f6f8f5;
+  --line: #c4cec8;
+  --ink: #131d35;
+  --muted: #4b5870;
+  --gold: #7f5700;
+  --left: #c33b3b;
+  --right: #2362c0;
+  --on-gold: #ffffff;
+  --gold-hover: #664600;
+  --link: #1d5bb5;
+  --hover: #dde5df;
+  --faint: #5c6679;
+  --live: #12865d;
+  --tip: #ffffff;
+  --storm-top: #d3dbd6;
+  --me-row: rgba(127, 87, 0, 0.12);
+  --left-me: #9e2626;
+  --right-me: #174c99;
+  --dust-left: #b56f6f;
+  --dust-right: #6d8bbf;
+  --glow: #b39b6a;
+  --where: #56637a;
+  --ramp: #d3e2f4 #b0caeb #89afe0 #5f90d2 #3b72bd #2556a0 #153a73;
+  --ramp-ink: #131d35 #131d35 #131d35 #131d35 #ffffff #ffffff #ffffff;
+  --tile-empty: #e4e9e5;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--sky); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
 body { padding: 20px clamp(12px, 3vw, 32px) 40px; }
-a { color: #86b6ef; }
+a { color: var(--link); }
 header h1 { margin: 0; font-size: clamp(26px, 4vw, 40px); letter-spacing: 0.01em; }
+#theme { float: right; margin: clamp(4px, 1.4vw, 15px) 0 0 14px; }
 header p { margin: 4px 0 0; color: var(--muted); max-width: 980px; }
 header p.fresh { display: inline-flex; align-items: center; gap: 8px; margin: 6px 0 2px; padding: 4px 12px; border: 1px solid var(--line);
   border-radius: 999px; background: var(--panel); color: var(--ink); font-size: 13.5px; }
-header p.fresh::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #1baf7a; box-shadow: 0 0 6px #1baf7a; flex: none; }
+header p.fresh::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--live); box-shadow: 0 0 6px var(--live); flex: none; }
 .repo { display: inline-block; margin-top: 8px; color: var(--gold); font-weight: 600; text-decoration: none; }
 .repo:hover { text-decoration: underline; }
 footer a { color: var(--gold); }
@@ -46,7 +98,7 @@ section > h2 { margin: 0 0 4px; font-size: 21px; }
 section > p.lede { margin: 0 0 12px; color: var(--muted); max-width: 980px; }
 .storm {
   display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; align-items: start;
-  background: radial-gradient(ellipse at 50% 0%, #1b2a57 0%, var(--sky) 70%);
+  background: radial-gradient(ellipse at 50% 0%, var(--storm-top) 0%, var(--sky) 70%);
   border: 1px solid var(--line); border-radius: 12px; padding: 12px;
 }
 @media (max-width: 920px) { .storm { grid-template-columns: 1fr; } }
@@ -58,11 +110,15 @@ fieldset.seg { display: inline-flex; border: 1px solid var(--line); border-radiu
   border: 0; padding: 6px 10px; cursor: pointer;
 }
 .seg button + button { border-left: 1px solid var(--line); }
-.seg button[aria-pressed="true"] { background: var(--gold); color: var(--sky); }
+.seg button[aria-pressed="true"] { background: var(--gold); color: var(--on-gold); }
 .btn { border: 1px solid var(--line); border-radius: 6px; }
-.btn:hover, .seg button:hover { background: #1d2b55; }
+.btn:hover, .seg button:hover { background: var(--hover); }
 .seg button[aria-pressed="true"]:hover { background: var(--gold); }
 button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+/* Let a keyboard focus ring show past the group's edge, with the pressed button still rounded to fit. */
+fieldset.seg:has(:focus-visible) { overflow: visible; }
+.seg button:first-child { border-radius: 5px 0 0 5px; }
+.seg button:last-child { border-radius: 0 5px 5px 0; }
 select, input[type="search"] {
   font: 13px system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--panel);
   border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
@@ -73,22 +129,27 @@ select, input[type="search"] {
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
 .findme label { font-weight: 700; color: var(--gold); }
 .findme input { min-width: 200px; flex: 0 1 260px; }
-.findme .go { background: var(--gold); color: var(--sky); border-color: var(--gold); font-weight: 600; }
-.findme .go:hover { background: #ffd23f; }
+.findme .go { background: var(--gold); color: var(--on-gold); border-color: var(--gold); font-weight: 600; }
+.findme .go:hover { background: var(--gold-hover); }
 #findmsg { flex-basis: 100%; margin: 0; color: var(--muted); font-size: 13px; }
 #findmsg:empty { display: none; }
 #findmsg button { font: inherit; color: var(--gold); background: none; border: 0; padding: 0 2px; cursor: pointer; text-decoration: underline; }
 #findmsg a { color: var(--gold); }
-#findmsg a.addme { display: inline-block; color: var(--sky); text-decoration: none; padding: 3px 10px; margin: 0 2px; }
+#findmsg a.addme { display: inline-block; color: var(--on-gold); text-decoration: none; padding: 3px 10px; margin: 0 2px; }
 canvas { display: block; width: 100%; height: clamp(600px, 78vh, 820px); touch-action: pan-y; }
 .stip {
   position: absolute; pointer-events: none; display: none; z-index: 3; min-width: 210px; max-width: 300px;
-  background: #0e1836; border: 1px solid var(--gold); border-radius: 6px; padding: 8px 10px; font-size: 12.5px; line-height: 1.45;
+  background: var(--tip); border: 1px solid var(--gold); border-radius: 6px; padding: 8px 10px; font-size: 12.5px; line-height: 1.45;
 }
 .stip .t { color: var(--gold); font-weight: 600; margin-bottom: 2px; }
 .stip .r { display: flex; gap: 8px; align-items: center; }
 .stip .r i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; }
 .stip .r b { font-variant-numeric: tabular-nums; }
+.stip .keys { margin-top: 6px; padding-top: 5px; border-top: 1px solid var(--line); color: var(--muted); }
+/* The rings again as buttons, for the keyboard and screen readers: unseen, each over its own ring. */
+#rings { position: absolute; inset: 0; margin: 0; padding: 0; list-style: none; pointer-events: none; clip-path: inset(50%); }
+#rings button { position: absolute; left: 0; width: 100%; height: 56px; margin-top: -24px; overflow: hidden; }
+.sr { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--muted); padding: 8px 2px 2px; }
 .legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: 3px; }
 .legend i.dot { width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; }
@@ -105,10 +166,10 @@ table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: nowrap; }
 th { color: var(--muted); font-weight: 600; cursor: pointer; user-select: none; }
 th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
-tr.me td { background: rgba(242, 183, 5, 0.12); color: var(--gold); font-weight: 600; }
+tr.me td { background: var(--me-row); color: var(--gold); font-weight: 600; }
 tr.click { cursor: pointer; }
-tr.click:hover td { background: #1d2b55; }
-td.zero { color: #56618a; }
+tr.click:hover td { background: var(--hover); }
+td.zero { color: var(--faint); }
 td.loc { color: var(--muted); max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
 .kv > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .where { color: var(--muted); opacity: 0.85; font-size: 11.5px; margin-left: 6px; }
@@ -116,11 +177,42 @@ td.loc { color: var(--muted); max-width: 240px; overflow: hidden; text-overflow:
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 14px; }
 #map svg { display: block; width: 100%; height: auto; }
 .note { color: var(--muted); font-size: 12.5px; }
+/* History: a sparkline for each state in the states table, and a chart beside a state's tornado. */
+#histNote { margin: 8px 2px 0; }
+td.spark { text-align: right; }
+td.spark svg { vertical-align: middle; margin-right: 6px; overflow: visible; }
+td.spark span { display: inline-block; min-width: 3.4em; font-variant-numeric: tabular-nums; }
+.spark .line, .chart .line { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.spark .end, .chart .dot { fill: var(--ink); }
+.chart { display: block; width: 100%; height: auto; margin: 8px 0 2px; overflow: visible; }
+.chart:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.chart .line { stroke: var(--ink); stroke-width: 2; }
+.chart .dot { stroke: var(--panel); stroke-width: 2; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .hair { stroke: var(--muted); stroke-width: 1; }
+.chart text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.card p.readout { color: var(--ink); }
 footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 980px; }
 </style>
+<script>
+// Set the theme before the page paints, so a light page never flashes dark: the one picked with
+// the switch at the top (remembered), or else the system's. The script below keeps it current.
+{
+  let theme = null;
+  try {
+    theme = localStorage.getItem("github-leaderboard.theme");
+  } catch {}
+  if (theme !== "light" && theme !== "dark") theme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  document.documentElement.dataset.theme = theme;
+}
+</script>
 </head>
 <body>
 <header>
+  <fieldset class="seg" id="theme" aria-label="Theme">
+    <button type="button" value="dark" aria-pressed="true">Dark</button>
+    <button type="button" value="light" aria-pressed="false">Light</button>
+  </fieldset>
   <h1 id="title">GitHub Contribution Tornado</h1>
   <p class="fresh" id="fresh"></p>
   <p id="sub"></p>
@@ -154,7 +246,9 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
       </div>
       <div class="canvas-box">
         <canvas id="cv" role="img" aria-label="A spinning tornado of GitHub contributions; the same numbers are in the tables below."></canvas>
-        <div class="stip" id="stip"></div>
+        <div class="stip" id="stip" aria-hidden="true"></div>
+        <ul id="rings"></ul>
+        <p class="sr" id="said" role="status" aria-live="polite"></p>
       </div>
       <div class="legend" aria-hidden="true">
         <span><i style="background: var(--left)"></i>Public commits</span>
@@ -163,13 +257,13 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
         <span>Widest at the top: the busiest</span>
       </div>
     </div>
-    <aside id="side" aria-live="polite"></aside>
+    <aside id="side"></aside>
   </div>
 </section>
 
 <section id="lists">
   <h2>Leaderboards</h2>
-  <p class="lede">Ranked by category, for the whole country, a region, a division, a state, or a Louisiana parish. Your row is gold; if you are outside the top 100, your row is added at the end.</p>
+  <p class="lede">Ranked by category, for the whole country, a region, a division, a state, or a Louisiana parish or Mississippi county. Your row is gold; if you are outside the top 100, your row is added at the end.</p>
   <div class="panel">
     <div class="bar">
       <span class="lbl">Category</span>
@@ -179,6 +273,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
       <span class="lbl">Where</span>
       <select id="scope" aria-label="Where"></select>
       <input type="search" id="find" placeholder="Find a login, name, or place" aria-label="Find a login, name, or place">
+      <button type="button" class="btn" id="csv" title="Every row of this list, as filtered, for Excel or Google Sheets">Download CSV</button>
       <span class="lbl" id="count"></span>
     </div>
     <div class="scroll"><table id="board"></table></div>
@@ -208,13 +303,20 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
   </div>
   <div class="panel" style="margin-top: 14px">
     <div class="scroll"><table id="stateTable"></table></div>
+    <p class="note" id="histNote" hidden></p>
   </div>
 </section>
 
 <section id="parishes">
-  <h2>Louisiana, parish by parish</h2>
-  <p class="lede">All 64 parishes. People are placed by the town, city, university, or parish named in their GitHub location; those who wrote only "Louisiana" are under "Parish not given". Louisiana was also searched by city name, so it is covered more deeply than other states.</p>
-  <div class="panel"><div class="scroll"><table id="parishTable"></table></div></div>
+  <h2 id="countyTitle">Louisiana, parish by parish</h2>
+  <p class="lede" id="countyLede">All 64 parishes. People are placed by the town, city, university, or parish named in their GitHub location; those who wrote only "Louisiana" are under "Parish not given". Louisiana was also searched by city name, so it is covered more deeply than other states.</p>
+  <div class="panel">
+    <div class="bar" id="countyBar">
+      <span class="lbl">State</span>
+      <fieldset class="seg" id="countyState" aria-label="Whose counties"></fieldset>
+    </div>
+    <div class="scroll"><table id="parishTable"></table></div>
+  </div>
 </section>
 
 <footer><p id="method"></p><p>Built with no frameworks: one HTML file, a canvas, and GitHub's API. The code, the placement rules, and the daily refresh are at <a href="https://github.com/wbp318/github-leaderboard">github.com/wbp318/github-leaderboard</a>. Someone in the wrong state? <a href="https://github.com/wbp318/github-leaderboard/issues/new">Open an issue</a> or add a test case and send a pull request.</p></footer>
@@ -235,8 +337,68 @@ function h(tag, attrs = {}, kids = []) {
   return e;
 }
 
+// ---------------------------------------------------------------- the theme
+// Dark or light: the one picked with the switch at the top, or else the system's. Picking the
+// system's own theme forgets the pick, so the page follows the system again.
+// THEME holds the colours the canvas and the map draw with. They are the CSS tokens on :root, read
+// once each time the theme changes, never per frame. Anything drawn in script takes its colours
+// from THEME, not from a hex code.
+const THEME_KEY = "github-leaderboard.theme";
+const lightSystem = matchMedia("(prefers-color-scheme: light)");
+const pickedTheme = {
+  get() {
+    try {
+      return localStorage.getItem(THEME_KEY);
+    } catch {
+      return null;
+    }
+  },
+  set(name) {
+    try {
+      if (name) localStorage.setItem(THEME_KEY, name);
+      else localStorage.removeItem(THEME_KEY);
+    } catch {}
+  },
+};
+const THEME = {};
+function readTheme() {
+  const css = getComputedStyle(document.documentElement);
+  const v = (name) => css.getPropertyValue(`--${name}`).trim();
+  // A 6-digit hex colour, see-through: fade("#f2b705", 0.3) is "#f2b7054d".
+  const fade = (hex, a) => hex + Math.round(a * 255).toString(16).padStart(2, "0");
+  const [gold, left, right, dustL, dustR, glow] = ["gold", "left", "right", "dust-left", "dust-right", "glow"].map(v);
+  Object.assign(THEME, {
+    name: document.documentElement.dataset.theme,
+    sky: v("sky"), ink: v("ink"), muted: v("muted"), faint: v("faint"), where: v("where"), gold,
+    left, right, leftMe: v("left-me"), rightMe: v("right-me"), leftBack: fade(left, 0.28), rightBack: fade(right, 0.28),
+    dustLeft: fade(dustL, 0.24), dustRight: fade(dustR, 0.24), dustBackLeft: fade(dustL, 0.09), dustBackRight: fade(dustR, 0.09),
+    glow: fade(glow, 0.1), glowEnd: fade(glow, 0), beamTop: fade(glow, 0.08), beamBottom: fade(glow, 0.24),
+    guide: fade(gold, 0.3), guideNarrow: fade(gold, 0.25), guideMe: fade(gold, 0.7),
+    ramp: v("ramp").split(/\s+/), rampInk: v("ramp-ink").split(/\s+/), tileEmpty: v("tile-empty"),
+  });
+}
+function setTheme(name, redraw = true) {
+  document.documentElement.dataset.theme = name;
+  readTheme();
+  document.querySelector('meta[name="theme-color"]').content = THEME.sky;
+  for (const b of document.querySelectorAll("#theme button")) b.setAttribute("aria-pressed", String(b.value === name));
+  // The canvas picks up THEME on its next frame; the map is drawn once, so draw it again.
+  if (redraw) renderMap();
+}
+setTheme(document.documentElement.dataset.theme, false);
+for (const b of document.querySelectorAll("#theme button")) {
+  b.addEventListener("click", () => {
+    pickedTheme.set(b.value === (lightSystem.matches ? "light" : "dark") ? null : b.value);
+    setTheme(b.value);
+  });
+}
+lightSystem.addEventListener("change", () => {
+  if (!pickedTheme.get()) setTheme(lightSystem.matches ? "light" : "dark");
+});
+
 // ---------------------------------------------------------------- the data
 // P rows: [login, name, state, total, commits, private, prs, reviews, issues, repos, followers, parish]
+// parish is the county (a parish in Louisiana), for the states with county lists, else "".
 const F = { login: 0, name: 1, state: 2, total: 3, commits: 4, private: 5, prs: 6, reviews: 7, issues: 8, repos: 9, followers: 10, parish: 11, fair: 12, location: 13 };
 const CATS = [
   ["total", "Total contributions"], ["commits", "Public commits"], ["private", "Private contributions"],
@@ -246,6 +408,15 @@ const STATE = Object.fromEntries(D.states.map((s) => [s.ab, s]));
 const COUNTED = D.states.filter((s) => s.counted);
 const REGIONS = D.regions.map((r) => r.name);
 const SCOPE = D.scopeName.charAt(0).toUpperCase() + D.scopeName.slice(1);
+// The states with county lists, everyone active there looked up: D.counties.LA = { kind: "parish",
+// kinds: "parishes", rows }. A view or scope of one names the kind and the state: parish:LA, county:MS.
+const COUNTIES = D.counties;
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const isCounties = (kind, ab) => COUNTIES[ab]?.kind === kind;
+const notGiven = (ab) => `${cap(COUNTIES[ab].kind)} not given`;
+const andList = (xs) => (xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")}, and ${xs.at(-1)}`);
+const DEEP = Object.keys(COUNTIES).map((ab) => STATE[ab].name);
+const KINDS = [...new Set(Object.values(COUNTIES).map((c) => c.kind))];
 document.title = `GitHub Contribution Tornado: ${SCOPE}`;
 $("#title").textContent = `GitHub Contribution Tornado: ${SCOPE}`;
 // Whoever the visitor says they are (setMe, below); null until then.
@@ -253,12 +424,13 @@ let ME = null;
 const BY_LOGIN = new Map(D.P.map((p) => [p[F.login].toLowerCase(), p]));
 const fairOrMe = (p) => p[F.fair] === 1 || p === ME;
 const inScope = (scope) => {
-  const [kind, val] = scope.split(":");
+  const [kind, val, county] = scope.split(":");
   if (kind === "us" || kind === "all") return fairOrMe;
   if (kind === "region") return (p) => fairOrMe(p) && STATE[p[F.state]].region === val;
   if (kind === "division") return (p) => fairOrMe(p) && STATE[p[F.state]].division === val;
   if (kind === "state") return (p) => p[F.state] === val;
-  if (kind === "parish") return (p) => p[F.state] === "LA" && p[F.parish] === (val === "-" ? "" : val);
+  // One county: parish:LA:Caddo, county:MS:Hinds, or parish:LA:- for those who named none.
+  if (isCounties(kind, val)) return (p) => p[F.state] === val && p[F.parish] === (county === "-" ? "" : county);
   return () => false;
 };
 function ranked(scope, cat) {
@@ -280,7 +452,12 @@ const rankOf = (scope, cat = "total") => {
 };
 
 // ---------------------------------------------------------------- header and your ranks
-$("#sub").textContent = `The last 12 months of GitHub contributions for ${fmt(D.P.length)} people whose profile places them in ${D.scopeName}. States, divisions and regions are compared on the same ${D.perState} a state (${fmt(D.compared)} people), the likeliest to be busiest; Louisiana's own view and its parishes count everyone active there. Private contributions count for people who show them on their profile.`;
+{
+  // "Louisiana's own view and its parishes", or for more states "...own views and their parishes and counties".
+  const kinds = [...new Set(Object.values(COUNTIES).map((c) => c.kinds))];
+  const deep = DEEP.length === 1 ? `${DEEP[0]}'s own view and its ${kinds[0]}` : `${andList(DEEP.map((n) => `${n}'s`))} own views and their ${andList(kinds)}`;
+  $("#sub").textContent = `The last 12 months of GitHub contributions for ${fmt(D.P.length)} people whose profile places them in ${D.scopeName}. States, divisions and regions are compared on the same ${D.perState} a state (${fmt(D.compared)} people), the likeliest to be busiest${DEEP.length ? `; ${deep} count everyone active there` : ""}. Private contributions count for people who show them on their profile.`;
+}
 // When the data was refreshed and when it next will be, in the visitor's own time; kept current while the page is open.
 function renderFresh() {
   const at = new Date(D.refreshed);
@@ -335,9 +512,10 @@ function renderYou() {
   const tiles = [
     [`${ME[F.login]}: contributions`, fmt(ME[F.total]), `${fmt(ME[F.commits])} public commits · ${fmt(ME[F.private])} private`],
   ];
-  if (ME[F.parish]) {
-    const r = rankOf(`parish:${ME[F.parish]}`);
-    if (r) tiles.push([`${ME[F.parish]} Parish`, `#${r.rank}`, `of ${fmt(r.of)} counted`]);
+  const c = COUNTIES[ME[F.state]];
+  if (c && ME[F.parish]) {
+    const r = rankOf(`${c.kind}:${ME[F.state]}:${ME[F.parish]}`);
+    if (r) tiles.push([`${ME[F.parish]} ${cap(c.kind)}`, `#${r.rank}`, `of ${fmt(r.of)} counted`]);
   }
   for (const [label, scope] of [[st.name, `state:${st.ab}`], [st.division, `division:${st.division}`], [`The ${st.region}`, `region:${st.region}`], [SCOPE, "us"]]) {
     const r = rankOf(scope);
@@ -368,8 +546,8 @@ function viewRows(view) {
   if (kind === "region") {
     return COUNTED.filter((s) => s.region === val).map((s) => ({ ...sumRows(s, s.name, `state:${s.ab}`), me: ME && ME[F.state] === s.ab, tip: s.division }));
   }
-  if (kind === "parish") {
-    return D.parishes.filter((p) => p.people > 0).map((p) => ({ ...sumRows(p, p.name, null), me: ME && ME[F.state] === "LA" && (ME[F.parish] || "Parish not given") === p.name, tip: "Louisiana" }));
+  if (isCounties(kind, val)) {
+    return COUNTIES[val].rows.filter((p) => p.people > 0).map((p) => ({ ...sumRows(p, p.name, null), me: ME && ME[F.state] === val && (ME[F.parish] || notGiven(val)) === p.name, tip: STATE[val].name }));
   }
   // One state: its 12 busiest people, plus you: where you are if you live there, and where you
   // would be if you did not.
@@ -397,7 +575,7 @@ const viewTitle = (view) => {
   if (kind === "us") return `${SCOPE}, by division`;
   if (kind === "region") return `The ${val}, by state`;
   if (kind === "division") return `${val}, by state`;
-  if (kind === "parish") return "Louisiana, by parish";
+  if (isCounties(kind, val)) return `${STATE[val].name}, by ${kind}`;
   return `${STATE[val].name}: its busiest people`;
 };
 const parentOf = (view) => {
@@ -405,11 +583,11 @@ const parentOf = (view) => {
   if (kind === "us" || kind === "all") return null;
   if (kind === "region" || kind === "division") return COUNTED.length > 20 ? "us" : "all";
   if (kind === "state") return COUNTED.length > 20 ? `division:${STATE[val].division}` : "all";
-  if (kind === "parish") return "state:LA";
+  if (isCounties(kind, val)) return `state:${val}`;
   return null;
 };
 
-const state = { view: "us", playing: !matchMedia("(prefers-reduced-motion: reduce)").matches, speed: 1, hover: -1 };
+const state = { view: "us", playing: !matchMedia("(prefers-reduced-motion: reduce)").matches, speed: 1, hover: -1, focus: -1 };
 function buildViewSelect() {
   const sel = $("#view");
   sel.textContent = "";
@@ -421,7 +599,7 @@ function buildViewSelect() {
   const g3 = h("optgroup", { label: "A division, by state" });
   for (const d of D.divisions) g3.appendChild(h("option", { value: `division:${d.name}`, text: d.name }));
   sel.appendChild(g3);
-  sel.appendChild(h("option", { value: "parish:LA", text: "Louisiana, by parish" }));
+  for (const [ab, c] of Object.entries(COUNTIES)) sel.appendChild(h("option", { value: `${c.kind}:${ab}`, text: viewTitle(`${c.kind}:${ab}`) }));
   const g2 = h("optgroup", { label: "A state, by person" });
   for (const s of [...COUNTED].sort((a, b) => a.name.localeCompare(b.name))) g2.appendChild(h("option", { value: `state:${s.ab}`, text: s.name }));
   sel.appendChild(g2);
@@ -444,6 +622,7 @@ function go(view) {
   $("#up").disabled = !parentOf(view);
   storm.sig = "";
   renderSide();
+  renderRings();
 
   // Keep the current view in the URL for sharing.
   try {
@@ -463,7 +642,6 @@ $("#up").addEventListener("click", () => {
 // ---------------------------------------------------------------- the storm
 const cv = $("#cv");
 const cx2 = cv.getContext("2d");
-const SKY = "#0b1430";
 const storm = { W: 0, H: 0, dots: [], sig: "", dust: [], unit: 1 };
 for (let i = 0; i < 700; i++) storm.dust.push({ h: Math.random() ** 0.9 * 1.1 - 0.05, a: Math.random() * Math.PI * 2, j: 0.72 + Math.random() * 0.55, l: 0.05 + Math.random() * 0.2 });
 function resize() {
@@ -474,6 +652,7 @@ function resize() {
   cv.width = Math.round(storm.W * dpr);
   cv.height = Math.round(storm.H * dpr);
   cx2.setTransform(dpr, 0, 0, dpr, 0, 0);
+  placeRings();
 }
 function geom() {
   const rows = viewRows(state.view).sort((a, b) => b.total - a.total);
@@ -540,8 +719,8 @@ function draw(dt) {
   const omega = (r) => 0.55 * (G.rMax / Math.max(r, 10)) ** 0.65;
   const gy = G.bot + 34;
   const grd = c.createLinearGradient(0, gy - 10, 0, H);
-  grd.addColorStop(0, "rgba(242,183,5,0.10)");
-  grd.addColorStop(1, "rgba(242,183,5,0)");
+  grd.addColorStop(0, THEME.glow);
+  grd.addColorStop(1, THEME.glowEnd);
   c.fillStyle = grd;
   c.fillRect(0, gy - 6, W, H - gy + 6);
   const back = [];
@@ -564,10 +743,10 @@ function draw(dt) {
   }
   const arcs = (g, frontHalf, hot) => {
     const parts = frontHalf
-      ? [[0, Math.PI / 2, g.rR, "#3987e5"], [Math.PI / 2, Math.PI, g.rL, "#e66767"]]
-      : [[Math.PI, Math.PI * 1.5, g.rL, "rgba(230,103,103,0.28)"], [Math.PI * 1.5, Math.PI * 2, g.rR, "rgba(57,135,229,0.28)"]];
+      ? [[0, Math.PI / 2, g.rR, THEME.right], [Math.PI / 2, Math.PI, g.rL, THEME.left]]
+      : [[Math.PI, Math.PI * 1.5, g.rL, THEME.leftBack], [Math.PI * 1.5, Math.PI * 2, g.rR, THEME.rightBack]];
     for (const [a0, a1, rx, color] of parts) {
-      c.strokeStyle = g.row.me && frontHalf ? (a0 === 0 ? "#5ea3ee" : "#ef8a8a") : color;
+      c.strokeStyle = g.row.me && frontHalf ? (a0 === 0 ? THEME.rightMe : THEME.leftMe) : color;
       c.lineWidth = frontHalf ? (hot ? 3.5 : g.row.me ? 2.6 : 2) : hot ? 2 : 1;
       c.beginPath();
       c.ellipse(G.cx, g.y, rx, g.ry, 0, a0, a1);
@@ -583,7 +762,7 @@ function draw(dt) {
         const a2 = d.a - d.l;
         const r2 = (Math.cos(a2) < 0 ? f.rL : f.rR) * d.j + 6;
         const left = Math.cos(d.a) < 0;
-        c.strokeStyle = z < 0 ? (left ? "rgba(240,170,170,0.09)" : "rgba(170,200,245,0.09)") : left ? "rgba(246,196,196,0.24)" : "rgba(200,222,250,0.24)";
+        c.strokeStyle = z < 0 ? (left ? THEME.dustBackLeft : THEME.dustBackRight) : left ? THEME.dustLeft : THEME.dustRight;
         c.lineWidth = z < 0 ? 1 : 1.4;
         c.beginPath();
         c.moveTo(G.cx + r2 * Math.cos(a2), y + r2 * G.tilt * Math.sin(a2));
@@ -599,16 +778,16 @@ function draw(dt) {
         const x = G.cx + r * Math.cos(p.a);
         const y = g.y + g.ry * z;
         c.globalAlpha = z < 0 ? (p.me ? 0.75 : 0.45) : 1;
-        c.fillStyle = p.me ? "#f2b705" : Math.cos(p.a) < 0 ? "#e66767" : "#3987e5";
+        c.fillStyle = p.me ? THEME.gold : Math.cos(p.a) < 0 ? THEME.left : THEME.right;
         c.beginPath();
         c.arc(x, y, p.me ? (z < 0 ? 5 : 6.5) : z < 0 ? 2.8 : 3.8, 0, Math.PI * 2);
         c.fill();
         c.lineWidth = 2;
-        c.strokeStyle = SKY;
+        c.strokeStyle = THEME.sky;
         c.stroke();
         if (p.me && z >= 0) {
           c.lineWidth = 1.2;
-          c.strokeStyle = "#f2b705";
+          c.strokeStyle = THEME.gold;
           c.beginPath();
           c.arc(x, y, 10, 0, Math.PI * 2);
           c.stroke();
@@ -619,8 +798,8 @@ function draw(dt) {
   };
   paint(back);
   const beam = c.createLinearGradient(0, G.top - 40, 0, G.bot + 40);
-  beam.addColorStop(0, "rgba(242,183,5,0.08)");
-  beam.addColorStop(1, "rgba(242,183,5,0.24)");
+  beam.addColorStop(0, THEME.beamTop);
+  beam.addColorStop(1, THEME.beamBottom);
   c.fillStyle = beam;
   c.beginPath();
   c.moveTo(G.cx - 9, G.top - 40);
@@ -632,17 +811,17 @@ function draw(dt) {
   paint(front);
   const font = (w, px) => `${w} ${px}px system-ui, -apple-system, 'Segoe UI', sans-serif`;
   c.textAlign = "center";
-  c.fillStyle = "#f2b705";
+  c.fillStyle = THEME.gold;
   c.font = font(700, 16);
   c.fillText(viewTitle(state.view).toUpperCase(), G.narrow ? storm.W / 2 : G.cx, G.top - 56);
-  c.fillStyle = "#9aa6c4";
+  c.fillStyle = THEME.muted;
   c.font = font(400, 12);
   c.fillText("public commits  ·  everything else", G.narrow ? storm.W / 2 : G.cx, G.top - 40);
   c.fillText("widest at the top: the busiest", G.narrow ? storm.W / 2 : G.cx, G.bot + 56);
   G.rings.forEach((g, i) => {
     const r = g.row;
     c.font = font(600, 12);
-    c.fillStyle = "#e9eef9";
+    c.fillStyle = THEME.ink;
     c.textAlign = "right";
     c.fillText(short(r.left), G.cx - g.rL - 8, g.y + 4);
     c.textAlign = "left";
@@ -650,7 +829,7 @@ function draw(dt) {
     const name = `${r.rank ?? i + 1}  ${r.label.toUpperCase()}${r.me && !r.person ? "  ★" : ""}`;
     if (G.narrow) {
       const lx = G.labelX;
-      c.strokeStyle = r.me ? "rgba(242,183,5,0.7)" : "rgba(242,183,5,0.25)";
+      c.strokeStyle = r.me ? THEME.guideMe : THEME.guideNarrow;
       c.lineWidth = 1;
       c.beginPath();
       c.moveTo(G.cx + g.rR + 4, g.y);
@@ -658,14 +837,14 @@ function draw(dt) {
       c.stroke();
       c.textAlign = "left";
       c.font = font(700, 10.5);
-      c.fillStyle = r.me || state.hover === i ? "#f2b705" : "#e9eef9";
+      c.fillStyle = r.me || state.hover === i ? THEME.gold : THEME.ink;
       let text = name;
       const room = storm.W - lx - 4;
       while (text.length > 4 && c.measureText(text).width > room) text = text.slice(0, -1);
       c.fillText(text === name ? text : `${text.slice(0, -1)}…`, lx, g.y + 4);
     } else {
       const lx = G.labelX;
-      c.strokeStyle = r.me ? "rgba(242,183,5,0.7)" : "rgba(242,183,5,0.3)";
+      c.strokeStyle = r.me ? THEME.guideMe : THEME.guide;
       c.lineWidth = 1;
       c.beginPath();
       c.moveTo(G.cx + g.rR + 4, g.y);
@@ -673,23 +852,42 @@ function draw(dt) {
       c.stroke();
       c.textAlign = "left";
       c.font = font(700, 13);
-      c.fillStyle = r.me || state.hover === i ? "#f2b705" : "#e9eef9";
+      c.fillStyle = r.me || state.hover === i ? THEME.gold : THEME.ink;
       c.fillText(name, lx, g.y + 4);
       const where = r.person?.[F.location];
       if (where) {
         const x = lx + c.measureText(name).width + 10;
         c.font = font(400, 11.5);
-        c.fillStyle = "#8fa0c8";
+        c.fillStyle = THEME.where;
         let text = where;
         const room = storm.W - x - 6;
         while (text.length > 3 && c.measureText(text).width > room) text = text.slice(0, -1);
         if (room > 30) c.fillText(text === where ? text : `${text.slice(0, -1)}…`, x, g.y + 4);
       }
       c.font = font(400, 11.5);
-      c.fillStyle = "#9aa6c4";
+      c.fillStyle = THEME.muted;
       c.fillText(r.sub.length > 46 ? `${r.sub.slice(0, 45)}…` : r.sub, lx, g.y + 18);
     }
   });
+  drawFocus(G);
+}
+// The keyboard focus ring: a line just outside the focused ring, and a box round its name, in the
+// theme's ink so it shows on both skies.
+function drawFocus(G) {
+  const g = G.rings[state.focus];
+  if (!g) return;
+  const c = cx2;
+  c.strokeStyle = THEME.ink;
+  c.lineWidth = 2;
+  c.beginPath();
+  c.ellipse(G.cx, g.y, g.rR + 5, g.ry + 5, 0, -Math.PI / 2, Math.PI / 2);
+  c.ellipse(G.cx, g.y, g.rL + 5, g.ry + 5, 0, Math.PI / 2, Math.PI * 1.5);
+  c.stroke();
+  const x = G.labelX - 6;
+  const y = g.y - 12;
+  c.beginPath();
+  c.roundRect(x, y, storm.W - 3 - x, G.narrow ? 22 : 37, 5);
+  c.stroke();
 }
 function nearest(e) {
   const box = cv.getBoundingClientRect();
@@ -715,15 +913,20 @@ cv.addEventListener("pointermove", (e) => {
     cv.style.cursor = "default";
     return;
   }
+  cv.style.cursor = n.G.rings[n.i].row.drill ? "pointer" : "default";
+  showTip(n);
+});
+// Highlight ring n.i and show its numbers by (n.x, n.y): under the pointer, or, for the keyboard
+// (n.keys), under the focused ring with the keys to press.
+function showTip(n) {
   state.hover = n.i;
   const r = n.G.rings[n.i].row;
-  cv.style.cursor = r.drill ? "pointer" : "default";
   stip.textContent = "";
   stip.appendChild(h("div", { class: "t", text: r.person ? `${r.label}${r.person[F.name] ? ` (${r.person[F.name]})` : ""}` : r.label }));
   if (r.person?.[F.location]) stip.appendChild(h("div", { class: "loc", text: r.person[F.location] }));
   const rows = [
-    ["#3987e5", fmt(r.total), "contributions in all"],
-    ["#e66767", fmt(r.left), "public commits"],
+    [THEME.right, fmt(r.total), "contributions in all"],
+    [THEME.left, fmt(r.left), "public commits"],
     [null, fmt(r.right), "everything else"],
   ];
   if (r.person) {
@@ -743,11 +946,17 @@ cv.addEventListener("pointermove", (e) => {
     row.appendChild(h("span", { text: label }));
     stip.appendChild(row);
   }
-  if (r.drill) stip.appendChild(h("div", { class: "r", text: "Click to open it" }));
+  if (n.keys) {
+    const keys = ["Arrow keys to move"];
+    if (r.drill) keys.push("Enter to open it");
+    else if (r.person) keys.push("Enter for their GitHub profile");
+    if (parentOf(state.view)) keys.push("Escape to go up");
+    stip.appendChild(h("div", { class: "keys", text: keys.join(", ") }));
+  } else if (r.drill) stip.appendChild(h("div", { class: "r", text: "Click to open it" }));
   stip.style.display = "block";
   stip.style.left = `${Math.min(n.x + 16, storm.W - stip.offsetWidth - 6)}px`;
   stip.style.top = `${Math.min(n.y + 16, storm.H - stip.offsetHeight - 6)}px`;
-});
+}
 cv.addEventListener("pointerleave", () => {
   state.hover = -1;
   stip.style.display = "none";
@@ -757,7 +966,7 @@ cv.addEventListener("click", (e) => {
   if (!n) return;
   const r = n.G.rings[n.i].row;
   if (r.drill) go(r.drill);
-  else if (r.person) window.open(`https://github.com/${r.person[0]}`, "_blank", "noopener");
+  else if (r.person) window.open(`https://github.com/${r.person[F.login]}`, "_blank", "noopener");
 });
 $("#spin").addEventListener("click", () => {
   state.playing = !state.playing;
@@ -777,14 +986,113 @@ if (!state.playing) {
   $("#motion").textContent = "Paused because your system asks for reduced motion.";
 }
 
+// ---------------------------------------------------------------- the tornado from the keyboard
+// The rings again as a list of buttons, unseen, in ring order, for the keyboard and screen readers.
+// Each sits over its own ring, so focusing one scrolls that ring into view. Only one is in the Tab
+// order. Arrow keys, Home and End move between them; Enter or Space does what a click does;
+// Escape or Backspace goes up a level.
+const rings = $("#rings");
+let ringsView = "";
+let saying = 0;
+// What a screen reader says for a ring: its rank and place, and the numbers the tooltip shows.
+const many = (v, one, more) => `${fmt(v)} ${v === 1 ? one : more}`;
+function ringName(r, i) {
+  const p = r.person;
+  const who = p ? `${r.label}${p[F.name] ? ` (${p[F.name]})` : ""}${p[F.location] ? `, ${p[F.location]}` : ""}` : r.label;
+  const you = r.me ? (p ? ", you" : ", where you are") : "";
+  const nums = [many(r.total, "contribution", "contributions"), many(r.left, "public commit", "public commits"), `${fmt(r.right)} everything else`];
+  if (p) nums.push(`${fmt(p[F.private])} private`, many(p[F.prs], "pull request", "pull requests"), many(p[F.reviews], "review", "reviews"), many(p[F.issues], "issue", "issues"));
+  else nums.push(`${many(r.people, "person", "people")} counted`);
+  return `#${r.rank ?? i + 1} ${who}${you}: ${nums.join(", ")}.${p ? " Opens their GitHub profile." : ""}`;
+}
+function renderRings() {
+  if (state.focus >= 0) {
+    state.focus = -1;
+    state.hover = -1;
+    stip.style.display = "none";
+  }
+  const G = geom();
+  rings.textContent = "";
+  rings.setAttribute("aria-label", viewTitle(state.view));
+  G.rings.forEach((g, i) => {
+    const r = g.row;
+    const b = h("button", { type: "button", tabindex: i ? "-1" : "0", text: ringName(r, i) });
+    b.addEventListener("click", () => {
+      if (r.drill) {
+        go(r.drill);
+        focusRing(null);
+      } else if (r.person) window.open(`https://github.com/${r.person[0]}`, "_blank", "noopener");
+    });
+    rings.appendChild(h("li", {}, [b]));
+  });
+  // The canvas may have just changed height for this view: measure it before placing the buttons.
+  const box = cv.getBoundingClientRect();
+  if (Math.abs(box.width - storm.W) > 0.5 || Math.abs(box.height - storm.H) > 0.5) resize();
+  else placeRings();
+  // Say what the tornado shows now, once it settles: the view select changes it on every arrow key.
+  if (ringsView && ringsView !== state.view) {
+    const [vk, vv] = state.view.split(":");
+    const [one, many] = isCounties(vk, vv) ? [COUNTIES[vv].kind, COUNTIES[vv].kinds] : ({ us: ["division", "divisions"], state: ["person", "people"] }[vk] ?? ["state", "states"]);
+    const n = G.rings.length;
+    const text = `${viewTitle(state.view)}. ${fmt(n)} ${n === 1 ? one : many}.`;
+    clearTimeout(saying);
+    saying = setTimeout(() => ($("#said").textContent = text), 300);
+  }
+  ringsView = state.view;
+}
+function placeRings() {
+  const G = geom();
+  rings.querySelectorAll("button").forEach((b, i) => {
+    if (G.rings[i]) b.style.top = `${G.rings[i].y}px`;
+  });
+}
+// After going down or up from the keyboard: focus the ring of the view we came from (going up),
+// or else the first.
+function focusRing(from) {
+  const i = from ? geom().rings.findIndex((g) => g.row.drill === from) : 0;
+  rings.querySelectorAll("button")[Math.max(0, i)]?.focus();
+}
+rings.addEventListener("focusin", (e) => {
+  const list = [...rings.querySelectorAll("button")];
+  const i = list.indexOf(e.target);
+  if (i < 0) return;
+  for (const b of list) b.tabIndex = b === e.target ? 0 : -1;
+  state.focus = i;
+  const G = geom();
+  showTip({ G, i, x: G.cx, y: G.rings[i].y + G.rings[i].ry, keys: true });
+  stip.scrollIntoView({ block: "nearest" });
+});
+rings.addEventListener("focusout", () => {
+  state.focus = -1;
+  state.hover = -1;
+  stip.style.display = "none";
+});
+rings.addEventListener("keydown", (e) => {
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+  const list = [...rings.querySelectorAll("button")];
+  const i = list.indexOf(document.activeElement);
+  const to = { ArrowDown: i + 1, ArrowRight: i + 1, ArrowUp: i - 1, ArrowLeft: i - 1, Home: 0, End: list.length - 1 }[e.key];
+  if (to !== undefined) {
+    e.preventDefault();
+    list[Math.max(0, Math.min(list.length - 1, to))]?.focus();
+  } else if (e.key === "Escape" || e.key === "Backspace") {
+    const up = parentOf(state.view);
+    if (!up) return;
+    e.preventDefault();
+    const from = state.view;
+    go(up);
+    focusRing(from);
+  }
+});
+
 function renderSide() {
   const side = $("#side");
   side.textContent = "";
   const card = (title, kids) => h("div", { class: "card" }, [h("h4", { text: title }), ...kids]);
   const kv = (k, v) => h("div", { class: "kv" }, [h("span", { text: k }), h("b", { text: v })]);
   const [kind, val] = state.view.split(":");
-  const scope = kind === "parish" ? "state:LA" : state.view;
-  const agg = kind === "us" || kind === "all" ? D.us : kind === "region" ? D.regions.find((r) => r.name === val) : kind === "division" ? D.divisions.find((d) => d.name === val) : STATE[kind === "parish" ? "LA" : val].all;
+  const scope = isCounties(kind, val) ? `state:${val}` : state.view;
+  const agg = kind === "us" || kind === "all" ? D.us : kind === "region" ? D.regions.find((r) => r.name === val) : kind === "division" ? D.divisions.find((d) => d.name === val) : STATE[val].all;
   side.appendChild(card(viewTitle(state.view), [
     h("div", { class: "big", text: fmt(agg.total) }),
     h("p", { text: "contributions in the last 12 months" }),
@@ -808,6 +1116,7 @@ function renderSide() {
       h("p", { class: "note", text: `Both among the ${D.perState} people each state is compared on.` }),
     ]));
   }
+  if (kind === "state") renderHistory(side, val);
 }
 
 // ---------------------------------------------------------------- leaderboards
@@ -833,10 +1142,17 @@ function buildLists() {
   g("Regions", REGIONS.map((r) => [`region:${r}`, r]));
   g("Divisions", D.divisions.map((d) => [`division:${d.name}`, d.name]));
   g("States", [...COUNTED].sort((a, b) => a.name.localeCompare(b.name)).map((s) => [`state:${s.ab}`, s.name]));
-  g("Louisiana parishes", D.parishes.filter((p) => p.people > 0).map((p) => [`parish:${p.name === "Parish not given" ? "-" : p.name}`, p.name]));
+  for (const [ab, c] of Object.entries(COUNTIES)) g(`${STATE[ab].name} ${c.kinds}`, c.rows.filter((p) => p.people > 0).map((p) => [`${c.kind}:${ab}:${p.name === notGiven(ab) ? "-" : p.name}`, p.name]));
   sel.value = "us";
   sel.addEventListener("change", renderBoard);
   $("#find").addEventListener("input", renderBoard);
+}
+// Everyone in a ranked list who matches the search box, each with their place in the full ranking.
+// The page shows the first 100; Download CSV takes them all.
+function boardRows(list, q) {
+  const rows = list.map((p, i) => [p, i]);
+  if (!q) return rows;
+  return rows.filter(([p]) => p[0].toLowerCase().includes(q) || (p[F.name] || "").toLowerCase().includes(q) || (p[F.location] || "").toLowerCase().includes(q));
 }
 function renderBoard() {
   const scope = $("#scope").value;
@@ -845,7 +1161,10 @@ function renderBoard() {
   const q = $("#find").value.trim().toLowerCase();
   const t = $("#board");
   t.textContent = "";
-  t.appendChild(h("thead", {}, [h("tr", {}, [h("th", { class: "num", text: "#" }), h("th", { text: "Login" }), h("th", { text: "Location" }), h("th", { text: "Name" }), h("th", { text: "State" }), h("th", { text: "Parish" }), h("th", { class: "num", text: CATS.find((c) => c[0] === cat)[1] }), h("th", { class: "num", text: "Total" })])]));
+  // "Parish" in Louisiana, "County" in Mississippi, both where the list can hold either.
+  const here = COUNTIES[scope.split(":")[1]];
+  const countyHead = here ? cap(here.kind) : cap(KINDS.join(" or "));
+  t.appendChild(h("thead", {}, [h("tr", {}, [h("th", { class: "num", text: "#" }), h("th", { text: "Login" }), h("th", { text: "Location" }), h("th", { text: "Name" }), h("th", { text: "State" }), h("th", { text: countyHead }), h("th", { class: "num", text: CATS.find((c) => c[0] === cat)[1] }), h("th", { class: "num", text: "Total" })])]));
   const tb = h("tbody");
   const row = (p, i) => {
     const tr = h("tr", { class: p === ME ? "me" : "" }, [
@@ -854,13 +1173,13 @@ function renderBoard() {
       h("td", { class: "loc", title: p[F.location] || "", text: p[F.location] || "" }),
       h("td", { text: p[F.name] || "" }),
       h("td", { text: STATE[p[F.state]].name }),
-      h("td", { text: p[F.state] === "LA" ? p[F.parish] || "not given" : "" }),
+      h("td", { text: COUNTIES[p[F.state]] ? p[F.parish] || "not given" : "" }),
       h("td", { class: "num", text: fmt(p[k]) }),
       h("td", { class: "num", text: fmt(p[F.total]) }),
     ]);
     tb.appendChild(tr);
   };
-  const shown = q ? list.map((p, i) => [p, i]).filter(([p]) => p[0].toLowerCase().includes(q) || (p[F.name] || "").toLowerCase().includes(q) || (p[F.location] || "").toLowerCase().includes(q)).slice(0, 100) : list.slice(0, 100).map((p, i) => [p, i]);
+  const shown = boardRows(list, q).slice(0, 100);
   for (const [p, i] of shown) row(p, i);
   if (!q && ME) {
     const i = list.indexOf(ME);
@@ -868,6 +1187,208 @@ function renderBoard() {
   }
   t.appendChild(tb);
   $("#count").textContent = `${fmt(list.length)} people here`;
+}
+
+// ---------------------------------------------------------------- download as CSV
+// The leaderboard as shown (place, category, search), every row and every category, as a file for
+// Excel or Google Sheets: RFC 4180 quoting, CRLF line ends, and a byte-order mark so Excel reads
+// accented names as UTF-8.
+function csvCell(v) {
+  if (typeof v === "number") return String(v);
+  // Names and locations are free text from GitHub profiles. A cell that starts with =, +, -, @, a
+  // tab, or a line break could run as a formula in a spreadsheet, so it gets a leading ' (OWASP's advice).
+  let s = String(v ?? "");
+  if (/^[=+\-@\t\r\n]/.test(s)) s = `'${s}`;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+// A file name that says what is in it: github-leaderboard-texas-total-2026-11-15.csv, dated by the data.
+const slug = (s) => s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+function csvName(scope, q) {
+  const [kind, val, county] = scope.split(":");
+  const place = kind === "state" ? STATE[val].name : kind === "region" ? `${val} region` : kind === "division" ? `${val} division` : isCounties(kind, val) ? (county === "-" ? `${STATE[val].name} ${notGiven(val)}` : `${county} ${kind} ${STATE[val].name}`) : D.scopeName.replace(/^the /, "");
+  const day = new Date(D.refreshed).toISOString().slice(0, 10);
+  return `github-leaderboard-${slug(place)}-${cat}${q ? `-matching-${slug(q.slice(0, 40)) || "search"}` : ""}-${day}.csv`;
+}
+$("#csv").addEventListener("click", () => {
+  const scope = $("#scope").value;
+  const q = $("#find").value.trim().toLowerCase();
+  const lines = [["Rank", "Login", "Name", "Location", "State", cap(KINDS.join(" or ")), ...CATS.map((c) => c[1])]];
+  for (const [p, i] of boardRows(ranked(scope, cat), q)) {
+    lines.push([i + 1, p[F.login], p[F.name] || "", p[F.location] || "", STATE[p[F.state]].name, p[F.parish] || "", ...CATS.map((c) => p[F[c[0]]])]);
+  }
+  const csv = `\ufeff${lines.map((r) => r.map(csvCell).join(",")).join("\r\n")}\r\n`;
+  const a = h("a", { href: URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })), download: csvName(scope, q) });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+});
+
+// ---------------------------------------------------------------- history
+// One record a day (scripts/history.mjs): per state, the people compared and their total. It
+// draws a sparkline for each state in the states table and a chart beside a state's tornado.
+const HIST = D.history?.dates?.length ? D.history : null;
+const svgEl = (tag, attrs = {}) => {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  return e;
+};
+// Days are UTC dates, shown as "Nov 13" (with the year once the history spans two).
+const dayTime = (d) => Date.parse(`${d}T00:00:00Z`);
+const withYear = HIST ? HIST.dates[0].slice(0, 4) !== HIST.dates.at(-1).slice(0, 4) : false;
+const dayName = (d) => new Date(dayTime(d)).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC", ...(withYear ? { year: "numeric" } : {}) });
+const historyStart = () => (HIST ? `History starts ${dayName(HIST.dates[0])}.` : "History starts with the next daily refresh.");
+// A state's days with a record, oldest first.
+const seriesMemo = {};
+function seriesOf(ab) {
+  if (!seriesMemo[ab]) {
+    const people = HIST?.people?.[ab] ?? [];
+    const total = HIST?.total?.[ab] ?? [];
+    seriesMemo[ab] = (HIST?.dates ?? []).map((d, i) => ({ d, t: dayTime(d), people: people[i], total: total[i] })).filter((p) => Number.isFinite(p.total) && p.people > 0);
+  }
+  return seriesMemo[ab];
+}
+// How a series moved from its first day to its last: "+4.2%", and "up 4.2% since Nov 13".
+function change(s) {
+  const pct = s[0].total ? ((s.at(-1).total - s[0].total) / s[0].total) * 100 : 0;
+  const size = Math.abs(pct) < 10 ? Math.abs(pct).toFixed(1) : String(Math.round(Math.abs(pct)));
+  const flat = Number(size) === 0;
+  return {
+    pct,
+    label: flat ? "0%" : `${pct > 0 ? "+" : "−"}${size}%`,
+    words: `${flat ? "about the same" : `${pct > 0 ? "up" : "down"} ${size}%`} since ${dayName(s[0].d)}`,
+  };
+}
+// The range a line is drawn over: at least 2% of its largest value, so a small wobble looks small.
+function rangeOf(s) {
+  const xs = s.map((p) => p.total);
+  let lo = Math.min(...xs);
+  let hi = Math.max(...xs);
+  const least = Math.max(1, hi * 0.02);
+  if (hi - lo < least) {
+    lo = Math.max(0, (lo + hi) / 2 - least / 2);
+    hi = lo + least;
+  }
+  return [lo, hi];
+}
+const niceStep = (x) => {
+  const m = 10 ** Math.floor(Math.log10(x));
+  return Math.max(1, m * (x <= m ? 1 : x <= 2 * m ? 2 : x <= 5 * m ? 5 : 10));
+};
+const tick = (v, step) => (step >= 1e6 ? `${fmt(v / 1e6)}M` : step >= 1e3 ? `${fmt(v / 1e3)}k` : fmt(v));
+
+// The states table's sparkline: the state's total a day at a time, its change beside it, and the
+// change in words for screen readers and on hover.
+function sparkline(ab) {
+  const s = seriesOf(ab);
+  if (s.length < 2) return [];
+  const W = 80;
+  const H = 20;
+  const pad = 3;
+  const [lo, hi] = rangeOf(s);
+  const x = (p) => pad + ((p.t - s[0].t) / (s.at(-1).t - s[0].t)) * (W - 2 * pad);
+  const y = (p) => H - pad - ((p.total - lo) / (hi - lo)) * (H - 2 * pad);
+  const c = change(s);
+  const svg = svgEl("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `Contributions ${c.words}` });
+  const title = svgEl("title");
+  title.textContent = `Contributions ${c.words}`;
+  svg.append(title, svgEl("polyline", { class: "line", points: s.map((p) => `${x(p).toFixed(1)},${y(p).toFixed(1)}`).join(" ") }), svgEl("circle", { class: "end", cx: x(s.at(-1)), cy: y(s.at(-1)), r: 2.5 }));
+  return [svg, h("span", { "aria-hidden": "true", text: c.label })];
+}
+{
+  // Until there are two days to draw, a note under the states table says when history starts.
+  const note = $("#histNote");
+  note.hidden = (HIST?.dates.length ?? 0) > 1;
+  note.textContent = `${historyStart()} From the second day, a line for each state shows how it moves.`;
+}
+
+// Beside a state's tornado: its total over time. Point at a day, or focus the chart and use the
+// arrow keys, to read it. With fewer than two days, a note says when history starts.
+function renderHistory(side, ab) {
+  const s = seriesOf(ab);
+  const card = h("div", { class: "card" }, [h("h4", { text: "Over time" })]);
+  side.appendChild(card);
+  if (s.length < 2) {
+    card.appendChild(h("p", { text: `${historyStart()} The chart appears after a second day.` }));
+    return;
+  }
+  const name = STATE[ab].name;
+  const c = change(s);
+  const first = s[0];
+  const last = s.at(-1);
+  card.appendChild(h("p", { text: `Total contributions of the ${D.perState} people ${name} is compared on, as in the states table, a day at a time.` }));
+  const box = h("div");
+  const readout = h("p", { class: "readout" });
+  card.append(box, readout);
+  let width = 0;
+  let at = s.length - 1;
+  const draw = () => {
+    width = box.clientWidth;
+    const W = Math.max(200, width);
+    const [H, L, R, T, B] = [120, 44, 6, 8, 20];
+    const [lo0, hi0] = rangeOf(s);
+    const step = niceStep((hi0 - lo0) / 3);
+    const lo = Math.floor(lo0 / step) * step;
+    const hi = Math.ceil(hi0 / step) * step;
+    const x = (p) => L + ((p.t - first.t) / (last.t - first.t)) * (W - L - R);
+    const y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+    const svg = svgEl("svg", {
+      class: "chart", viewBox: `0 0 ${W} ${H}`, role: "img", tabindex: "0",
+      "aria-label": `${name}, total contributions by day: ${fmt(first.total)} on ${dayName(first.d)}, ${fmt(last.total)} on ${dayName(last.d)}, ${c.words}. Use the arrow keys to read each day.`,
+    });
+    for (let v = lo; v <= hi + step / 2; v += step) {
+      const label = svgEl("text", { x: L - 6, y: y(v) + 4, "text-anchor": "end" });
+      label.textContent = tick(v, step);
+      svg.append(svgEl("line", { class: "grid", x1: L, x2: W - R, y1: y(v), y2: y(v) }), label);
+    }
+    for (const [p, anchor] of [[first, "start"], [last, "end"]]) {
+      const label = svgEl("text", { x: x(p), y: H - 4, "text-anchor": anchor });
+      label.textContent = dayName(p.d);
+      svg.append(label);
+    }
+    const hair = svgEl("line", { class: "hair", y1: T, y2: H - B, visibility: "hidden" });
+    const dot = svgEl("circle", { class: "dot", r: 4 });
+    svg.append(hair, svgEl("polyline", { class: "line", points: s.map((p) => `${x(p).toFixed(1)},${y(p.total).toFixed(1)}`).join(" ") }), dot);
+    // One day (i), or the latest with its change since the first when nothing is pointed at (null).
+    const show = (i) => {
+      const p = s[i ?? s.length - 1];
+      if (i !== null) at = i;
+      for (const [k, v] of Object.entries({ cx: x(p), cy: y(p.total) })) dot.setAttribute(k, v);
+      for (const [k, v] of Object.entries({ x1: x(p), x2: x(p), visibility: i === null ? "hidden" : "visible" })) hair.setAttribute(k, v);
+      readout.textContent = "";
+      readout.append(h("b", { text: fmt(p.total) }), ` on ${dayName(p.d)} · ${i === null ? c.words : `${fmt(p.people)} people, ${fmt(p.total / p.people)} average`}`);
+    };
+    const point = (e) => {
+      const r = svg.getBoundingClientRect();
+      const px = ((e.clientX - r.left) / r.width) * W;
+      let best = 0;
+      s.forEach((p, i) => {
+        if (Math.abs(x(p) - px) < Math.abs(x(s[best]) - px)) best = i;
+      });
+      show(best);
+    };
+    svg.addEventListener("pointermove", point);
+    svg.addEventListener("pointerdown", point);
+    // A tapped day stays shown; a mouse leaving goes back to the latest.
+    svg.addEventListener("pointerleave", (e) => e.pointerType === "mouse" && show(null));
+    svg.addEventListener("focus", () => show(at));
+    svg.addEventListener("blur", () => show(null));
+    svg.addEventListener("keydown", (e) => {
+      const to = { ArrowLeft: at - 1, ArrowRight: at + 1, Home: 0, End: s.length - 1 }[e.key];
+      if (to === undefined) return;
+      e.preventDefault();
+      show(Math.max(0, Math.min(s.length - 1, to)));
+    });
+    box.replaceChildren(svg);
+    show(null);
+  };
+  draw();
+  // Drawn at the panel's width; drawn again if that changes (a phone turned, a window resized).
+  const ro = new ResizeObserver(() => {
+    if (!box.isConnected) ro.disconnect();
+    else if (Math.abs(box.clientWidth - width) > 8) draw();
+  });
+  ro.observe(box);
 }
 
 // ---------------------------------------------------------------- tables
@@ -900,7 +1421,7 @@ function sortable(table, cols, rows, onClick) {
       const row = h("tr", { class: `${onClick ? "click" : ""}${r.me ? " me" : ""}` });
       for (const c of cols) {
         const v = c.get(r);
-        row.appendChild(h("td", { class: `${c.num ? "num" : ""}${c.num && v === 0 ? " zero" : ""}`, text: c.fmt ? c.fmt(v, r) : v }));
+        row.appendChild(c.node ? h("td", { class: "spark" }, c.node(v, r)) : h("td", { class: `${c.num ? "num" : ""}${c.num && v === 0 ? " zero" : ""}`, text: c.fmt ? c.fmt(v, r) : v }));
       }
       if (onClick) row.addEventListener("click", () => onClick(r));
       tb.appendChild(row);
@@ -920,6 +1441,7 @@ function renderTables() {
       { label: "Division", get: (r) => r.division },
       { label: "People counted", get: (r) => r.people, num: true, fmt },
       { label: "Contributions", get: (r) => r.total, num: true, fmt, sort: true },
+      ...(HIST?.dates.length > 1 ? [{ label: `Since ${dayName(HIST.dates[0])}`, get: (r) => (seriesOf(r.ab).length > 1 ? change(seriesOf(r.ab)).pct : 0), num: true, node: (v, r) => sparkline(r.ab) }] : []),
       { label: "Average", get: (r) => r.average, num: true, fmt },
       { label: "Median", get: (r) => r.median, num: true, fmt },
       { label: "Public commits", get: (r) => r.commits, num: true, fmt },
@@ -953,11 +1475,38 @@ function renderTables() {
       $("#tornado").scrollIntoView({ behavior: "smooth" });
     },
   );
-  const myParish = ME && ME[F.state] === "LA" ? ME[F.parish] || "Parish not given" : null;
+  renderCountyTable();
+}
+// One state's counties at a time: yours, if your state has them, until you pick another.
+let countyAb = null;
+const COUNTY_NOTE = { LA: "Louisiana was also searched by city name, so it is covered more deeply than other states." };
+function buildCountySwitch() {
+  const abs = Object.keys(COUNTIES);
+  if (!abs.length) return $("#parishes").remove();
+  if (abs.length < 2) return $("#countyBar").remove();
+  for (const ab of abs) {
+    const b = h("button", { type: "button", "data-ab": ab, "aria-pressed": "false", text: STATE[ab].name });
+    b.addEventListener("click", () => {
+      countyAb = ab;
+      renderCountyTable();
+    });
+    $("#countyState").appendChild(b);
+  }
+}
+function renderCountyTable() {
+  const abs = Object.keys(COUNTIES);
+  if (!abs.length) return;
+  const ab = countyAb ?? (COUNTIES[ME?.[F.state]] ? ME[F.state] : abs[0]);
+  const c = COUNTIES[ab];
+  const name = STATE[ab].name;
+  $("#countyTitle").textContent = `${name}, ${c.kind} by ${c.kind}`;
+  $("#countyLede").textContent = `All ${fmt(c.rows.length - 1)} ${c.kinds}. People are placed by the town, city, university, or ${c.kind} named in their GitHub location; those who wrote only "${name}" are under "${notGiven(ab)}".${COUNTY_NOTE[ab] ? ` ${COUNTY_NOTE[ab]}` : ""}`;
+  for (const b of document.querySelectorAll("#countyState button")) b.setAttribute("aria-pressed", String(b.dataset.ab === ab));
+  const mine = ME && ME[F.state] === ab ? ME[F.parish] || notGiven(ab) : null;
   sortable(
     $("#parishTable"),
     [
-      { label: "Parish", get: (r) => r.name },
+      { label: cap(c.kind), get: (r) => r.name },
       { label: "People counted", get: (r) => r.people, num: true, fmt },
       { label: "Contributions", get: (r) => r.total, num: true, fmt, sort: true },
       { label: "Average", get: (r) => r.average, num: true, fmt },
@@ -965,9 +1514,11 @@ function renderTables() {
       { label: "Private", get: (r) => r.private, num: true, fmt },
       topCell,
     ],
-    D.parishes.map((p) => ({ ...p, me: p.name === myParish })),
+    c.rows.map((p) => ({ ...p, me: p.name === mine })),
     (r) => {
-      $("#scope").value = `parish:${r.name === "Parish not given" ? "-" : r.name}`;
+      // A county with nobody counted yet has no leaderboard to open.
+      if (!r.people) return;
+      $("#scope").value = `${c.kind}:${ab}:${r.name === notGiven(ab) ? "-" : r.name}`;
       renderBoard();
       $("#lists").scrollIntoView({ behavior: "smooth" });
     },
@@ -984,8 +1535,6 @@ const TILES = {
   OK: [6, 4], LA: [6, 5], MS: [6, 6], AL: [6, 7], GA: [6, 8],
   HI: [7, 0], TX: [7, 4], FL: [7, 9],
 };
-// Dark surface: brighter means more (sequential blue, one hue).
-const RAMP = ["#184f95", "#1c5cab", "#256abf", "#2a78d6", "#5598e7", "#86b6ef", "#cde2fb"];
 let mapBy = "total";
 function renderMap() {
   const SVGNS = "http://www.w3.org/2000/svg";
@@ -998,7 +1547,7 @@ function renderMap() {
   const vals = COUNTED.map((s) => s[mapBy]).sort((a, b) => a - b);
   const q = (v) => {
     const i = vals.findIndex((x) => x >= v);
-    return Math.min(RAMP.length - 1, Math.floor((i / vals.length) * RAMP.length));
+    return Math.min(THEME.ramp.length - 1, Math.floor((i / vals.length) * THEME.ramp.length));
   };
   for (const s of D.states) {
     const [r, c] = TILES[s.ab];
@@ -1007,13 +1556,13 @@ function renderMap() {
     g.style.cursor = "pointer";
     const rect = document.createElementNS(SVGNS, "rect");
     const bin = s.counted ? q(s[mapBy]) : -1;
-    Object.entries({ x: c * (size + gap), y: r * (size + gap), width: size, height: size, rx: 6, fill: s.counted ? RAMP[bin] : "#1a2547" }).forEach(([k, v]) => rect.setAttribute(k, v));
+    Object.entries({ x: c * (size + gap), y: r * (size + gap), width: size, height: size, rx: 6, fill: s.counted ? THEME.ramp[bin] : THEME.tileEmpty }).forEach(([k, v]) => rect.setAttribute(k, v));
     if (ME && ME[F.state] === s.ab) {
-      rect.setAttribute("stroke", "#f2b705");
+      rect.setAttribute("stroke", THEME.gold);
       rect.setAttribute("stroke-width", "3");
     }
     const t = document.createElementNS(SVGNS, "text");
-    Object.entries({ x: c * (size + gap) + size / 2, y: r * (size + gap) + size / 2 + 5, "text-anchor": "middle", "font-size": "14", "font-weight": "700", fill: !s.counted ? "#56618a" : bin >= 5 ? "#0b1430" : "#ffffff" }).forEach(([k, v]) => t.setAttribute(k, v));
+    Object.entries({ x: c * (size + gap) + size / 2, y: r * (size + gap) + size / 2 + 5, "text-anchor": "middle", "font-size": "14", "font-weight": "700", fill: !s.counted ? THEME.faint : THEME.rampInk[bin] }).forEach(([k, v]) => t.setAttribute(k, v));
     t.textContent = s.ab;
     const title = document.createElementNS(SVGNS, "title");
     title.textContent = s.counted ? `${s.name}: ${fmt(s.total)} contributions, ${fmt(s.people)} people, ${fmt(s.average)} average` : `${s.name}: not counted yet`;
@@ -1033,7 +1582,7 @@ function renderMap() {
   const leg = $("#mapLegend");
   leg.textContent = "";
   leg.appendChild(h("span", { text: "Fewer" }));
-  for (const c of RAMP) {
+  for (const c of THEME.ramp) {
     const i = h("i");
     i.style.background = c;
     i.style.width = "22px";
@@ -1051,7 +1600,7 @@ for (const b of document.querySelectorAll("#mapby button")) {
 }
 
 // ---------------------------------------------------------------- method
-$("#method").textContent = `How this was made: GitHub's search found users whose profile location names a state in ${D.scopeName} (its full name, or "City, ST"), the top few hundred per state by followers and by number of repositories, plus Louisiana by city name. Of those who pushed code in the last year, up to ${D.perState} a state with the most public repositories and followers (and everyone in Louisiana) had their contributions looked up, so very active people who work mostly in private can be missed. Each person's last 12 months of contributions came from GitHub's API. People are placed by what their profile says, and a two-letter code is checked against the places abroad that share it (MS is also Mato Grosso do Sul in Brazil, DE is Germany, IN is India); locations that stay ambiguous (Georgia the country, Washington DC) are left out, and so are accounts named as bots. It is a sample of each state's most visible GitHub users, not a census: ${fmt(D.candidates)} search results, ${fmt(D.fetched)} people looked up, ${fmt(D.P.length)} placed in a state.`;
+$("#method").textContent = `How this was made: GitHub's search found users whose profile location names a state in ${D.scopeName} (its full name, or "City, ST"), the top few hundred per state by followers and by number of repositories, plus Louisiana by city name. Of those who pushed code in the last year, up to ${D.perState} a state with the most public repositories and followers${DEEP.length ? ` (and everyone in ${andList(DEEP)})` : ""} had their contributions looked up, so very active people who work mostly in private can be missed. Each person's last 12 months of contributions came from GitHub's API. People are placed by what their profile says, and a two-letter code is checked against the places abroad that share it (MS is also Mato Grosso do Sul in Brazil, DE is Germany, IN is India); locations that stay ambiguous (Georgia the country, Washington DC) are left out, and so are accounts named as bots. It is a sample of each state's most visible GitHub users, not a census: ${fmt(D.candidates)} search results, ${fmt(D.fetched)} people looked up, ${fmt(D.P.length)} placed in a state.`;
 
 // ---------------------------------------------------------------- find yourself
 const REMEMBER = "github-leaderboard.me";
@@ -1087,6 +1636,7 @@ function rerenderForMe() {
   renderSide();
   fitHeight();
   storm.sig = "";
+  renderRings();
   $("#forget").hidden = !ME;
 }
 function notFound(login) {
@@ -1097,8 +1647,9 @@ function notFound(login) {
     .sort((a, b) => b[F.total] - a[F.total])
     .slice(0, 5);
   const add = h("a", { class: "btn go addme", href: "https://github.com/wbp318/github-leaderboard/issues/new?template=add-me.yml", target: "_blank", rel: "noopener", text: "Add me" });
+  // The login is whatever was typed or put in ?me=, so it goes in as text, never as HTML.
   msg.append(
-    `${login} is not on the leaderboard yet: each state looks up only the ${D.perState} people likeliest to be busiest (and Louisiana everyone active). `,
+    document.createTextNode(`${login} is not on the leaderboard yet: each state looks up only the ${D.perState} people likeliest to be busiest${DEEP.length ? ` (and ${andList(DEEP)} everyone active)` : ""}. `),
     add,
     " opens a one-click GitHub issue; a bot adds whoever opens it and replies with a link to their ranks in a few minutes. Your profile's location must name a US state. ",
   );
@@ -1135,6 +1686,9 @@ function setMe(input, { open = false } = {}) {
   $("#me").value = found[F.login];
   msg.textContent = "";
   rerenderForMe();
+  // For screen readers: the ranks are in the tiles, which are not read out on their own.
+  const home = rankOf(`state:${found[F.state]}`);
+  msg.appendChild(h("span", { class: "sr", text: `Found ${found[F.login]}: ${many(found[F.total], "contribution", "contributions")}${home ? `, #${fmt(home.rank)} of ${fmt(home.of)} in ${STATE[found[F.state]].name}` : ""}.` }));
   if (open) go(`state:${found[F.state]}`);
 }
 $("#findme").addEventListener("submit", (e) => {
@@ -1158,6 +1712,7 @@ $("#forget").addEventListener("click", () => setMe(""));
 // ---------------------------------------------------------------- start
 buildViewSelect();
 buildLists();
+buildCountySwitch();
 renderYou();
 renderBoard();
 renderTables();

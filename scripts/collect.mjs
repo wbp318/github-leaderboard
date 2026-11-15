@@ -5,6 +5,7 @@
 // Phase 1 searches users by state (full name, then "City, ST"); phase 2 reads each user's
 // contribution totals through the GraphQL API in small batches.
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { COUNTY_STATES, hasCounties } from "../src/counties.mjs";
 import { stateOf } from "../src/states.mjs";
 
 const TOKEN = process.env.GH_TOKEN;
@@ -238,8 +239,10 @@ async function profiles(all) {
 }
 
 // Who gets the expensive contribution lookup: per state, the K likeliest to be most active among
-// people who pushed in the last year; everyone active in Louisiana (for the parish breakdown).
+// people who pushed in the last year; in a state with a county list (src/counties.mjs), everyone
+// active, up to ALL_ACTIVE, for the county breakdown.
 const K = Number(process.env.PER_STATE ?? 80);
+const ALL_ACTIVE = 500;
 // Every state, or only some: SCOPE=LA,MS,AR.
 const SCOPE = process.env.SCOPE && process.env.SCOPE !== "all" ? new Set(process.env.SCOPE.split(",")) : null;
 function select(prof, extra) {
@@ -257,7 +260,7 @@ function select(prof, extra) {
   const chosen = new Set(extra);
   for (const [st, list] of Object.entries(byState)) {
     list.sort((a, b) => b[1] - a[1]);
-    for (const [login] of list.slice(0, st === "LA" ? 500 : K)) chosen.add(login);
+    for (const [login] of list.slice(0, hasCounties(st) ? ALL_ACTIVE : K)) chosen.add(login);
   }
   return [...chosen];
 }
@@ -276,7 +279,7 @@ async function phase2(cands, extra) {
   const prof = await profiles(everyone);
   const chosen = select(prof, extra);
   const todo = chosen.filter((l) => !users[l] || stale(users[l], CONTRIB_MAX));
-  log(`${chosen.length} chosen for contributions (${K} a state; Louisiana all active), ${todo.length} to fetch`);
+  log(`${chosen.length} chosen for contributions (${K} a state; all active in ${COUNTY_STATES.join(", ")}), ${todo.length} to fetch`);
   const SIZE = 8;
   const batches = [];
   for (let i = 0; i < todo.length; i += SIZE) batches.push(todo.slice(i, i + SIZE));

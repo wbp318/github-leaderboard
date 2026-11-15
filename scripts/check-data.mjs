@@ -1,11 +1,13 @@
 // Fails if the data looks broken (too few people placed, too few states, or nothing fetched lately),
-// so a bad day at GitHub's API never replaces the live page with a half-empty one.
+// so a bad day at GitHub's API never replaces the live page with a half-empty one. The daily history
+// (data/history.json) is optional, but when there is one it must be well formed and small.
 //   node scripts/check-data.mjs   (or: npm run check:data)
 //   MIN_PEOPLE (3000)            people placed in a state, at least
 //   MIN_STATES (45)              states with at least MIN_PER_STATE (40) people
 //   REQUIRE_FRESH_HOURS (unset)  something must have been fetched within this many hours
 import { readFileSync } from "node:fs";
 import { isBot, optedOut } from "../src/exclude.mjs";
+import { checkHistory, readHistory, yearSize } from "../src/history.mjs";
 import { stateOf } from "../src/states.mjs";
 
 const users = JSON.parse(readFileSync(new URL("../data/users.json", import.meta.url), "utf8"));
@@ -34,6 +36,17 @@ const problems = [];
 if (placed < MIN_PEOPLE) problems.push(`only ${placed} people placed (want ${MIN_PEOPLE})`);
 if (full < MIN_STATES) problems.push(`only ${full} states with ${MIN_PER_STATE} or more people (want ${MIN_STATES})`);
 if (FRESH !== null && ageHours > FRESH) problems.push(`nothing fetched in the last ${FRESH} hours`);
+let history = null;
+try {
+  history = readHistory(new URL("../data/history.json", import.meta.url));
+} catch (e) {
+  problems.push(`data/history.json is not JSON (${e.message})`);
+}
+if (history) {
+  const bad = checkHistory(history);
+  if (bad.length) problems.push(`data/history.json: ${bad.join("; ")}`);
+  else console.log(`history: ${history.dates.length} days, ${history.dates[0] ?? "none"} to ${history.dates.at(-1) ?? "none"}; a year of it would be about ${Math.round(yearSize(history) / 1024)} KB`);
+}
 if (problems.length) {
   console.error(`The data looks broken: ${problems.join("; ")}. Not publishing.`);
   process.exit(1);

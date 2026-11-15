@@ -19,22 +19,37 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 | Path | What it is |
 |---|---|
 | [src/states.mjs](src/states.mjs) | Reads a free-text profile location and decides which state it names, if any. The rules most likely to need you. |
-| [src/parishes.mjs](src/parishes.mjs) | Louisiana's 64 parishes and the towns and universities in each. |
+| [src/counties.mjs](src/counties.mjs) | The states with county lists, and which county a location names. |
+| [src/counties/la.mjs](src/counties/la.mjs) | Louisiana's 64 parishes and the towns and universities in each. |
+| [src/counties/ms.mjs](src/counties/ms.mjs) | Mississippi's 82 counties and the towns and universities in each. |
 | [src/opt-out.txt](src/opt-out.txt) | People who asked to be left off. |
 | [src/exclude.mjs](src/exclude.mjs) | Who is left off: bot and test accounts, and the opt-out list. |
 | [scripts/collect.mjs](scripts/collect.mjs) | Gathers people and their contributions from GitHub's API into `data/`. |
 | [scripts/audit.mjs](scripts/audit.mjs) | Writes `data/audit.md`: what each rule placed and what it turned away. |
 | [scripts/build.mjs](scripts/build.mjs) | Places everyone, adds it all up, and writes the page. |
+| [src/sample.mjs](src/sample.mjs) | Who each state is compared on: the 80 likeliest to be busiest. Shared by the build and the history. |
+| [scripts/history.mjs](scripts/history.mjs) | Adds the day to `data/history.json` ([src/history.mjs](src/history.mjs) describes it), the daily record behind the page's sparklines and chart. |
 | [scripts/fetch-data.mjs](scripts/fetch-data.mjs) | Downloads the latest data from the `data` branch. |
 | [scripts/add-me.mjs](scripts/add-me.mjs) | Checks an "Add me" request and writes the bot's reply. |
 | [web/template.html](web/template.html) | The page: the canvas tornado, the map, the tables, all in one file. |
 | [test/states.test.mjs](test/states.test.mjs) | Locations and where they belong. |
+| [test/counties.test.mjs](test/counties.test.mjs) | Locations and the county or parish they name. |
 | [e2e/page.mjs](e2e/page.mjs) | Opens the built page in a browser and checks it works. |
 | [scripts/check-data.mjs](scripts/check-data.mjs), [scripts/check-links.mjs](scripts/check-links.mjs) | Refuse to publish broken data; catch broken doc links. |
 | [docs/placement.md](docs/placement.md) | How the placement rules work, and the audit. |
 | [docs/data.md](docs/data.md) | Every data file and field, and the collector's settings. |
 | [.github/workflows/refresh.yml](.github/workflows/refresh.yml) | The daily refresh and the deploy to GitHub Pages. |
 | [.github/workflows/add-me.yml](.github/workflows/add-me.yml) | Answers "Add me" issues. |
+
+### Add your state's counties
+
+Louisiana and Mississippi go down to the county. To add another state:
+
+1. Copy [src/counties/ms.mjs](src/counties/ms.mjs) to `src/counties/` with your state's code, such as `al.mjs`, and fill it in: the code, what the state calls its counties, every county, the towns, cities, and universities in each (a city in two counties goes in its principal one), and `ONLY`, the few names that mean your state and nowhere else. Leave a name out of `ONLY` if any other town, in the US or abroad, shares it.
+2. Add it to `STATES` in [src/counties.mjs](src/counties.mjs): one line. The placement rules, the collector, the build, and the page take it from there: a tornado and a table of its counties, leaderboards for each, and county ranks in Find yourself.
+3. Add locations and their counties to [test/counties.test.mjs](test/counties.test.mjs), and towns from `ONLY` to [test/states.test.mjs](test/states.test.mjs), then run `npm test`.
+4. Everyone active in a state with counties is looked up every day, up to 500. Count your state's active people and check the [budget](docs/data.md#who-is-looked-up) first.
+5. Name your state where README.md and the top of web/template.html list Louisiana and Mississippi.
 
 ## Someone is in the wrong place
 
@@ -43,6 +58,8 @@ Profile locations are free text, and two-letter codes are shared around the worl
 1. Add the location to [test/states.test.mjs](test/states.test.mjs) with where it belongs (`null` for "not in a US state").
 2. Change [src/states.mjs](src/states.mjs) until `npm test` passes. A foreign city that shares a code usually belongs in the `ELSEWHERE` list for that code.
 3. Run `npm run audit` and read `data/audit.md`: the "turned away" list should hold no US towns and the "accepted" lists no foreign ones.
+
+In the wrong parish or county? Add the location to [test/counties.test.mjs](test/counties.test.mjs) and fix the town in the state's file in `src/counties/`.
 
 Not sure how to fix it? [Open an issue](https://github.com/wbp318/github-leaderboard/issues/new/choose) with the exact location text.
 
@@ -61,18 +78,7 @@ $env:GH_TOKEN = gh auth token; npm run collect      # PowerShell
 
 Each of these is an issue with what to build, where in the code, and how to know it is done. Comment on one to claim it.
 
-Good first issues:
-
-- [Links to a view: put the current view in the URL](https://github.com/wbp318/github-leaderboard/issues/2)
-- [Download a leaderboard as CSV](https://github.com/wbp318/github-leaderboard/issues/3)
-- [A light theme](https://github.com/wbp318/github-leaderboard/issues/4)
-- [Place "Austin TX" and "Atlanta, Ga"](https://github.com/wbp318/github-leaderboard/issues/5)
-
-Bigger ones:
-
-- [Keyboard and screen-reader access to the tornado](https://github.com/wbp318/github-leaderboard/issues/6)
-- [Counties for your state, like Louisiana's parishes](https://github.com/wbp318/github-leaderboard/issues/7)
-- [History: how each state moves over time](https://github.com/wbp318/github-leaderboard/issues/8)
+- [Counties for every state](https://github.com/wbp318/github-leaderboard/issues/19)
 - [Live lookups for anyone: a Cloudflare Worker behind Find yourself](https://github.com/wbp318/github-leaderboard/issues/10)
 
 [All good first issues](https://github.com/wbp318/github-leaderboard/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). Have a different idea? [Open an issue](https://github.com/wbp318/github-leaderboard/issues/new/choose).
