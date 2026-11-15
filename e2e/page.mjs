@@ -110,6 +110,81 @@ check((await phone.evaluate(() => document.documentElement.scrollWidth - window.
 await phone.locator("#cv").scrollIntoViewIfNeeded();
 await phone.waitForTimeout(800);
 check((await lit(phone)) > 1000, "the tornado draws on a phone");
+
+// Download CSV: the leaderboard as filtered, every row and not only the 100 shown, ready for a spreadsheet.
+{
+  const { readFile } = await import("node:fs/promises");
+  const sheet = await browser.newPage({ viewport: { width: 1340, height: 900 } });
+  watch(sheet, "csv");
+  await sheet.goto(url);
+  await sheet.waitForTimeout(500);
+  const download = () =>
+    Promise.all([sheet.waitForEvent("download", { timeout: 5000 }), sheet.click("#csv", { timeout: 5000 })])
+      .then(async ([d]) => ({ name: d.suggestedFilename(), text: await readFile(await d.path(), "utf8") }))
+      .catch(() => ({ name: "", text: "" }));
+  // RFC 4180: a quoted cell can hold commas, line breaks, and "" for a quote; rows end in CRLF.
+  const parse = (text) => {
+    const rows = [];
+    let row = [];
+    let cell = "";
+    let quoted = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (quoted) {
+        if (c === '"' && text[i + 1] === '"') {
+          cell += '"';
+          i++;
+        } else if (c === '"') quoted = false;
+        else cell += c;
+      } else if (c === '"') quoted = true;
+      else if (c === ",") {
+        row.push(cell);
+        cell = "";
+      } else if (c === "\r" && text[i + 1] === "\n") {
+        row.push(cell);
+        rows.push(row);
+        row = [];
+        cell = "";
+        i++;
+      } else cell += c;
+    }
+    if (cell || row.length) rows.push([...row, cell]);
+    return rows;
+  };
+
+  // Someone whose profile has a comma, quotes, and a formula in it.
+  const odd = await sheet.evaluate(() => {
+    const p = D.P.find((p) => p[F.fair] === 1);
+    p[F.name] = 'Lee, "Jo" Smith';
+    p[F.location] = '=HYPERLINK("https://example.com","click")';
+    return { login: p[F.login], total: String(p[F.total]) };
+  });
+  const all = await download();
+  const rows = parse(all.text.replace(/^\ufeff/, ""));
+  const people = Number((await sheet.locator("#count").innerText()).replace(/\D/g, ""));
+  check(all.text.startsWith("\ufeff"), "Download CSV starts with a byte-order mark, so Excel reads UTF-8");
+  check(rows[0]?.join(",") === "Rank,Login,Name,Location,State,Parish,Total contributions,Public commits,Private contributions,Pull requests,Code reviews,Issues,New repositories,Followers", "the CSV has rank, login, name, location, state, parish, and every category");
+  check(/^[^\n]*\r\n/.test(all.text), "its rows end in CRLF");
+  check(people > 100 && rows.length - 1 === people, `it has every row, not only the 100 shown (${rows.length - 1} of ${people})`);
+  check(/^github-leaderboard-[a-z0-9-]+-total-\d{4}-\d{2}-\d{2}\.csv$/.test(all.name), `its file name says what is in it (${all.name})`);
+  const row = rows.find((r) => r[1] === odd.login);
+  check(row?.[2] === 'Lee, "Jo" Smith', "a name with a comma and quotes comes back whole");
+  check(row?.[3] === `'=HYPERLINK("https://example.com","click")`, "a location that starts with = gets a leading ' so it is not run as a formula");
+  check(row?.[6] === odd.total, "numbers stay plain numbers");
+
+  // Filtered: a category and a search download only the people who match, with the ranks the page shows.
+  await sheet.locator("#cats button", { hasText: "Public commits" }).click();
+  await sheet.fill("#find", "san");
+  await sheet.waitForTimeout(200);
+  const some = await download();
+  const found = parse(some.text.replace(/^\ufeff/, "")).slice(1);
+  const matching = await sheet.evaluate(() => D.P.filter((p) => p[F.fair] === 1 && [p[F.login], p[F.name] || "", p[F.location] || ""].some((s) => s.toLowerCase().includes("san"))).length);
+  check(matching > 0 && found.length === matching, `searching "san" downloads the ${matching} people who match (${found.length})`);
+  const shown = await sheet.locator("#board tbody tr").evaluateAll((trs) => trs.map((tr) => `${tr.cells[0].textContent.replace(/,/g, "")} ${tr.cells[1].textContent}`));
+  check(shown.length > 0 && shown.join("|") === found.slice(0, shown.length).map((r) => `${r[0]} ${r[1]}`).join("|"), "with the same ranks and logins as the list on the page");
+  check(some.name.includes("-commits-matching-san-"), `and a file name that says so (${some.name})`);
+  await sheet.close();
+}
 await browser.close();
 
 check(errors.length === 0, `no script errors${errors.length ? `:\n  ${errors.join("\n  ")}` : ""}`);
