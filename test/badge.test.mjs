@@ -23,9 +23,9 @@ test("ranks go by total, ties in the order people are listed, as the page sorts 
 
 test("the message names the county where there is one, and the state's size where there is not", () => {
   const r = ranksOf(people);
-  assert.equal(badgeMessage(r.get("a"), "Mississippi", "Hinds", "county"), "#2 in Hinds County · #3 in Mississippi");
-  assert.equal(badgeMessage(r.get("c"), "Mississippi", "", "county"), "#2 of 4 in Mississippi");
-  assert.equal(badgeMessage({ state: [5, 9], county: [1, 2] }, "Louisiana", "Caddo", "parish"), "#1 in Caddo Parish · #5 in Louisiana");
+  assert.equal(badgeMessage(r.get("a"), "Mississippi", "Hinds County"), "#2 in Hinds County · #3 in Mississippi");
+  assert.equal(badgeMessage(r.get("c"), "Mississippi", ""), "#2 of 4 in Mississippi");
+  assert.equal(badgeMessage({ state: [5, 9], county: [1, 2] }, "Louisiana", "Caddo Parish"), "#1 in Caddo Parish · #5 in Louisiana");
 });
 
 test("the badge escapes its text, says it to screen readers, and is as wide as its parts", () => {
