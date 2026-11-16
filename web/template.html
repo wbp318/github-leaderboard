@@ -262,6 +262,10 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
 .pad .swap { width: 64px; height: 64px; border-radius: 50%; border: 2px solid #2a5a7a; background: radial-gradient(circle at 40% 35%, #4a8fc0, #1d4a6e);
   color: #fff; font: 700 12px system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: 0.06em; touch-action: none; cursor: pointer; }
 .pad .swap[hidden] { display: none; }
+/* Save progress, and pick it up again, under the game. */
+.saves { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; max-width: 880px; margin-top: 8px; }
+.saves .btn[hidden] { display: none; }
+#gameLoad { border-color: var(--gold); color: var(--gold); }
 .pad .swap:active { background: radial-gradient(circle at 40% 35%, #6fb4e6, #2b6a98); }
 #gameKeys { margin: 8px 2px 0; max-width: 880px; }
 </style>
@@ -300,7 +304,13 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
       <button type="button" class="fire" id="fire" aria-label="Shoot">FIRE</button>
     </div>
   </div>
-  <p class="note" id="gameKeys">Click the game or press Enter to play. W A S D or the arrow keys move, the mouse or the left and right arrows turn, click or Space shoots, 1 and 2, Q, or the mouse wheel switch weapons, Shift runs, M turns the sound off and on, and Esc pauses. On a phone, drag the left pad to move and turn, hold Fire, and tap Swap or the gun at the bottom left to switch weapons.</p>
+  <div class="saves">
+    <button type="button" class="btn" id="gameSave" hidden>Save progress</button>
+    <button type="button" class="btn" id="gameLoad" hidden>Continue</button>
+    <button type="button" class="btn" id="gameForget" hidden>Delete save</button>
+    <span class="lbl" id="saveNote"></span>
+  </div>
+  <p class="note" id="gameKeys">Click the game or press Enter to play. W A S D or the arrow keys move, the mouse or the left and right arrows turn, click or Space shoots, 1 and 2, Q, or the mouse wheel switch weapons, Shift runs, M turns the sound off and on, and Esc pauses. Paused, S saves your progress in this browser, and C on the title picks it up again; the buttons below do the same. On a phone, drag the left pad to move and turn, hold Fire, and tap Swap or the gun at the bottom left to switch weapons.</p>
   <p class="sr" id="gameSaid" role="status" aria-live="polite"></p>
 </section>
 <form class="findme" id="findme" autocomplete="off">
@@ -3949,7 +3959,8 @@ function reset(n) {
         map[i] = L.walls[ch];
         if (ch === "D") doors.set(i, { x, y, open: 0, hold: 0, want: 0, vertical: wall(rows[y - 1][x]) && wall(rows[y + 1][x]) });
       } else if (ch === "p") [P.x, P.y] = [x + 0.5, y + 0.5];
-      else if (kind) ents.push({ ...kind, max: kind.hp, x: x + 0.5, y: y + 0.5, st: "idle", t: 0, cd: 0, anim: rnd() * 3, look: rnd() * 0.3, seed: rnd() * TAU, stuck: 0, sx: 0, sy: 0, hitT: 0, blinks: 0 });
+      // id: its place in the level's map order, the same every time, so a save can name it.
+      else if (kind) ents.push({ ...kind, id: ents.length, max: kind.hp, x: x + 0.5, y: y + 0.5, st: "idle", t: 0, cd: 0, anim: rnd() * 3, look: rnd() * 0.3, seed: rnd() * TAU, stuck: 0, sx: 0, sy: 0, hitT: 0, blinks: 0 });
     }
   total = ents.filter((e) => e.foe).length;
   totalC = ents.filter((e) => e.kind === "commit").length;
@@ -4344,16 +4355,22 @@ function render() {
     say("STORM", 160 - textW("STORM", 5) / 2, 12, logo, 5, 3);
     say("CELLAR", 160 - textW("CELLAR", 5) / 2, 52, logo, 5, 3);
     sayC("THE TORNADO SHOOK THE BUGS LOOSE.", 160, 100, INK);
-    sayC("CLICK OR PRESS ENTER TO PLAY", 160, 120, GOLD);
+    if (saved) {
+      sayC(`PRESS C TO CONTINUE: LEVEL ${saved.level + 1}${saved.p ? `  ${clock(saved.p.time)}` : ""}`, 160, 114, GOLD);
+      sayC("CLICK OR PRESS ENTER FOR A NEW GAME", 160, 126, INK);
+    } else sayC("CLICK OR PRESS ENTER TO PLAY", 160, 120, GOLD);
     sayC("WASD MOVE   MOUSE OR ARROWS TURN", 160, 140, MUTED);
     sayC("CLICK OR SPACE SHOOTS   SHIFT RUNS", 160, 151, MUTED);
   } else if (G.state === "paused") {
     wash(rgb(0, 0, 0), 0.5);
     sayC("PAUSED", 160, 52, logo, 3, 2);
     sayC("CLICK OR PRESS ENTER TO GO ON", 160, 92, INK);
+    sayC("S SAVES YOUR PROGRESS", 160, 108, MUTED);
+    if (saved) sayC(`C LOADS YOUR SAVE: LEVEL ${saved.level + 1}${saved.p ? `  ${clock(saved.p.time)}` : ""}`, 160, 120, MUTED);
   } else if (G.state === "dead") {
     sayC("YOU GOT BUGGED", 160, 46, logo, 3, 2);
     if (P.deadT > 0.9) sayC(G.level ? "CLICK OR PRESS ENTER TO TRY THE DRAIN AGAIN" : "CLICK OR PRESS ENTER TO TRY AGAIN", 160, 88, INK);
+    if (P.deadT > 0.9 && saved) sayC("OR PRESS C TO LOAD YOUR SAVE", 160, 100, INK);
   } else if (G.state === "cleared" || G.state === "won") {
     // The tally, counting up: the cellar's after level 1, both levels' at the end.
     const t = G.doneT, won = G.state === "won", r = won ? G.run : { kills: 0, total: 0, commits: 0, totalC: 0, time: 0 };
@@ -4368,6 +4385,7 @@ function render() {
     if (t > 1.6) {
       sayC(won ? "THE HEISENBUG IS SQUASHED. THE STORM HAS PASSED." : "NEXT: THE STORM DRAIN UNDER THE CELLAR", 160, 124, INK);
       sayC(won ? "CLICK OR PRESS ENTER FOR THE TITLE" : "CLICK OR PRESS ENTER TO GO DOWN", 160, 140, GOLD);
+      if (!won) sayC("S SAVES HERE, AT THE TOP OF THE DRAIN", 160, 152, MUTED);
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -4924,13 +4942,108 @@ function update(dt) {
 }
 
 // ---------------------------------------------------------------- the loop, and what starts and stops it
+// ---------------------------------------------------------------- saving your progress
+// One saved game, kept in this browser (localStorage): the level, where you stand and what you carry,
+// and which bugs are squashed and which pickups are gone. The level itself is rebuilt from its map,
+// so a save is small. Saved from the pause screen (S) or the Save button; the title (C) or Continue
+// picks it up. Saved after the cellar, it starts you at the top of the storm drain.
+const SAVE_KEY = "github-leaderboard.cellar";
+function readSave() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+    const n = (v) => Number.isFinite(v);
+    const fine = s?.v === 1 && (s.level === 0 || s.level === 1) && (s.fresh || (n(s.p?.x) && n(s.p?.y) && n(s.p?.hp) && s.p.hp > 0 && Array.isArray(s.items) && Array.isArray(s.foes)));
+    if (fine) return s;
+  } catch {}
+  return null;
+}
+let saved = readSave();
+const savedSays = (s) => `level ${s.level + 1}, ${LEVELS[s.level].name}${s.p ? `, ${clock(s.p.time)} in` : ", from the start"}`;
+function saveGame() {
+  const cleared = G.state === "cleared";
+  if (!cleared && !((G.state === "playing" || G.state === "paused") && P.hp > 0)) return;
+  const s = { v: 1, at: Date.now(), level: cleared ? 1 : G.level, run: G.run, carry: G.carry };
+  if (cleared) s.fresh = true;
+  else {
+    const r2 = (v) => Math.round(v * 100) / 100;
+    s.p = { x: r2(P.x), y: r2(P.y), a: r2(P.a), hp: Math.ceil(P.hp), ammo: P.ammo, cells: P.cells, want: P.want, has: P.has, kills: P.kills, commits: P.commits, time: r2(P.time) };
+    s.items = ents.filter((e) => e.item).map((e) => e.id);
+    s.foes = ents.filter((e) => e.foe).map((e) => [e.id, r2(e.x), r2(e.y), Math.ceil(e.hp), e.st === "dying" || e.st === "dead" ? 1 : 0, e.blinks]);
+  }
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(s));
+  } catch {
+    said.textContent = "Couldn't save: this browser isn't keeping anything for this page.";
+    return;
+  }
+  saved = s;
+  note("PROGRESS SAVED.");
+  said.textContent = `Progress saved: ${savedSays(s)}.`;
+  cv.setAttribute("aria-label", LABEL[G.state]());
+  saveUI();
+  if (G.state !== "playing") render();
+}
+// Back to where the save left off: the level from the start, then you, the bugs, and the pickups.
+function loadGame() {
+  const s = readSave();
+  if (!s) return;
+  audio();
+  G.run = s.run ?? null;
+  G.carry = s.carry ?? 40;
+  start(s.level);
+  if (s.p) {
+    const p = s.p;
+    Object.assign(P, { x: p.x, y: p.y, a: p.a, hp: p.hp, ammo: p.ammo, cells: p.cells, want: p.want, arm: p.want, has: [true, !!p.has?.[1]], kills: p.kills, commits: p.commits, time: p.time });
+    const left = new Set(s.items);
+    ents = ents.filter((e) => !e.item || left.has(e.id));
+    const foes = new Map(s.foes.map((f) => [f[0], f]));
+    for (const e of ents) {
+      const f = e.foe && foes.get(e.id);
+      if (!f) continue;
+      [e.x, e.y, e.hp, e.blinks] = [f[1], f[2], f[3], f[5] ?? 0];
+      if (!f[4]) continue;
+      // Squashed: flat on the floor, and with the Heisenbug gone the hatch is open.
+      Object.assign(e, { st: "dead", t: 9, z: 0 });
+      if (e.boss) TEX[T_HATCH] = HATCH_OPEN;
+    }
+    swapBtn.hidden = !P.has[1];
+  }
+  setState("playing", `Back to your save: ${savedSays(s)}.`);
+  note("BACK WHERE YOU SAVED.");
+}
+function forgetSave() {
+  try {
+    localStorage.removeItem(SAVE_KEY);
+  } catch {}
+  saved = null;
+  said.textContent = "Your saved game is deleted.";
+  cv.setAttribute("aria-label", LABEL[G.state]());
+  saveUI();
+  if (G.state !== "playing") render();
+}
+// The buttons under the game: Save while a game is on, Continue and Delete while there's a save.
+function saveUI() {
+  const st = G.state;
+  $("#gameSave").hidden = !(st === "playing" || st === "paused" || st === "cleared");
+  $("#gameLoad").hidden = !saved || st === "playing" || st === "cleared";
+  $("#gameForget").hidden = !saved || st === "playing";
+  $("#gameLoad").textContent = saved ? `Continue: ${savedSays(saved)}` : "Continue";
+  $("#saveNote").textContent = saved ? `Saved in this browser ${new Date(saved.at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.` : "";
+}
+for (const [id, fn] of [["#gameSave", saveGame], ["#gameLoad", loadGame], ["#gameForget", forgetSave]]) {
+  $(id).addEventListener("click", () => {
+    fn();
+    cv.focus({ preventScroll: true });
+  });
+}
+
 const said = document.getElementById("gameSaid");
 // The canvas's data-state is title, playing, paused, dead, cleared (level 1 done), or won (both done).
 const LABEL = {
-  title: () => "Storm Cellar, a first-person shooter. Press Enter to play.",
-  playing: () => `Storm Cellar, playing level ${G.level + 1}, ${L.name}. Escape pauses.`,
-  paused: () => "Storm Cellar, paused. Press Enter to go on.",
-  dead: () => `Storm Cellar: the bugs got you. Press Enter to try ${G.level ? "the storm drain again" : "again"}.`,
+  title: () => `Storm Cellar, a first-person shooter. Press Enter to play${saved ? `, or C to go on from your save: ${savedSays(saved)}` : ""}.`,
+  playing: () => `Storm Cellar, playing level ${G.level + 1}, ${L.name}. Escape pauses, and S then saves.`,
+  paused: () => `Storm Cellar, paused. Press Enter to go on, or S to save your progress${saved ? `, or C to load your save` : ""}.`,
+  dead: () => `Storm Cellar: the bugs got you. Press Enter to try ${G.level ? "the storm drain again" : "again"}${saved ? `, or C to load your save` : ""}.`,
   cleared: () => "Storm Cellar: the cellar is cleared. Press Enter to go down the storm drain, level 2.",
   won: () => "Storm Cellar: all clear, both levels done. Press Enter for the title.",
 };
@@ -4939,6 +5052,7 @@ function setState(s, speak) {
   cv.dataset.state = s;
   cv.setAttribute("aria-label", LABEL[s]());
   if (speak) said.textContent = speak;
+  saveUI();
 }
 let raf = 0, last = 0;
 function loop(now) {
@@ -5016,6 +5130,12 @@ cv.addEventListener("keydown", (e) => {
     if (e.code === "Enter" || e.code === "NumpadEnter" || e.code === "Space") {
       e.preventDefault();
       if (!e.repeat) act();
+    } else if (e.code === "KeyS" && (G.state === "paused" || G.state === "cleared")) {
+      e.preventDefault();
+      if (!e.repeat) saveGame();
+    } else if (e.code === "KeyC" && saved && G.state !== "cleared") {
+      e.preventDefault();
+      if (!e.repeat) loadGame();
     }
     return;
   }
