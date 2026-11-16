@@ -31,7 +31,9 @@ A year of GitHub contributions across the United States, drawn as a spinning tor
 
 **See it live: https://wbp318.github.io/github-leaderboard/** and type your GitHub login to see where you rank. Not on it? One click adds you.
 
-![The tornado: states ranked by a year of contributions, each ring split into public commits and everything else](docs/screenshot.png)
+![The tornado for Mississippi, county by county: each ring split into public commits and everything else, with Hinds picked from the keyboard and its numbers beside it](docs/screenshot.png)
+
+![Storm Cellar, the game at the top of the page: a blocky first-person view of a stone cellar, firing at a red and blue beetle, with a commit to pick up by the far door](docs/storm-cellar.png)
 
 ## What is on the page
 
@@ -87,7 +89,7 @@ scripts/    collect, audit, build, fetch-data
 web/        template.html, the whole page
 site/       what GitHub Pages serves (leaderboard.html is built)
 test/       placement test cases
-docs/       placement.md, data.md, the screenshot
+docs/       placement.md, data.md, the screenshots
 .github/    the daily workflow, issue forms
 ```
 
