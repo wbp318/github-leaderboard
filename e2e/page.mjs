@@ -637,6 +637,89 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   check(!errors.some((e) => e.startsWith("game save:")), "no script errors saving and loading the game");
   await ctx.close();
 }
+// Storm Cellar's neighbours and Biscuit the dog: a new game saves Biscuit beside you; walking up to
+// Hank finds him, and what he says is spoken; a save keeps him found, and loaded again he says
+// something else and counts once; an older save, with no neighbours or dog, loads with Biscuit
+// beside you; Biscuit knocked out stays down after a load; and the cellar's tally and the last one
+// count the survivors, in the game's label and out loud.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1340, height: 900 } });
+  const np = await ctx.newPage();
+  watch(np, "game folk");
+  const KEY = "github-leaderboard.cellar";
+  const said = () => np.locator("#gameSaid").textContent();
+  const label = () => np.getAttribute("#game", "aria-label");
+  const stored = () => np.evaluate((k) => JSON.parse(localStorage.getItem(k)), KEY);
+  const isState = (s, timeout = 8000) => np.waitForFunction((s) => document.querySelector("#game").dataset.state === s, s, { timeout }).then(() => true, () => false);
+  // The page starts out saying "title": wait until the game has set itself up and drawn it.
+  const titled = () => np.waitForFunction(() => document.querySelector("#game").dataset.state === "title" && document.querySelector("#game").getContext("2d").getImageData(160, 30, 1, 1).data[0] > 0, null, { timeout: 8000 }).catch(() => {});
+  const atTitle = async () => {
+    await np.reload();
+    await titled();
+  };
+  const load = async (s) => {
+    await np.evaluate(([k, v]) => localStorage.setItem(k, JSON.stringify(v)), [KEY, s]);
+    await atTitle();
+    await np.focus("#game");
+    await np.keyboard.press("KeyC");
+    await np.waitForTimeout(250);
+  };
+  const saveNow = async () => {
+    await np.keyboard.press("Escape");
+    await np.keyboard.press("KeyS");
+    await np.waitForTimeout(150);
+    return stored();
+  };
+  const you = (x, y, a) => ({ x, y, a, hp: 100, ammo: 40, cells: 0, want: 0, has: [true, false], kills: 0, commits: 0, time: 5 });
+  const walkUntil = async (state) => {
+    await np.keyboard.down("ArrowUp");
+    const ok = await isState(state, 4000);
+    await np.keyboard.up("ArrowUp");
+    return ok;
+  };
+  await np.goto(url);
+  await titled();
+  check(/Walk up to a neighbour sheltering from the storm.+Biscuit, Hank's dog, follows you/.test(await np.locator("#gameKeys").textContent()), "the keys under the game tell of the neighbours and Biscuit");
+  await np.focus("#game");
+  await np.keyboard.press("Enter");
+  await np.waitForTimeout(250);
+  const fresh = await saveNow();
+  const [dx, dy, dhp, dko] = fresh?.dog ?? [];
+  check(fresh?.met?.length === 0 && dhp === 60 && dko === 0 && Math.hypot(dx - fresh.p.x, dy - fresh.p.y) < 2.5, "a new game has no one found yet, and Biscuit at your side, and saves him with you");
+  // An older save, with no neighbours found and no dog, right by Hank in the back room.
+  await load({ v: 1, at: Date.now(), level: 0, run: null, carry: 40, p: you(2.75, 19.5, Math.PI), items: fresh?.items ?? [], foes: fresh?.foes ?? [] });
+  check(/^You found Hank, sheltering from the storm: 1 of 3 survivors here\. Hank says, "Biscuit's going with you/.test(await said()), "walking up to a neighbour finds them, and what they say is spoken");
+  const met = await saveNow();
+  check(met?.met?.join() === "hank", "a save keeps them found");
+  check(met?.dog?.[2] === 60 && Math.hypot(met.dog[0] - met.p.x, met.dog[1] - met.p.y) < 2.5, "and an older save, with no dog in it, loads with Biscuit beside you");
+  await atTitle();
+  await np.focus("#game");
+  await np.keyboard.press("KeyC");
+  await np.waitForTimeout(250);
+  check(/^Hank says, "A hot coffee/.test(await said()), "loaded by Hank again, he says something else");
+  const again = await saveNow();
+  check(again?.met?.join() === "hank", "and still counts once");
+  await load({ ...again, dog: [3.5, 21.5, 0, 12] });
+  const ko = await saveNow();
+  check(ko?.dog?.[0] === 3.5 && ko.dog[1] === 21.5 && ko.dog[2] === 0 && ko.dog[3] > 0 && ko.dog[3] <= 12, "Biscuit, knocked out, stays down where he was after a load");
+  // At the cellar's exit, with Hank found; then the drain's ladder, with the Heisenbug squashed.
+  await load({ ...again, p: you(26.5, 4.5, 0) });
+  check(await walkUntil("cleared"), "walking into the cellar's exit clears it");
+  check(/with 1 of 3 survivors found/.test(await label()) && /and 1 of 3 survivors found\./.test(await said()), "the cellar's tally counts the survivors found, in its label and out loud");
+  await np.waitForTimeout(1800);
+  await np.keyboard.press("KeyS");
+  await np.waitForTimeout(150);
+  const top = await stored();
+  check(top?.fresh && top.run?.met === 1 && top.run.totalS === 3, "a save at the top of the drain keeps the cellar's count");
+  await np.keyboard.press("Enter");
+  await np.waitForTimeout(250);
+  const drain = await saveNow();
+  await load({ ...drain, run: top?.run, p: you(41.5, 23.5, 0), foes: (drain?.foes ?? []).map(([id, x, y, , , b]) => [id, x, y, 0, 1, b]) });
+  check(await walkUntil("won"), "with the Heisenbug squashed, the ladder out of the drain finishes the game");
+  check(/with 1 of 6 survivors found/.test(await label()) && /and 1 of 6 survivors found\./.test(await said()), "and the last tally counts the survivors on both levels, in its label and out loud");
+  check(!errors.some((e) => e.startsWith("game folk:")), "no script errors with the neighbours and Biscuit");
+  await ctx.close();
+}
 // Storm Cellar's mouse and keys: moving the mouse up looks up (the view changes with no turning);
 // the switch, or V, makes it walk instead, and is remembered. Any key can be changed: the new key
 // plays, a key in use swaps over, Enter is kept, and Reset puts every key back.
