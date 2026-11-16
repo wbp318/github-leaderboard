@@ -265,6 +265,13 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
 /* Save progress, and pick it up again, under the game. */
 .saves { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; max-width: 880px; margin-top: 8px; }
 .saves .btn[hidden] { display: none; }
+.saves .btn:disabled { opacity: 0.5; cursor: default; }
+.saves .mousey { margin-left: auto; }
+.keys { max-width: 880px; margin-top: 8px; }
+.keys summary { cursor: pointer; color: var(--gold); font-weight: 600; }
+.keys table { max-width: 560px; }
+.keys td.k { color: var(--gold); }
+.keys .btn:disabled { opacity: 0.5; cursor: default; }
 #gameLoad { border-color: var(--gold); color: var(--gold); }
 .pad .swap:active { background: radial-gradient(circle at 40% 35%, #6fb4e6, #2b6a98); }
 #gameKeys { margin: 8px 2px 0; max-width: 880px; }
@@ -305,12 +312,23 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
     </div>
   </div>
   <div class="saves">
-    <button type="button" class="btn" id="gameSave" hidden>Save progress</button>
+    <button type="button" class="btn" id="gameSave" disabled title="Start a game, then save it here, or pause and press S">Save progress</button>
     <button type="button" class="btn" id="gameLoad" hidden>Continue</button>
     <button type="button" class="btn" id="gameForget" hidden>Delete save</button>
     <span class="lbl" id="saveNote"></span>
+    <span class="lbl mousey">Mouse up and down</span>
+    <fieldset class="seg" id="mouseY" aria-label="Mouse up and down">
+      <button type="button" data-m="look" aria-pressed="true">Look</button>
+      <button type="button" data-m="walk" aria-pressed="false">Walk</button>
+    </fieldset>
   </div>
-  <p class="note" id="gameKeys">Click the game or press Enter to play. W A S D or the arrow keys move, the mouse or the left and right arrows turn, click or Space shoots, 1 and 2, Q, or the mouse wheel switch weapons, Shift runs, M turns the sound off and on, and Esc pauses. Paused, S saves your progress in this browser, and C on the title picks it up again; the buttons below do the same. On a phone, drag the left pad to move and turn, hold Fire, and tap Swap or the gun at the bottom left to switch weapons.</p>
+  <details class="keys" id="keysBox">
+    <summary>Keys</summary>
+    <p class="note">Change any key: click Change, then press the new one. A key another action uses swaps over. Enter, Escape, and Tab stay as they are. Kept in this browser.</p>
+    <div class="scroll"><table id="keyTable"><thead><tr><th>Action</th><th>Keys</th><th></th></tr></thead><tbody></tbody></table></div>
+    <div class="bar"><button type="button" class="btn" id="keyReset">Reset all keys</button><span class="lbl" id="keyMsg" role="status" aria-live="polite"></span></div>
+  </details>
+  <p class="note" id="gameKeys">Click the game or press Enter to play. W A S D or the arrow keys move, the mouse or the left and right arrows turn, click or Space shoots, the mouse up and down looks up and down (or, with V or the switch below, walks you forward and back), 1 and 2, Q, or the mouse wheel switch weapons, Shift runs, M turns the sound off and on, and Esc pauses. Paused, S saves your progress in this browser, and C on the title picks it up again; the buttons below do the same. On a phone, drag the left pad to move and turn, hold Fire, and tap Swap or the gun at the bottom left to switch weapons.</p>
   <p class="sr" id="gameSaid" role="status" aria-live="polite"></p>
 </section>
 <form class="findme" id="findme" autocomplete="off">
@@ -2978,6 +2996,10 @@ const cv = document.getElementById("game");
 const ctx = cv?.getContext("2d", { alpha: false });
 if (!ctx) return;
 const W = 320, H = 200, VH = 168, HALF = 84, PROJ = 160, TS = 64, TAU = Math.PI * 2;
+// The horizon's row: HALF, or higher or lower as you look down or up (P.pitch), the old way: the
+// view slides rather than tilts. Set each frame by render().
+let HZ = HALF;
+const PITCH = 50;
 const img = ctx.createImageData(W, H);
 const buf = new Uint32Array(img.data.buffer);
 const zbuf = new Float32Array(W);
@@ -3950,7 +3972,7 @@ function reset(n) {
   ents = [];
   shots = [];
   fx = [];
-  P = { x: 4.5, y: 21.5, a: -Math.PI / 2, hp: 100, ammo: 40, cells: 0, arm: 0, want: 0, has: [true, false], swapT: 9, step: 0, bolt: null, kills: 0, commits: 0, bob: 0, bobAmp: 0, eye: 0.5, fireT: 0, shotT: 9, hurtT: 0, gotT: 0, msg: "", msgT: 0, time: 0, deadT: 0 };
+  P = { x: 4.5, y: 21.5, a: -Math.PI / 2, pitch: 0, hp: 100, ammo: 40, cells: 0, arm: 0, want: 0, has: [true, false], swapT: 9, step: 0, bolt: null, kills: 0, commits: 0, bob: 0, bobAmp: 0, eye: 0.5, fireT: 0, shotT: 9, hurtT: 0, gotT: 0, msg: "", msgT: 0, time: 0, deadT: 0 };
   const wall = (ch) => !!L.walls[ch] && ch !== "D";
   for (let y = 0; y < MH; y++)
     for (let x = 0; x < MW; x++) {
@@ -4120,9 +4142,9 @@ const wallAt = (x, y) => {
 function flats(dirX, dirY) {
   const rx0 = dirX + dirY, ry0 = dirY - dirX, rx1 = dirX - dirY, ry1 = dirY + dirX, skyL = band(1 + G.flash * 0.9);
   for (let y = 0; y < VH; y++) {
-    if (y === HALF) continue;
-    const ceil = y < HALF, d = ceil ? ((1 - P.eye) * PROJ) / (HALF - y - 0.5) : (P.eye * PROJ) / (y + 0.5 - HALF);
-    const f = fall(d), row = y * W, srow = (y + SKY_OFF) * SW, tbl = ceil ? ceilT : floorT;
+    if (y === HZ) continue;
+    const ceil = y < HZ, d = ceil ? ((1 - P.eye) * PROJ) / (HZ - y - 0.5) : (P.eye * PROJ) / (y + 0.5 - HZ);
+    const f = fall(d), row = y * W, srow = Math.max(0, Math.min(SH - 1, y - HZ + HALF + SKY_OFF)) * SW, tbl = ceil ? ceilT : floorT;
     let fx = P.x + d * rx0, fy = P.y + d * ry0;
     const stx = (d * (rx1 - rx0)) / W, sty = (d * (ry1 - ry0)) / W;
     for (let x = 0; x < W; x++, fx += stx, fy += sty) {
@@ -4137,13 +4159,13 @@ function flats(dirX, dirY) {
     }
   }
   // The horizon row sits exactly at eye level: copy the row above it.
-  buf.copyWithin(HALF * W, (HALF - 1) * W, HALF * W);
+  buf.copyWithin(HZ * W, (HZ - 1) * W, HZ * W);
 }
 function walls(dirX, dirY) {
   for (let x = 0; x < W; x++) {
     const cam = (2 * (x + 0.5)) / W - 1, t = cast(P.x, P.y, dirX - dirY * cam, dirY + dirX * cam);
     zbuf[x] = t;
-    const h = PROJ / t, top = HALF - (1 - P.eye) * h, bot = HALF + P.eye * h;
+    const h = PROJ / t, top = HZ - (1 - P.eye) * h, bot = HZ + P.eye * h;
     const y0 = Math.max(0, Math.ceil(top - 0.5)), y1 = Math.min(VH, Math.ceil(bot - 0.5)), tx = TEX[rTex], u = Math.min(63, (rU * TS) | 0), step = TS / h;
     const l = band(lit[rCell] * fall(t) * (rSide ? 0.86 : 1));
     let v = (y0 + 0.5 - top) * step;
@@ -4195,7 +4217,7 @@ function sprites(dirX, dirY) {
   list.sort((a, b) => b.depth - a.depth);
   for (const o of list) {
     const { s, depth: ty } = o, cx = PROJ * (1 + o.side / ty), sw = (PROJ * (s.w / TS) * o.k) / ty, sh = (PROJ * (s.h / TS) * o.k) / ty;
-    const bot = HALF + ((P.eye - o.z) * PROJ) / ty, top = bot - sh, left = cx - sw / 2;
+    const bot = HZ + ((P.eye - o.z) * PROJ) / ty, top = bot - sh, left = cx - sw / 2;
     const x0 = Math.max(0, Math.ceil(left - 0.5)), x1 = Math.min(W, Math.ceil(left + sw - 0.5)), y0 = Math.max(0, Math.ceil(top - 0.5)), y1 = Math.min(VH, Math.ceil(bot - 0.5));
     const l = o.glow ? 256 : band(lit[cellOf(o.x, o.y)] * fall(ty));
     for (let x = x0; x < x1; x++) {
@@ -4238,7 +4260,7 @@ function gun(dirX, dirY) {
 // The rod's lightning: a jagged line from the bulb to what it hit, then on to the bug it jumped to.
 function onScreen(x, y, z, dirX, dirY) {
   const sx = x - P.x, sy = y - P.y, d = dirX * sx + dirY * sy;
-  return d < 0.15 ? null : [PROJ * (1 + (dirX * sy - dirY * sx) / d), HALF + ((P.eye - z) * PROJ) / d];
+  return d < 0.15 ? null : [PROJ * (1 + (dirX * sy - dirY * sx) / d), HZ + ((P.eye - z) * PROJ) / d];
 }
 function zigzag(x0, y0, x1, y1) {
   const len = Math.hypot(x1 - x0, y1 - y0) || 1, n = Math.max(3, Math.round(len / 9)), px = -(y1 - y0) / len, py = (x1 - x0) / len;
@@ -4328,6 +4350,7 @@ function bossBar() {
 }
 const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 function render() {
+  HZ = HALF + Math.round(P.pitch);
   TEX[T_RACK] = RACKS[((G.t * 2.5) | 0) % 3];
   TEX[T_WATER] = WATERS[((G.t * 3) | 0) % 3];
   for (let i = 0; i < lit.length; i++) lit[i] = light0[i] * (zone[i] === 2 ? G.fl : 1) + (zone[i] === 1 ? G.flash * 0.9 : 0) + G.muzzle;
@@ -4356,21 +4379,22 @@ function render() {
     say("CELLAR", 160 - textW("CELLAR", 5) / 2, 52, logo, 5, 3);
     sayC("THE TORNADO SHOOK THE BUGS LOOSE.", 160, 100, INK);
     if (saved) {
-      sayC(`PRESS C TO CONTINUE: LEVEL ${saved.level + 1}${saved.p ? `  ${clock(saved.p.time)}` : ""}`, 160, 114, GOLD);
+      sayC(`PRESS ${kg("load")} TO CONTINUE: LEVEL ${saved.level + 1}${saved.p ? `  ${clock(saved.p.time)}` : ""}`, 160, 114, GOLD);
       sayC("CLICK OR PRESS ENTER FOR A NEW GAME", 160, 126, INK);
     } else sayC("CLICK OR PRESS ENTER TO PLAY", 160, 120, GOLD);
-    sayC("WASD MOVE   MOUSE OR ARROWS TURN", 160, 140, MUTED);
-    sayC("CLICK OR SPACE SHOOTS   SHIFT RUNS", 160, 151, MUTED);
+    const moved = ["forward", "back", "left", "right", "turnLeft", "turnRight"].some((a) => JSON.stringify(BOUND[a]) !== JSON.stringify(KEY_DEFAULTS[a]));
+    sayC(moved ? `${["forward", "left", "back", "right"].map(kg).join(" ")} MOVE   MOUSE TURNS` : "WASD MOVE   MOUSE OR ARROWS TURN", 160, 140, MUTED);
+    sayC(`CLICK OR ${kg("fire")} SHOOTS   ${kg("run")} RUNS`, 160, 151, MUTED);
   } else if (G.state === "paused") {
     wash(rgb(0, 0, 0), 0.5);
     sayC("PAUSED", 160, 52, logo, 3, 2);
     sayC("CLICK OR PRESS ENTER TO GO ON", 160, 92, INK);
-    sayC("S SAVES YOUR PROGRESS", 160, 108, MUTED);
-    if (saved) sayC(`C LOADS YOUR SAVE: LEVEL ${saved.level + 1}${saved.p ? `  ${clock(saved.p.time)}` : ""}`, 160, 120, MUTED);
+    sayC(`${kg("save")} SAVES YOUR PROGRESS`, 160, 108, MUTED);
+    if (saved) sayC(`${kg("load")} LOADS YOUR SAVE: LEVEL ${saved.level + 1}${saved.p ? `  ${clock(saved.p.time)}` : ""}`, 160, 120, MUTED);
   } else if (G.state === "dead") {
     sayC("YOU GOT BUGGED", 160, 46, logo, 3, 2);
     if (P.deadT > 0.9) sayC(G.level ? "CLICK OR PRESS ENTER TO TRY THE DRAIN AGAIN" : "CLICK OR PRESS ENTER TO TRY AGAIN", 160, 88, INK);
-    if (P.deadT > 0.9 && saved) sayC("OR PRESS C TO LOAD YOUR SAVE", 160, 100, INK);
+    if (P.deadT > 0.9 && saved) sayC(`OR PRESS ${kg("load")} TO LOAD YOUR SAVE`, 160, 100, INK);
   } else if (G.state === "cleared" || G.state === "won") {
     // The tally, counting up: the cellar's after level 1, both levels' at the end.
     const t = G.doneT, won = G.state === "won", r = won ? G.run : { kills: 0, total: 0, commits: 0, totalC: 0, time: 0 };
@@ -4385,7 +4409,7 @@ function render() {
     if (t > 1.6) {
       sayC(won ? "THE HEISENBUG IS SQUASHED. THE STORM HAS PASSED." : "NEXT: THE STORM DRAIN UNDER THE CELLAR", 160, 124, INK);
       sayC(won ? "CLICK OR PRESS ENTER FOR THE TITLE" : "CLICK OR PRESS ENTER TO GO DOWN", 160, 140, GOLD);
-      if (!won) sayC("S SAVES HERE, AT THE TOP OF THE DRAIN", 160, 152, MUTED);
+      if (!won) sayC(`${kg("save")} SAVES HERE, AT THE TOP OF THE DRAIN`, 160, 152, MUTED);
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -4393,7 +4417,138 @@ function render() {
 
 // ---------------------------------------------------------------- play
 const keys = new Set(), touch = { move: 0, turn: 0, fire: false };
-let mouseDX = 0, mouseFire = false, locked = false;
+let mouseDX = 0, mouseDY = 0, mouseFire = false, locked = false;
+// ---------------------------------------------------------------- your keys
+// Each action's keys (KeyboardEvent codes), changed under the game and kept in this browser. Enter
+// (start, go on), Escape (pause), and Tab are not yours to change. Save and load work only on the
+// pause and title screens, so they may share a key with an action used while playing (S saves,
+// and S also walks back).
+const KEY_DEFAULTS = {
+  forward: ["KeyW", "ArrowUp"], back: ["KeyS", "ArrowDown"], left: ["KeyA"], right: ["KeyD"],
+  turnLeft: ["ArrowLeft"], turnRight: ["ArrowRight"], fire: ["Space", "KeyF"], run: ["ShiftLeft", "ShiftRight"],
+  arm1: ["Digit1", "Numpad1"], arm2: ["Digit2", "Numpad2"], swap: ["KeyQ"],
+  pause: ["KeyP"], sound: ["KeyM"], mouse: ["KeyV"], save: ["KeyS"], load: ["KeyC"],
+};
+const KEY_WHAT = {
+  forward: "Move forward", back: "Move back", left: "Step left", right: "Step right", turnLeft: "Turn left", turnRight: "Turn right",
+  fire: "Shoot", run: "Run", arm1: "Pea shooter", arm2: "Lightning rod", swap: "Switch weapon",
+  pause: "Pause (Escape too)", sound: "Sound on and off", mouse: "Mouse up and down: look or walk", save: "Save (when paused)", load: "Load your save (on the title)",
+};
+const MENU = new Set(["save", "load"]);
+const FIXED = new Set(["Enter", "NumpadEnter", "Escape", "Tab"]);
+const KEYS_STORE = "github-leaderboard.keys";
+let BOUND = structuredClone(KEY_DEFAULTS);
+try {
+  const mine = JSON.parse(localStorage.getItem(KEYS_STORE));
+  for (const a of Object.keys(KEY_DEFAULTS)) {
+    const v = mine?.[a];
+    if (Array.isArray(v) && v.length && v.every((c) => typeof c === "string" && /^[A-Za-z0-9]{1,24}$/.test(c) && !FIXED.has(c))) BOUND[a] = v;
+  }
+} catch {}
+const isKey = (action, code) => BOUND[action].includes(code);
+const on = (action) => held(...BOUND[action]);
+// A key's name for people ("Up arrow", "Left Shift"), and in the game's own letters ("UP", "SHIFT").
+const KEY_NAMES = {
+  Space: "Space", ShiftLeft: "Left Shift", ShiftRight: "Right Shift", ControlLeft: "Left Ctrl", ControlRight: "Right Ctrl",
+  AltLeft: "Left Alt", AltRight: "Right Alt", ArrowUp: "Up arrow", ArrowDown: "Down arrow", ArrowLeft: "Left arrow", ArrowRight: "Right arrow",
+  Backspace: "Backspace", CapsLock: "Caps Lock", Semicolon: "Semicolon", Quote: "Quote", Comma: "Comma", Period: "Period", Slash: "Slash",
+  Backslash: "Backslash", BracketLeft: "Left bracket", BracketRight: "Right bracket", Minus: "Minus", Equal: "Equals", Backquote: "Backquote",
+};
+function keyName(code) {
+  const m = code.match(/^(Key|Digit)(.)$/);
+  if (m) return m[2];
+  if (KEY_NAMES[code]) return KEY_NAMES[code];
+  if (code.startsWith("Numpad")) return `Num ${code.slice(6)}`;
+  return code;
+}
+const KEY_GLYPHS = { Space: "SPACE", ShiftLeft: "SHIFT", ShiftRight: "SHIFT", ArrowUp: "UP", ArrowDown: "DOWN", ArrowLeft: "LEFT", ArrowRight: "RIGHT", ControlLeft: "CTRL", ControlRight: "CTRL", AltLeft: "ALT", AltRight: "ALT" };
+function keyGlyph(code) {
+  const g = (KEY_GLYPHS[code] ?? keyName(code)).toUpperCase();
+  return [...g].every((c) => c === " " || FONT[c]) ? g : "YOUR KEY";
+}
+const kg = (action) => keyGlyph(BOUND[action][0]);
+const kn = (action) => BOUND[action].map(keyName).join(" or ");
+// Gives an action a key. A key already doing something else in the same group (playing, or the
+// menus) swaps over: that action takes this one's old keys.
+function bindKey(action, code) {
+  const group = (a) => MENU.has(a) === MENU.has(action);
+  const old = BOUND[action].filter((c) => c !== code);
+  for (const a of Object.keys(BOUND)) {
+    if (a === action || !group(a) || !BOUND[a].includes(code)) continue;
+    const rest = BOUND[a].filter((c) => c !== code);
+    BOUND[a] = rest.length ? rest : old.length ? old : KEY_DEFAULTS[a];
+  }
+  BOUND[action] = [code];
+  keysChanged();
+}
+function keysChanged() {
+  try {
+    localStorage.setItem(KEYS_STORE, JSON.stringify(BOUND));
+  } catch {}
+  keys.clear();
+  renderKeys();
+  describeKeys();
+  cv.setAttribute("aria-label", LABEL[G.state]());
+  if (G.state !== "playing") render();
+}
+// The keys table under the game: each action, its keys, and Change.
+let waiting = null;
+function renderKeys() {
+  const tb = $("#keyTable tbody");
+  tb.textContent = "";
+  for (const a of Object.keys(KEY_DEFAULTS)) {
+    const b = h("button", { type: "button", class: "btn", "data-a": a, text: waiting === a ? "Press a key…" : "Change", "aria-label": `Change the key for ${KEY_WHAT[a]}` });
+    b.addEventListener("click", () => listen(a, b));
+    tb.appendChild(h("tr", {}, [h("td", { text: KEY_WHAT[a] }), h("td", { class: "k", text: kn(a) }), h("td", {}, [b])]));
+  }
+  $("#keyReset").disabled = JSON.stringify(BOUND) === JSON.stringify(KEY_DEFAULTS);
+}
+function listen(action, button) {
+  if (waiting) return;
+  waiting = action;
+  button.textContent = "Press a key…";
+  $("#keyMsg").textContent = `Press the key for ${KEY_WHAT[action]}, or Escape to keep ${kn(action)}.`;
+  const grab = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (FIXED.has(e.code) || (MENU.has(action) && e.code === "Space")) {
+      if (e.code !== "Escape") {
+        $("#keyMsg").textContent = `${keyName(e.code)} is kept for starting and pausing the game: pick another key, or Escape to keep ${kn(action)}.`;
+        return;
+      }
+      $("#keyMsg").textContent = `Kept ${kn(action)} for ${KEY_WHAT[action]}.`;
+    } else {
+      bindKey(action, e.code);
+      $("#keyMsg").textContent = `${KEY_WHAT[action]}: ${kn(action)}.`;
+    }
+    removeEventListener("keydown", grab, true);
+    waiting = null;
+    renderKeys();
+    $(`#keyTable button[data-a="${action}"]`)?.focus();
+  };
+  addEventListener("keydown", grab, true);
+}
+$("#keyReset").addEventListener("click", () => {
+  BOUND = structuredClone(KEY_DEFAULTS);
+  keysChanged();
+  $("#keyMsg").textContent = "Every key is back to how it started.";
+});
+// The keys, in words, under the game.
+function describeKeys() {
+  const wasd = ["forward", "back", "left", "right"].every((a) => JSON.stringify(BOUND[a]) === JSON.stringify(KEY_DEFAULTS[a]));
+  const move = wasd ? "W A S D or the arrow keys move" : `${kn("forward")}, ${kn("back")}, ${kn("left")}, and ${kn("right")} move`;
+  $("#gameKeys").textContent =
+    `Click the game or press Enter to play. ${move}, the mouse or ${kn("turnLeft")} and ${kn("turnRight")} turn, click or ${kn("fire")} shoots, ` +
+    `the mouse up and down looks up and down (or, with ${kn("mouse")} or the switch below, walks you forward and back), ` +
+    `${kn("arm1")} and ${kn("arm2")}, ${kn("swap")}, or the mouse wheel switch weapons, ${kn("run")} runs, ${kn("sound")} turns the sound off and on, and Esc pauses. ` +
+    `Paused, ${kn("save")} saves your progress in this browser, and ${kn("load")} on the title picks it up again; the buttons below do the same, and Keys changes any key. ` +
+    "On a phone, drag the left pad to move and turn, hold Fire, and tap Swap or the gun at the bottom left to switch weapons.";
+}
+// What the mouse's up and down do: "look" up and down, or "walk" forward and back (V switches).
+let mouseY = "look";
+try {
+  if (localStorage.getItem("github-leaderboard.mouse") === "walk") mouseY = "walk";
+} catch {}
 const held = (...k) => k.some((c) => keys.has(c));
 function note(s) {
   P.msg = s;
@@ -4430,10 +4585,14 @@ function out() {
   if (P.msgT < 1) note("THE HATCH WON'T BUDGE WHILE THE HEISENBUG LIVES.");
 }
 function controls(dt) {
-  const fw = Math.max(-1, Math.min(1, (held("KeyW", "ArrowUp") ? 1 : 0) - (held("KeyS", "ArrowDown") ? 1 : 0) + touch.move));
-  const st = (held("KeyD") ? 1 : 0) - (held("KeyA") ? 1 : 0);
-  P.a += ((held("ArrowRight") ? 1 : 0) - (held("ArrowLeft") ? 1 : 0)) * 2.6 * dt + touch.turn * 2.2 * dt + mouseDX * 0.0024;
-  const run = held("ShiftLeft", "ShiftRight") ? 1.6 : 1, dx = Math.cos(P.a), dy = Math.sin(P.a);
+  // The mouse up and down: look, or walk (as fast as the mouse moves, like the old games).
+  const mouseWalk = mouseY === "walk" ? Math.max(-1, Math.min(1, -mouseDY * 0.09)) : 0;
+  if (mouseY === "look") P.pitch = Math.max(-PITCH, Math.min(PITCH, P.pitch - mouseDY * 0.3));
+  else P.pitch *= Math.max(0, 1 - dt * 8);
+  const fw = Math.max(-1, Math.min(1, (on("forward") ? 1 : 0) - (on("back") ? 1 : 0) + touch.move + mouseWalk));
+  const st = (on("right") ? 1 : 0) - (on("left") ? 1 : 0);
+  P.a += ((on("turnRight") ? 1 : 0) - (on("turnLeft") ? 1 : 0)) * 2.6 * dt + touch.turn * 2.2 * dt + mouseDX * 0.0024;
+  const run = on("run") ? 1.6 : 1, dx = Math.cos(P.a), dy = Math.sin(P.a);
   let mx = dx * fw - dy * st, my = dy * fw + dx * st;
   const m = Math.hypot(mx, my);
   if (m > 1) [mx, my] = [mx / m, my / m];
@@ -4445,7 +4604,7 @@ function controls(dt) {
   if (wet && step !== P.step) SFX.wade();
   P.step = step;
   P.bobAmp += ((reduced ? 0 : Math.min(1, m)) - P.bobAmp) * Math.min(1, dt * 8);
-  if ((mouseFire || touch.fire || held("Space", "KeyF")) && P.fireT <= 0 && P.swapT >= 0.3) (P.arm ? zap : shoot)();
+  if ((mouseFire || touch.fire || on("fire")) && P.fireT <= 0 && P.swapT >= 0.3) (P.arm ? zap : shoot)();
 }
 // Switch weapons: to the one numbered, or else the other one. The one in hand dips out of sight first.
 function swap(to = 1 - P.want) {
@@ -4917,7 +5076,7 @@ function update(dt) {
     P.time += dt;
     controls(dt);
   }
-  mouseDX = 0;
+  mouseDX = mouseDY = 0;
   if (G.state === "dead") {
     P.deadT += dt;
     P.eye = Math.max(0.1, 0.5 - P.deadT * 0.7);
@@ -5024,7 +5183,7 @@ function forgetSave() {
 // The buttons under the game: Save while a game is on, Continue and Delete while there's a save.
 function saveUI() {
   const st = G.state;
-  $("#gameSave").hidden = !(st === "playing" || st === "paused" || st === "cleared");
+  $("#gameSave").disabled = !(st === "playing" || st === "paused" || st === "cleared");
   $("#gameLoad").hidden = !saved || st === "playing" || st === "cleared";
   $("#gameForget").hidden = !saved || st === "playing";
   $("#gameLoad").textContent = saved ? `Continue: ${savedSays(saved)}` : "Continue";
@@ -5040,10 +5199,10 @@ for (const [id, fn] of [["#gameSave", saveGame], ["#gameLoad", loadGame], ["#gam
 const said = document.getElementById("gameSaid");
 // The canvas's data-state is title, playing, paused, dead, cleared (level 1 done), or won (both done).
 const LABEL = {
-  title: () => `Storm Cellar, a first-person shooter. Press Enter to play${saved ? `, or C to go on from your save: ${savedSays(saved)}` : ""}.`,
-  playing: () => `Storm Cellar, playing level ${G.level + 1}, ${L.name}. Escape pauses, and S then saves.`,
-  paused: () => `Storm Cellar, paused. Press Enter to go on, or S to save your progress${saved ? `, or C to load your save` : ""}.`,
-  dead: () => `Storm Cellar: the bugs got you. Press Enter to try ${G.level ? "the storm drain again" : "again"}${saved ? `, or C to load your save` : ""}.`,
+  title: () => `Storm Cellar, a first-person shooter. Press Enter to play${saved ? `, or ${kn("load")} to go on from your save: ${savedSays(saved)}` : ""}.`,
+  playing: () => `Storm Cellar, playing level ${G.level + 1}, ${L.name}. Escape pauses, and ${kn("save")} then saves.`,
+  paused: () => `Storm Cellar, paused. Press Enter to go on, or ${kn("save")} to save your progress${saved ? `, or ${kn("load")} to load your save` : ""}.`,
+  dead: () => `Storm Cellar: the bugs got you. Press Enter to try ${G.level ? "the storm drain again" : "again"}${saved ? `, or ${kn("load")} to load your save` : ""}.`,
   cleared: () => "Storm Cellar: the cellar is cleared. Press Enter to go down the storm drain, level 2.",
   won: () => "Storm Cellar: all clear, both levels done. Press Enter for the title.",
 };
@@ -5121,34 +5280,56 @@ function toggleSound() {
   if (ac) (sound ? ac.resume() : ac.suspend()).catch(() => {});
   note(sound ? "SOUND ON." : "SOUND OFF.");
 }
-const GAME_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space", "ShiftLeft", "ShiftRight", "KeyF"]);
-// 1 and 2 pick a weapon; Q swaps to the other one.
-const ARM_KEYS = { Digit1: 0, Numpad1: 0, Digit2: 1, Numpad2: 1, KeyQ: undefined };
+// The mouse's up and down, from V or the switch under the game, remembered in this browser.
+function setMouseY(mode, tell) {
+  mouseY = mode;
+  try {
+    localStorage.setItem("github-leaderboard.mouse", mode);
+  } catch {}
+  for (const b of document.querySelectorAll("#mouseY button")) b.setAttribute("aria-pressed", String(b.dataset.m === mode));
+  if (tell) {
+    note(mode === "look" ? "MOUSE UP AND DOWN: LOOK." : "MOUSE UP AND DOWN: WALK.");
+    said.textContent = mode === "look" ? "The mouse now looks up and down." : "The mouse now walks you forward and back.";
+  }
+}
+for (const b of document.querySelectorAll("#mouseY button")) {
+  b.addEventListener("click", () => {
+    setMouseY(b.dataset.m, G.state === "playing");
+    cv.focus({ preventScroll: true });
+  });
+}
+setMouseY(mouseY, false);
+renderKeys();
+describeKeys();
+// Keys held while playing (moving, turning, shooting, running) go in the keys set; the rest act once.
+const HELD = ["forward", "back", "left", "right", "turnLeft", "turnRight", "fire", "run"];
 cv.addEventListener("keydown", (e) => {
   if (e.altKey || e.metaKey || e.ctrlKey) return;
   if (G.state !== "playing") {
     if (e.code === "Enter" || e.code === "NumpadEnter" || e.code === "Space") {
       e.preventDefault();
       if (!e.repeat) act();
-    } else if (e.code === "KeyS" && (G.state === "paused" || G.state === "cleared")) {
+    } else if (isKey("save", e.code) && (G.state === "paused" || G.state === "cleared")) {
       e.preventDefault();
       if (!e.repeat) saveGame();
-    } else if (e.code === "KeyC" && saved && G.state !== "cleared") {
+    } else if (isKey("load", e.code) && saved && G.state !== "cleared") {
       e.preventDefault();
       if (!e.repeat) loadGame();
     }
     return;
   }
-  if (e.code === "Escape" || e.code === "KeyP") {
+  const k = e.code;
+  if (k === "Escape" || isKey("pause", k)) {
     e.preventDefault();
     pause();
-  } else if (e.code === "KeyM") toggleSound();
-  else if (e.code in ARM_KEYS) {
+  } else if (isKey("sound", k)) toggleSound();
+  else if (isKey("mouse", k)) setMouseY(mouseY === "look" ? "walk" : "look", true);
+  else if (isKey("arm1", k) || isKey("arm2", k) || isKey("swap", k)) {
     e.preventDefault();
-    if (!e.repeat) swap(ARM_KEYS[e.code]);
-  } else if (GAME_KEYS.has(e.code)) {
+    if (!e.repeat) swap(isKey("arm1", k) ? 0 : isKey("arm2", k) ? 1 : undefined);
+  } else if (HELD.some((a) => isKey(a, k))) {
     e.preventDefault();
-    keys.add(e.code);
+    keys.add(k);
   }
 });
 cv.addEventListener("keyup", (e) => keys.delete(e.code));
@@ -5194,7 +5375,9 @@ document.addEventListener("pointerlockchange", () => {
   if (was && !locked) pause();
 });
 document.addEventListener("mousemove", (e) => {
-  if (locked && G.state === "playing") mouseDX += e.movementX;
+  if (!locked || G.state !== "playing") return;
+  mouseDX += e.movementX;
+  mouseDY += e.movementY;
 });
 document.addEventListener("visibilitychange", () => document.hidden && pause());
 new IntersectionObserver(([e]) => e.isIntersecting || pause()).observe(cv);
