@@ -755,6 +755,57 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   check(!errors.some((e) => e.startsWith("county map phone:")), "no script errors in the county map on a phone");
   await still.close();
 }
+// A game controller: an Xbox one is stood in for here (the browser's list of controllers is
+// replaced before the page loads). A starts, the left stick walks, Menu pauses, X saves, and the
+// wizard under Keys takes each button pressed, keeps the rest with Skip, and Reset puts them back.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1340, height: 900 } });
+  await ctx.addInitScript(() => {
+    const buttons = Array.from({ length: 17 }, () => ({ pressed: false, value: 0, touched: false }));
+    const pad = { id: "Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)", index: 0, connected: true, mapping: "standard", axes: [0, 0, 0, 0], buttons, timestamp: 0 };
+    window.__pad = pad;
+    navigator.getGamepads = () => [pad, null, null, null];
+  });
+  const gpPage = await ctx.newPage();
+  watch(gpPage, "controller");
+  const hold = async (i, ms = 120) => {
+    await gpPage.evaluate((b) => Object.assign(window.__pad.buttons[b], { pressed: true, value: 1 }), i);
+    await gpPage.waitForTimeout(ms);
+    await gpPage.evaluate((b) => Object.assign(window.__pad.buttons[b], { pressed: false, value: 0 }), i);
+    await gpPage.waitForTimeout(80);
+  };
+  const state = () => gpPage.getAttribute("#game", "data-state");
+  await gpPage.goto(url);
+  await gpPage.waitForFunction(() => document.querySelector("#game").dataset.state === "title", null, { timeout: 8000 });
+  await gpPage.evaluate(() => dispatchEvent(new Event("gamepadconnected")));
+  await gpPage.locator("#game").scrollIntoViewIfNeeded();
+  await gpPage.waitForTimeout(150);
+  check((await gpPage.locator("#padStatus").textContent()).startsWith("Connected: Xbox Wireless Controller.") && (await gpPage.locator("#padWizard").isEnabled()), "a controller is seen, and its wizard is offered");
+  await hold(0);
+  check((await state()) === "playing", "A starts the game");
+  const still = await gpPage.locator("#game").screenshot();
+  await gpPage.evaluate(() => (window.__pad.axes[1] = -1));
+  await gpPage.waitForTimeout(450);
+  await gpPage.evaluate(() => (window.__pad.axes[1] = 0));
+  check(Buffer.compare(still, await gpPage.locator("#game").screenshot()) !== 0, "the left stick walks");
+  await hold(9);
+  check((await state()) === "paused", "Menu pauses");
+  await hold(2);
+  check(Boolean(await gpPage.evaluate(() => localStorage.getItem("github-leaderboard.cellar"))), "and X saves");
+  await gpPage.click("#keysBox summary");
+  await gpPage.click("#padWizard");
+  check(/^1 of 12: press the button for Start/.test(await gpPage.locator("#padAsk").textContent()), "the wizard asks for each button in turn");
+  await hold(1);
+  await hold(4);
+  for (let i = 0; i < 10; i++) await gpPage.click("#padSkip");
+  const mine = await gpPage.evaluate(() => JSON.parse(localStorage.getItem("github-leaderboard.pad")));
+  check(mine?.act?.join() === "1" && mine.fire.join() === "4" && mine.run.join() === "6,10", "and takes the buttons pressed (B to start, LB to shoot), keeping the skipped ones");
+  check((await gpPage.locator("#padMsg").textContent()) === "Your controller is set up." && (await gpPage.locator("#padTable tbody tr:first-child td.k").innerText()) === "B", "then says so, and lists them");
+  await gpPage.click("#padReset");
+  check((await gpPage.evaluate(() => JSON.parse(localStorage.getItem("github-leaderboard.pad")).act.join())) === "0,9", "Reset controller buttons puts them back");
+  check(!errors.some((e) => e.startsWith("controller:")), "no script errors with a controller");
+  await ctx.close();
+}
 // The page stays a sensible size for a phone on a slow connection.
 {
   const { gzipSync } = await import("node:zlib");
