@@ -42,6 +42,14 @@
   --ramp: #184f95 #1c5cab #256abf #2975d3 #5598e7 #86b6ef #cde2fb;
   --ramp-ink: #ffffff #ffffff #ffffff #ffffff #0b1430 #0b1430 #0b1430;
   --tile-empty: #1a2547;
+  /* The weather round the tornado: clouds, rain, debris, and lightning. */
+  --cloud: #31447a;
+  --cloud-dark: #050a1b;
+  --rain: #9cbcf0;
+  --debris: #9aa3ba;
+  --bolt: #ffffff;
+  --bolt-glow: #8fb4ff;
+  --flash: #dfe8ff;
 }
 /* The same storm by day: the pale green-grey of tornado weather, inked in the night sky's navy.
    Gold turns to a deep amber so it still reads as text; the map's ramp: darker means more. */
@@ -73,6 +81,13 @@
   --ramp: #d3e2f4 #b0caeb #89afe0 #5f90d2 #3b72bd #2556a0 #153a73;
   --ramp-ink: #131d35 #131d35 #131d35 #131d35 #ffffff #ffffff #ffffff;
   --tile-empty: #e4e9e5;
+  --cloud: #c9d1cc;
+  --cloud-dark: #7d8a86;
+  --rain: #4f6488;
+  --debris: #4b5568;
+  --bolt: #ffffff;
+  --bolt-glow: #3b4f9a;
+  --flash: #ffffff;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--sky); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
@@ -113,6 +128,8 @@ fieldset.seg { display: inline-flex; border: 1px solid var(--line); border-radiu
 .seg button[aria-pressed="true"] { background: var(--gold); color: var(--on-gold); }
 .btn { border: 1px solid var(--line); border-radius: 6px; }
 .btn:hover, .seg button:hover { background: var(--hover); }
+.btn.toggle[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+.btn.toggle[aria-pressed="true"]::before { content: "✓ "; }
 .seg button[aria-pressed="true"]:hover { background: var(--gold); }
 button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 /* Let a keyboard focus ring show past the group's edge, with the pressed button still rounded to fit. */
@@ -270,6 +287,8 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
           <button type="button" data-speed="1" aria-pressed="true">1×</button>
           <button type="button" data-speed="2.5" aria-pressed="false">Fast</button>
         </fieldset>
+        <button type="button" class="btn toggle" id="weather" aria-pressed="true" title="Clouds, rain, debris, and lightning that strikes the busiest ring">Storm</button>
+        <button type="button" class="btn toggle" id="thunder" aria-pressed="false" title="The sound of thunder after each strike">Thunder</button>
         <span class="lbl" id="motion"></span>
       </div>
       <div class="canvas-box">
@@ -283,6 +302,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
         <span><i style="background: var(--right)"></i>Other contributions, including private</span>
         <span><i class="dot" style="background: var(--gold)"></i>You</span>
         <span>Widest at the top: the busiest</span>
+        <span id="boltNote">Lightning strikes the busiest</span>
       </div>
     </div>
     <aside id="side"></aside>
@@ -403,6 +423,14 @@ function readTheme() {
     glow: fade(glow, 0.1), glowEnd: fade(glow, 0), beamTop: fade(glow, 0.08), beamBottom: fade(glow, 0.24),
     guide: fade(gold, 0.3), guideNarrow: fade(gold, 0.25), guideMe: fade(gold, 0.7),
     ramp: v("ramp").split(/\s+/), rampInk: v("ramp-ink").split(/\s+/), tileEmpty: v("tile-empty"),
+  });
+  const [cloud, cloudDark, rain, boltGlow] = ["cloud", "cloud-dark", "rain", "bolt-glow"].map(v);
+  const light = THEME.name === "light";
+  Object.assign(THEME, {
+    cloudSoft: fade(cloud, light ? 0.5 : 0.55), cloudClear: fade(cloud, 0),
+    cloudDark: fade(cloudDark, light ? 0.55 : 0.9), cloudDarkSoft: fade(cloudDark, light ? 0.45 : 0.75), cloudDarkClear: fade(cloudDark, 0),
+    rain: fade(rain, light ? 0.3 : 0.26), rainBack: fade(rain, light ? 0.15 : 0.12), debris: v("debris"),
+    bolt: v("bolt"), boltGlow: fade(boltGlow, 0.55), boltGlowSolid: boltGlow, flash: v("flash"), flashAlpha: light ? 0.3 : 0.11,
   });
 }
 function setTheme(name, redraw = true) {
@@ -615,7 +643,8 @@ const parentOf = (view) => {
   return null;
 };
 
-const state = { view: "us", playing: !matchMedia("(prefers-reduced-motion: reduce)").matches, speed: 1, hover: -1, focus: -1 };
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+const state = { view: "us", playing: !reducedMotion.matches, speed: 1, hover: -1, focus: -1 };
 function buildViewSelect() {
   const sel = $("#view");
   sel.textContent = "";
@@ -744,6 +773,9 @@ function draw(dt) {
   const c = cx2;
   c.clearRect(0, 0, W, H);
   const move = state.playing ? dt * state.speed : 0;
+  // The weather keeps its own time: it pauses with the tornado, but the spin speed doesn't hurry the rain.
+  const wdt = state.playing ? dt : 0;
+  if (weather.on) drawSky(c, G, wdt);
   const omega = (r) => 0.55 * (G.rMax / Math.max(r, 10)) ** 0.65;
   const gy = G.bot + 34;
   const grd = c.createLinearGradient(0, gy - 10, 0, H);
@@ -769,6 +801,7 @@ function draw(dt) {
     p.a += omega((g.rL + g.rR) / 2) * move * (p.me ? 0.8 : 1);
     (Math.sin(p.a) < 0 ? back : front).push(["dot", p]);
   }
+  if (weather.on) liftDebris(G, move, omega, back, front);
   const arcs = (g, frontHalf, hot) => {
     const parts = frontHalf
       ? [[0, Math.PI / 2, g.rR, THEME.right], [Math.PI / 2, Math.PI, g.rL, THEME.left]]
@@ -796,6 +829,8 @@ function draw(dt) {
         c.moveTo(G.cx + r2 * Math.cos(a2), y + r2 * G.tilt * Math.sin(a2));
         c.lineTo(G.cx + r1 * Math.cos(d.a), y + r1 * G.tilt * z);
         c.stroke();
+      } else if (e[0] === "debris") {
+        paintDebris(c, G, e[1], e[2], e[3]);
       } else if (e[0] === "ringB" || e[0] === "ringF") {
         arcs(G.rings[e[1]], e[0] === "ringF", state.hover === e[1]);
       } else {
@@ -837,6 +872,7 @@ function draw(dt) {
   c.closePath();
   c.fill();
   paint(front);
+  if (weather.on) drawLightning(c, G, wdt);
   const font = (w, px) => `${w} ${px}px system-ui, -apple-system, 'Segoe UI', sans-serif`;
   c.textAlign = "center";
   c.fillStyle = THEME.gold;
@@ -917,6 +953,313 @@ function drawFocus(G) {
   c.roundRect(x, y, storm.W - 3 - x, G.narrow ? 22 : 37, 5);
   c.stroke();
 }
+// ---------------------------------------------------------------- the weather
+// Round the tornado: storm clouds that roll in across the top, rain, debris carried up the funnel,
+// and every few seconds lightning that strikes the busiest ring. It is decoration, and the numbers
+// stay in the rings and the tables. The Storm switch turns it off and is remembered, and it starts
+// off for anyone whose system asks for reduced motion. A strike flashes the sky faintly, twice at
+// most, with seconds between strikes, well inside the limits for flashing light, and never with
+// reduced motion. Thunder is a sound made here in code, off until asked for.
+const WEATHER_KEY = "github-leaderboard.weather";
+const saved = (key) => {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+const save = (key, value) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+};
+const TAU = Math.PI * 2;
+const weather = {
+  on: saved(WEATHER_KEY) ? saved(WEATHER_KEY) !== "off" : !reducedMotion.matches,
+  thunder: false, t: 0, next: 2.5, bolt: null, hit: 0, sparks: [], rain: [], debris: [], clouds: null, audio: null, boom: null,
+};
+for (let i = 0; i < 260; i++) weather.rain.push({ x: Math.random(), y: Math.random(), l: 9 + Math.random() * 13, v: 0.75 + Math.random() * 0.5, back: Math.random() < 0.55 });
+for (let i = 0; i < 28; i++) weather.debris.push({ h: Math.random(), a: Math.random() * TAU, j: 1.2 + Math.random() * 0.55, s: 2.2 + Math.random() * 3.6, spin: Math.random() * TAU, rise: 0.025 + Math.random() * 0.04 });
+
+// Two bands of cloud, drawn once for each width and theme, then slid across the top: a dark one
+// and, in front of it, a lighter, faster, thinner one. Each is soft puffs, with no straight edge, and
+// wraps round, so the sky never ends.
+function cloudBands() {
+  const W = Math.ceil(storm.W);
+  const key = `${W}|${THEME.name}`;
+  if (weather.clouds?.key === key) return weather.clouds;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const H = 132;
+  let seed = 11;
+  const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const band = (dark, n, alpha, depth) => {
+    const cv = document.createElement("canvas");
+    cv.width = W * dpr;
+    cv.height = H * dpr;
+    const c = cv.getContext("2d");
+    c.scale(dpr, dpr);
+    for (let i = 0; i < n; i++) {
+      const x = rand() * W;
+      const y = 6 + rand() ** 1.6 * depth;
+      const r = 22 + rand() * 46;
+      for (const dx of [-W, 0, W]) {
+        const g = c.createRadialGradient(x + dx, y, 0, x + dx, y, r);
+        g.addColorStop(0, dark ? THEME.cloudDarkSoft : THEME.cloudSoft);
+        g.addColorStop(1, dark ? THEME.cloudDarkClear : THEME.cloudClear);
+        c.globalAlpha = alpha * (0.55 + rand() * 0.45);
+        c.fillStyle = g;
+        c.fillRect(x + dx - r, y - r, r * 2, r * 2);
+      }
+    }
+    return cv;
+  };
+  weather.clouds = { key, W, H, back: band(true, Math.round(W / 9), 1, 64), front: band(false, Math.round(W / 26), 0.8, 52) };
+  return weather.clouds;
+}
+
+// Behind everything: the clouds rolling in over the first seconds, then the rain.
+function drawSky(c, G, wdt) {
+  const { W, H } = storm;
+  weather.t += wdt;
+  const roll = Math.min(1, weather.t / 2.5);
+  const k = cloudBands();
+  for (const [img, speed, alpha] of [[k.back, 7, 1], [k.front, 16, 0.85]]) {
+    const off = (weather.t * speed) % k.W;
+    c.globalAlpha = alpha * roll;
+    c.drawImage(img, -off, -k.H * (1 - roll) * 0.5, k.W, k.H);
+    c.drawImage(img, k.W - off, -k.H * (1 - roll) * 0.5, k.W, k.H);
+  }
+  c.globalAlpha = 1;
+  // Rain, blown a little to the right; as many drops as the canvas has room for.
+  const n = Math.min(weather.rain.length, Math.round((W * H) / 3800));
+  for (const [back, color] of [[true, THEME.rainBack], [false, THEME.rain]]) {
+    c.strokeStyle = color;
+    c.lineWidth = back ? 1 : 1.3;
+    c.beginPath();
+    for (let i = 0; i < n; i++) {
+      const d = weather.rain[i];
+      if (d.back !== back) continue;
+      d.y += d.v * wdt * (back ? 0.8 : 1.15);
+      d.x += wdt * 0.06;
+      if (d.y > 1.05) {
+        d.y -= 1.1;
+        d.x = Math.random();
+      }
+      if (d.x > 1) d.x -= 1;
+      const x = d.x * W;
+      const y = d.y * H;
+      c.moveTo(x, y);
+      c.lineTo(x + d.l * 0.26, y + d.l);
+    }
+    c.stroke();
+  }
+}
+
+// The debris in the funnel's draft: each piece rides round a little outside the dust and rises,
+// and starts again at the bottom. Sorted into the back and front lists with the dust.
+function liftDebris(G, move, omega, back, front) {
+  for (const d of weather.debris) {
+    d.h -= d.rise * move;
+    if (d.h < -0.06) {
+      d.h = 1.04;
+      d.a = Math.random() * TAU;
+    }
+    const y = G.top - 30 + (G.bot - G.top + 70) * d.h;
+    const f = funnelAt(G, y);
+    d.a += omega((f.rL + f.rR) / 2) * move * 0.85;
+    d.spin += move * 4;
+    (Math.sin(d.a) < 0 ? back : front).push(["debris", d, y, f]);
+  }
+}
+function paintDebris(c, G, d, y, f) {
+  const z = Math.sin(d.a);
+  const r = (Math.cos(d.a) < 0 ? f.rL : f.rR) * d.j + 14;
+  const x = G.cx + r * Math.cos(d.a);
+  const yy = y + r * G.tilt * z;
+  c.save();
+  c.globalAlpha = z < 0 ? 0.35 : 0.85;
+  c.translate(x, yy);
+  c.rotate(d.spin);
+  c.fillStyle = THEME.debris;
+  const s = d.s * (z < 0 ? 0.8 : 1);
+  c.fillRect(-s, -s * 0.45, s * 2, s * 0.9);
+  c.restore();
+}
+
+// A bolt from the clouds to a point on the front of the busiest ring: a jagged line, made by
+// pushing each midpoint aside, with a branch or two.
+function jag(a, b, rough, depth) {
+  let pts = [a, b];
+  for (let n = 0; n < depth; n++) {
+    const next = [pts[0]];
+    for (let i = 1; i < pts.length; i++) {
+      const [x0, y0] = pts[i - 1];
+      const [x1, y1] = pts[i];
+      const len = Math.hypot(x1 - x0, y1 - y0) || 1;
+      const push = (Math.random() - 0.5) * rough * len;
+      next.push([(x0 + x1) / 2 + (-(y1 - y0) / len) * push, (y0 + y1) / 2 + ((x1 - x0) / len) * push], pts[i]);
+    }
+    pts = next;
+  }
+  return pts;
+}
+function strike(G) {
+  const g = G.rings[0];
+  if (!g) return;
+  const a = 0.3 + Math.random() * 0.6;
+  const tx = G.cx + g.rR * Math.cos(a);
+  const ty = g.y + g.ry * Math.sin(a);
+  const sx = G.cx + (Math.random() - 0.35) * Math.min(storm.W * 0.6, 460);
+  const main = jag([sx, -8], [tx, ty], 0.5, 6);
+  const branches = [];
+  for (let b = 0; b < 2; b++) {
+    const from = main[4 + Math.floor(Math.random() * (main.length - 16))];
+    if (!from) continue;
+    const ang = Math.PI / 2 + (Math.random() < 0.5 ? -1 : 1) * (0.4 + Math.random() * 0.6);
+    const len = 40 + Math.random() * 70;
+    branches.push(jag(from, [from[0] + Math.cos(ang) * len, from[1] + Math.sin(ang) * len], 0.6, 4));
+  }
+  weather.bolt = { main, branches, age: 0, at: [tx, ty] };
+  weather.hit = 1;
+  for (let i = 0; i < 14; i++) {
+    const s = Math.random() * TAU;
+    const v = 60 + Math.random() * 140;
+    weather.sparks.push({ x: tx, y: ty, vx: Math.cos(s) * v, vy: Math.sin(s) * v - 40, life: 0.5 + Math.random() * 0.4 });
+  }
+  if (weather.thunder) setTimeout(rumble, 250 + Math.random() * 900);
+}
+// The strike: the ring lit up, sparks, the bolt flickering out, and a faint flash of the sky.
+function drawLightning(c, G, wdt) {
+  weather.next -= wdt;
+  if (weather.next <= 0 && wdt > 0) {
+    strike(G);
+    weather.next = 5 + Math.random() * 9;
+  }
+  const g = G.rings[0];
+  if (weather.hit > 0 && g) {
+    c.save();
+    c.shadowColor = THEME.boltGlowSolid;
+    c.shadowBlur = 18 * weather.hit;
+    c.globalAlpha = weather.hit;
+    c.strokeStyle = THEME.bolt;
+    c.lineWidth = 3;
+    c.beginPath();
+    c.ellipse(G.cx, g.y, g.rR, g.ry, 0, -Math.PI / 2, Math.PI / 2);
+    c.ellipse(G.cx, g.y, g.rL, g.ry, 0, Math.PI / 2, Math.PI * 1.5);
+    c.stroke();
+    c.restore();
+    weather.hit = Math.max(0, weather.hit - wdt / 1.3);
+  }
+  if (weather.sparks.length) {
+    c.strokeStyle = THEME.gold;
+    c.lineWidth = 1.5;
+    c.beginPath();
+    for (const s of weather.sparks) {
+      s.life -= wdt;
+      s.vy += 260 * wdt;
+      s.x += s.vx * wdt;
+      s.y += s.vy * wdt;
+      c.moveTo(s.x, s.y);
+      c.lineTo(s.x - s.vx * 0.03, s.y - s.vy * 0.03);
+    }
+    c.stroke();
+    weather.sparks = weather.sparks.filter((s) => s.life > 0);
+  }
+  const b = weather.bolt;
+  if (!b) return;
+  b.age += wdt;
+  // Bright, dim, bright again, then gone: the way a real stroke flickers.
+  const a = b.age < 0.06 ? 1 : b.age < 0.11 ? 0.25 : b.age < 0.2 ? 1 : Math.max(0, 1 - (b.age - 0.2) / 0.3);
+  if (a <= 0) {
+    weather.bolt = null;
+    return;
+  }
+  const path = (pts) => {
+    c.beginPath();
+    pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y)));
+  };
+  c.save();
+  c.lineJoin = "round";
+  c.lineCap = "round";
+  c.globalAlpha = a;
+  for (const [pts, glow, core] of [[b.main, 7, 2.2], ...b.branches.map((p) => [p, 4, 1.2])]) {
+    path(pts);
+    c.strokeStyle = THEME.boltGlow;
+    c.lineWidth = glow;
+    c.stroke();
+    c.strokeStyle = THEME.bolt;
+    c.lineWidth = core;
+    c.stroke();
+  }
+  c.restore();
+  const flash = b.age < 0.06 ? 1 : b.age >= 0.11 && b.age < 0.17 ? 0.6 : 0;
+  if (flash && !reducedMotion.matches) {
+    c.globalAlpha = flash * THEME.flashAlpha;
+    c.fillStyle = THEME.flash;
+    c.fillRect(0, 0, storm.W, storm.H);
+    c.globalAlpha = 1;
+  }
+}
+
+// Thunder: brown noise through a low filter, a crack and then a long roll that swells and fades.
+function rumble() {
+  if (!weather.thunder || !weather.on || document.hidden) return;
+  const ac = weather.audio;
+  if (!ac) return;
+  if (!weather.boom) {
+    const len = 3.2;
+    const buf = ac.createBuffer(1, Math.floor(ac.sampleRate * len), ac.sampleRate);
+    const d = buf.getChannelData(0);
+    let last = 0;
+    const swells = [0.15, 0.6 + Math.random() * 0.5, 1.4 + Math.random() * 0.6];
+    for (let i = 0; i < d.length; i++) {
+      const t = i / ac.sampleRate;
+      last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02;
+      const crack = t < 0.08 ? (t / 0.08) * 1.2 : 0;
+      const roll = swells.reduce((s, at, k) => s + Math.exp(-(((t - at) / (0.35 + k * 0.2)) ** 2)) * (1 - k * 0.25), 0);
+      d[i] = last * 3.5 * (crack + roll) * Math.exp(-t * 0.6);
+    }
+    weather.boom = buf;
+  }
+  const src = ac.createBufferSource();
+  src.buffer = weather.boom;
+  const low = ac.createBiquadFilter();
+  low.type = "lowpass";
+  low.frequency.value = 380 + Math.random() * 200;
+  const gain = ac.createGain();
+  gain.gain.value = 0.7;
+  src.connect(low).connect(gain).connect(ac.destination);
+  src.playbackRate.value = 0.85 + Math.random() * 0.3;
+  src.start();
+}
+
+function setWeather(on) {
+  weather.on = on;
+  if (!on) {
+    weather.bolt = null;
+    weather.hit = 0;
+    weather.sparks = [];
+  } else weather.t = Math.min(weather.t, 0.01);
+  $("#weather").setAttribute("aria-pressed", String(on));
+  $("#thunder").hidden = !on;
+  $("#boltNote").hidden = !on;
+}
+$("#weather").addEventListener("click", () => {
+  setWeather(!weather.on);
+  save(WEATHER_KEY, weather.on ? "on" : "off");
+});
+$("#thunder").addEventListener("click", () => {
+  weather.thunder = !weather.thunder;
+  $("#thunder").setAttribute("aria-pressed", String(weather.thunder));
+  // The browser lets a page make sound only after a click, so the sound starts here.
+  if (weather.thunder) {
+    weather.audio ??= new (window.AudioContext || window.webkitAudioContext)();
+    weather.audio.resume?.();
+    rumble();
+  }
+});
+setWeather(weather.on);
+
 function nearest(e) {
   const box = cv.getBoundingClientRect();
   const y = e.clientY - box.top;
