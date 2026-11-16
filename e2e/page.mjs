@@ -1,6 +1,6 @@
 // Opens the built page in a real browser and checks that it works: no script errors, the tornado
-// draws, the views change and links to them work, Find yourself and "where you'd rank" work, and
-// nothing scrolls sideways on a phone. CI runs it on every pull request and before every deploy.
+// draws, the views change and links to them work, Find yourself and "where you'd rank" work, the
+// game at the top plays, and nothing scrolls sideways on a phone. CI runs it on every pull request and before every deploy.
 //   npm i --no-save --no-package-lock playwright && npx playwright install chromium   (once)
 //   npm run build && npm run e2e
 import { chromium } from "playwright";
@@ -428,6 +428,66 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   check(name.includes(`-${want}-`), `a county's CSV is named for it (${name})`);
   check(!errors.some((e) => e.startsWith("mix:")), "no script errors with counties and the other features together");
   await mix.close();
+}
+// Storm Cellar, the game at the top: its title draws, Enter starts it from the keyboard, the arrow
+// keys turn the view without scrolling the page, Escape pauses it, and Tab moves on past it. On a
+// touch phone it has a stick and a fire button, and still nothing scrolls sideways.
+{
+  // Lit pixels on the game's canvas, and a sum over the upper view, below the messages: the
+  // walls and ceiling, which change only when the view turns or moves.
+  const pixels = (page) =>
+    page.evaluate(() => {
+      const c = document.querySelector("#game");
+      const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+      let lit = 0, view = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i] + d[i + 1] + d[i + 2] > 30) lit++;
+        const y = (i / 4 / c.width) | 0;
+        if (y >= 16 && y < 80) view = (view * 31 + d[i] + d[i + 1] * 3 + d[i + 2] * 7) % 1e9;
+      }
+      return { lit, view };
+    });
+  // The game sets itself up once the page is idle: wait for its title to appear.
+  const drawn = (page) => page.waitForFunction(() => document.querySelector("#game").getContext("2d").getImageData(160, 30, 1, 1).data[0] > 0, null, { timeout: 5000 }).catch(() => {});
+  const g = await browser.newPage({ viewport: { width: 1340, height: 900 } });
+  watch(g, "game");
+  await g.goto(url);
+  await drawn(g);
+  const game = g.locator("#game");
+  check((await pixels(g)).lit > 20000, "the game at the top draws its title screen");
+  check((await game.getAttribute("data-state")) === "title", "and waits to be played");
+  await game.focus();
+  await g.keyboard.press("Enter");
+  await g.waitForTimeout(300);
+  check((await game.getAttribute("data-state")) === "playing", "Enter starts the game");
+  const before = (await pixels(g)).view;
+  const scrolled = await g.evaluate(() => scrollY);
+  await g.keyboard.down("ArrowLeft");
+  await g.waitForTimeout(400);
+  await g.keyboard.up("ArrowLeft");
+  await g.waitForTimeout(100);
+  check((await pixels(g)).view !== before, "the arrow keys turn the view");
+  check((await g.evaluate(() => scrollY)) === scrolled, "and don't scroll the page while the game has them");
+  await g.keyboard.press("Escape");
+  await g.waitForTimeout(100);
+  check((await game.getAttribute("data-state")) === "paused", "Escape pauses it");
+  await g.keyboard.press("Tab");
+  check((await g.evaluate(() => document.activeElement?.id)) !== "game", "and Tab moves on past it");
+  check(!errors.some((e) => e.startsWith("game:")), "no script errors in the game");
+  await g.close();
+
+  const touch = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const t = await touch.newPage();
+  watch(t, "game phone");
+  await t.goto(url);
+  await drawn(t);
+  check(await t.locator("#pad").isVisible(), "on a touch phone the game shows a stick and a fire button");
+  check((await t.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0, "and nothing scrolls sideways");
+  await t.locator("#fire").tap();
+  await t.waitForTimeout(300);
+  check((await t.locator("#game").getAttribute("data-state")) === "playing", "and Fire starts the game");
+  check(!errors.some((e) => e.startsWith("game phone:")), "no script errors in the game on a phone");
+  await touch.close();
 }
 await browser.close();
 

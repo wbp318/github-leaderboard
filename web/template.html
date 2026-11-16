@@ -193,6 +193,21 @@ td.spark span { display: inline-block; min-width: 3.4em; font-variant-numeric: t
 .chart text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .card p.readout { color: var(--ink); }
 footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 980px; }
+/* Storm Cellar, the game at the top: 320×200 pixels, scaled up with no smoothing. */
+#cellar { margin-top: 18px; }
+.arcade { max-width: 880px; background: #05070d; border: 1px solid var(--line); border-radius: 12px; padding: 8px; }
+#game { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; border-radius: 4px; background: #000; cursor: pointer;
+  image-rendering: crisp-edges; image-rendering: pixelated; }
+#game[data-state="playing"] { cursor: crosshair; }
+#game:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.pad { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 4px 2px; touch-action: none; user-select: none; -webkit-user-select: none; }
+.pad[hidden] { display: none; }
+.pad .stick { position: relative; width: 112px; height: 112px; border-radius: 50%; border: 2px solid #2a3557; background: radial-gradient(circle, #121a30 0%, #090d18 70%); touch-action: none; }
+.pad .stick i { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: #3a4670; border: 2px solid #5a6890; }
+.pad .fire { width: 104px; height: 104px; border-radius: 50%; border: 3px solid #7a1f1f; background: radial-gradient(circle at 40% 35%, #e66767, #9e2626);
+  color: #fff; font: 700 16px system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: 0.08em; touch-action: none; cursor: pointer; }
+.pad .fire:active { background: radial-gradient(circle at 40% 35%, #ff8a8a, #c33b3b); }
+#gameKeys { margin: 8px 2px 0; max-width: 880px; }
 </style>
 <script>
 // Set the theme before the page paints, so a light page never flashes dark: the one picked with
@@ -218,6 +233,19 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
   <p id="sub"></p>
   <a class="repo" href="https://github.com/wbp318/github-leaderboard">Open source on GitHub: fix a placement, add a feature, star it ★</a>
 </header>
+<section id="cellar" aria-labelledby="cellarTitle">
+  <h2 id="cellarTitle">Storm Cellar</h2>
+  <p class="lede">The tornado shook the bugs loose. A little first-person shooter in the old blocky style, drawn and coded for this page: clear out the cellar, find the five commits, and get to the exit.</p>
+  <div class="arcade">
+    <canvas id="game" width="320" height="200" tabindex="0" role="application" data-state="title" aria-roledescription="game" aria-label="Storm Cellar, a first-person shooter. Press Enter to play." aria-describedby="gameKeys"></canvas>
+    <div class="pad" id="pad" hidden>
+      <div class="stick" id="stick" aria-hidden="true"><i></i></div>
+      <button type="button" class="fire" id="fire" aria-label="Shoot">FIRE</button>
+    </div>
+  </div>
+  <p class="note" id="gameKeys">Click the game or press Enter to play. W A S D or the arrow keys move, the mouse or the left and right arrows turn, click or Space shoots, Shift runs, M turns the sound off and on, and Esc pauses. On a phone, drag the left pad to move and turn and hold Fire.</p>
+  <p class="sr" id="gameSaid" role="status" aria-live="polite"></p>
+</section>
 <form class="findme" id="findme" autocomplete="off">
   <label for="me">Find yourself</label>
   <input type="search" id="me" name="me" placeholder="your GitHub login" spellcheck="false" autocapitalize="none" aria-describedby="findmsg">
@@ -1733,10 +1761,15 @@ function viewFromHash() {
 }
 
 go(viewFromHash() ?? defaultView);
+// A link to a view, or to someone's ranks, opens there, past the game at the top of the page.
+if (viewFromHash()) $("#tornado").scrollIntoView();
+else if (new URLSearchParams(location.search).get("me")) $("#findme").scrollIntoView();
 // A view link opened in a tab already on the page changes only the hash; follow it.
 addEventListener("hashchange", () => {
   const view = viewFromHash();
-  if (view && view !== state.view) go(view);
+  if (!view || view === state.view) return;
+  go(view);
+  $("#tornado").scrollIntoView({ behavior: "smooth" });
 });
 {
   const fromUrl = new URLSearchParams(location.search).get("me");
@@ -1760,6 +1793,1439 @@ function frame(now) {
 }
 draw(0);
 requestAnimationFrame(frame);
+</script>
+<script>
+// Storm Cellar, the game at the top of the page: a small first-person shooter in the old blocky
+// style. A ray caster draws 320×200 pixels (textured walls, floors, and ceilings, a stormy sky,
+// sprites, and light that fades with distance) and the browser scales them up with no smoothing.
+// Every texture, sprite, letter, and sound is made here in code, so there is nothing to download,
+// and it only runs while someone is playing. It is its own block, so its names never meet the
+// tornado's, and it sets itself up once the browser is idle, so the page and the tornado come first.
+(window.requestIdleCallback ? (f) => requestIdleCallback(f, { timeout: 300 }) : (f) => setTimeout(f, 0))(() => {
+"use strict";
+const cv = document.getElementById("game");
+const ctx = cv?.getContext("2d", { alpha: false });
+if (!ctx) return;
+const W = 320, H = 200, VH = 168, HALF = 84, PROJ = 160, TS = 64, TAU = Math.PI * 2;
+const img = ctx.createImageData(W, H);
+const buf = new Uint32Array(img.data.buffer);
+const zbuf = new Float32Array(W);
+const colAng = Float32Array.from({ length: W }, (_, x) => Math.atan((2 * (x + 0.5)) / W - 1));
+const skyX = new Int32Array(W);
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// ---------------------------------------------------------------- colour, noise, and pixels
+// A colour is one 32-bit pixel. Alpha 254 marks a pixel that glows: light and distance leave it be.
+const c8 = (v) => (v < 0 ? 0 : v > 255 ? 255 : v | 0);
+const rgb = (r, g, b, glow) => (((glow ? 254 : 255) << 24) | (c8(b) << 16) | (c8(g) << 8) | c8(r)) >>> 0;
+const mix = (c, d, t) => rgb((c & 255) + ((d & 255) - (c & 255)) * t, ((c >> 8) & 255) + (((d >> 8) & 255) - ((c >> 8) & 255)) * t, ((c >> 16) & 255) + (((d >> 16) & 255) - ((c >> 16) & 255)) * t, c >>> 24 === 254);
+const mul = (c, k) => rgb((c & 255) * k, ((c >> 8) & 255) * k, ((c >> 16) & 255) * k, c >>> 24 === 254);
+function shade(c, l) {
+  if (c >>> 24 === 254) return c | 0xff000000;
+  let r = ((c & 255) * l) >> 8, g = (((c >> 8) & 255) * l) >> 8, b = (((c >> 16) & 255) * l) >> 8;
+  if (l > 256) {
+    if (r > 255) r = 255;
+    if (g > 255) g = 255;
+    if (b > 255) b = 255;
+  }
+  return 0xff000000 | (b << 16) | (g << 8) | r;
+}
+// Light comes in 16 steps, like the old engines' colour maps: the banding is part of the look.
+const band = (v) => (v <= 0 ? 0 : v >= 1.6 ? 400 : ((v * 16) | 0) << 4);
+const fall = (d) => {
+  const f = 1.3 - d * 0.085;
+  return f < 0.05 ? 0.05 : f > 1 ? 1 : f;
+};
+function rng(seed) {
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rnd = rng(318);
+// Smooth noise over an nx×ny grid that wraps, so textures tile.
+function noise(w, h, nx, ny, r) {
+  const g = Float32Array.from({ length: nx * ny }, r), out = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const fy = (y / h) * ny, y0 = fy | 0, y1 = (y0 + 1) % ny;
+    let ty = fy - y0;
+    ty = ty * ty * (3 - 2 * ty);
+    for (let x = 0; x < w; x++) {
+      const fx = (x / w) * nx, x0 = fx | 0, x1 = (x0 + 1) % nx;
+      let tx = fx - x0;
+      tx = tx * tx * (3 - 2 * tx);
+      const a = g[y0 * nx + x0], b = g[y0 * nx + x1], c = g[y1 * nx + x0], d = g[y1 * nx + x1];
+      out[y * w + x] = a + (b - a) * tx + (c - a) * ty + (a - b - c + d) * tx * ty;
+    }
+  }
+  return out;
+}
+function fbm(w, h, nx, ny, octaves, r) {
+  const out = new Float32Array(w * h);
+  let amp = 1, total = 0;
+  for (let o = 0; o < octaves; o++, amp /= 2) {
+    const n = noise(w, h, nx << o, ny << o, r);
+    for (let i = 0; i < out.length; i++) out[i] += n[i] * amp;
+    total += amp;
+  }
+  for (let i = 0; i < out.length; i++) out[i] /= total;
+  return out;
+}
+// Sprites are small pictures drawn with a few shapes, then outlined.
+const spr = (w, h) => ({ w, h, px: new Uint32Array(w * h) });
+function dot(s, x, y, c) {
+  x = Math.round(x);
+  y = Math.round(y);
+  if (x >= 0 && y >= 0 && x < s.w && y < s.h) s.px[y * s.w + x] = c;
+}
+function oval(s, cx, cy, rx, ry, fn) {
+  for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++)
+    for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
+      const nx = (x + 0.5 - cx) / rx, ny = (y + 0.5 - cy) / ry;
+      if (nx * nx + ny * ny > 1) continue;
+      const c = typeof fn === "function" ? fn(nx, ny, x, y) : fn;
+      if (c) dot(s, x, y, c);
+    }
+}
+function seg(s, x0, y0, x1, y1, c, th = 1) {
+  const n = Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0))) || 1;
+  for (let i = 0; i <= n; i++) {
+    const x = x0 + ((x1 - x0) * i) / n, y = y0 + ((y1 - y0) * i) / n;
+    for (let a = 0; a < th; a++) for (let b = 0; b < th; b++) dot(s, x + a, y + b, c);
+  }
+}
+function tri(s, ax, ay, bx, by, qx, qy, fn) {
+  const e = (px, py, x1, y1, x2, y2) => (x2 - x1) * (py - y1) - (y2 - y1) * (px - x1);
+  const area = e(qx, qy, ax, ay, bx, by);
+  for (let y = Math.floor(Math.min(ay, by, qy)); y <= Math.ceil(Math.max(ay, by, qy)); y++)
+    for (let x = Math.floor(Math.min(ax, bx, qx)); x <= Math.ceil(Math.max(ax, bx, qx)); x++) {
+      const px = x + 0.5, py = y + 0.5;
+      if (e(px, py, bx, by, qx, qy) * area >= 0 && e(px, py, qx, qy, ax, ay) * area >= 0 && e(px, py, ax, ay, bx, by) * area >= 0) dot(s, x, y, fn(x, y));
+    }
+}
+function outline(s, c) {
+  const p = s.px.slice();
+  for (let y = 0; y < s.h; y++)
+    for (let x = 0; x < s.w; x++) {
+      const i = y * s.w + x;
+      if (!p[i] && ((x > 0 && p[i - 1]) || (x < s.w - 1 && p[i + 1]) || (y > 0 && p[i - s.w]) || (y < s.h - 1 && p[i + s.w]))) s.px[i] = c;
+    }
+  return s;
+}
+function tint(s, c, t) {
+  const o = spr(s.w, s.h);
+  for (let i = 0; i < s.px.length; i++) if (s.px[i]) o.px[i] = mix(s.px[i], c, t);
+  return o;
+}
+
+// ---------------------------------------------------------------- letters: 5×7, seven rows of five bits
+const FONT = {
+  A: "0e11111f111111", B: "1e11111e11111e", C: "0e11101010110e", D: "1c12111111121c", E: "1f10101e10101f", F: "1f10101e101010",
+  G: "0e11101711110f", H: "1111111f111111", I: "0e04040404040e", J: "0702020202120c", K: "11121418141211", L: "1010101010101f",
+  M: "111b1515111111", N: "11111915131111", O: "0e11111111110e", P: "1e11111e101010", Q: "0e11111115120d", R: "1e11111e141211",
+  S: "0f10100e01011e", T: "1f040404040404", U: "1111111111110e", V: "11111111110a04", W: "1111111515150a", X: "11110a040a1111",
+  Y: "1111110a040404", Z: "1f01020408101f", 0: "0e11131519110e", 1: "040c040404040e", 2: "0e11010204081f", 3: "1f02040201110e",
+  4: "02060a121f0202", 5: "1f101e0101110e", 6: "0608101e11110e", 7: "1f010204080808", 8: "0e11110e11110e", 9: "0e11110f01020c",
+  ".": "00000000000c0c", ",": "000000000c0408", "!": "04040404000004", "?": "0e110102040004", ":": "000c0c000c0c00", "'": "0c040800000000",
+  "-": "0000001f000000", "/": "00010204081000", "%": "18190204081303", "+": "0004041f040400", "(": "02040808080402", ")": "08040202020408",
+  " ": "00000000000000",
+};
+const GLYPH = Object.fromEntries(Object.entries(FONT).map(([k, v]) => [k, Array.from({ length: 7 }, (_, i) => parseInt(v.slice(i * 2, i * 2 + 2), 16))]));
+function textTo(t, tw, th, s, x, y, c, k = 1) {
+  s = String(s).toUpperCase();
+  x = Math.round(x);
+  y = Math.round(y);
+  for (let i = 0; i < s.length; i++) {
+    const g = GLYPH[s[i]] ?? GLYPH["?"];
+    for (let r = 0; r < 7; r++) {
+      if (!g[r]) continue;
+      const col = typeof c === "function" ? c(r) : c;
+      for (let b = 0; b < 5; b++) {
+        if (!(g[r] & (16 >> b))) continue;
+        const px = x + (i * 6 + b) * k, py = y + r * k;
+        for (let yy = Math.max(0, py); yy < Math.min(th, py + k); yy++) for (let xx = Math.max(0, px); xx < Math.min(tw, px + k); xx++) t[yy * tw + xx] = col;
+      }
+    }
+  }
+}
+const textW = (s, k = 1) => (String(s).length * 6 - 1) * k;
+const DARK = rgb(8, 6, 12), GOLD = rgb(242, 183, 5), RED = rgb(230, 103, 103), BLUE = rgb(57, 135, 229), INK = rgb(233, 238, 249), MUTED = rgb(154, 166, 196);
+const LOGO = [rgb(255, 238, 150), rgb(255, 216, 84), rgb(250, 182, 40), rgb(240, 142, 30), rgb(224, 102, 30), rgb(198, 64, 28), rgb(156, 36, 24)];
+const logo = (r) => LOGO[r];
+function say(s, x, y, c, k = 1, sh = k) {
+  if (sh) textTo(buf, W, H, s, x + sh, y + sh, DARK, k);
+  textTo(buf, W, H, s, x, y, c, k);
+}
+const sayC = (s, cx, y, c, k = 1, sh = k) => say(s, Math.round(cx - textW(s, k) / 2), y, c, k, sh);
+
+// ---------------------------------------------------------------- textures, 64×64
+const N8 = noise(TS, TS, 8, 8, rnd), N16 = noise(TS, TS, 16, 16, rnd), N32 = noise(TS, TS, 32, 32, rnd);
+const GRAIN = noise(TS, TS, 32, 3, rnd), GRAINX = noise(TS, TS, 3, 32, rnd), POOLS = noise(TS, TS, 4, 4, rnd);
+function tex(fn) {
+  const t = new Uint32Array(TS * TS);
+  for (let y = 0; y < TS; y++) for (let x = 0; x < TS; x++) t[y * TS + x] = fn(x, y, y * TS + x);
+  return t;
+}
+const brickK = Array.from({ length: 32 }, () => 0.78 + rnd() * 0.4);
+const BRICK = tex((x, y, i) => {
+  const row = y >> 3, sx = (x + (row & 1) * 8) & 63, ix = sx & 15, iy = y & 7;
+  if (iy === 7 || ix === 15) return rgb(50 + N32[i] * 22, 43 + N32[i] * 18, 40 + N32[i] * 14);
+  let k = brickK[row * 4 + (sx >> 4)] * (0.74 + N8[i] * 0.3 + N32[i] * 0.22 + (rnd() - 0.5) * 0.12);
+  if (iy === 0 || ix === 0) k *= 1.16;
+  else if (iy === 6 || ix === 14) k *= 0.8;
+  return rgb(132 * k, 58 * k, 44 * k);
+});
+const boardK = [0.95, 1.08, 0.86, 1.0];
+const PLANK = tex((x, y, i) => {
+  const ix = x & 15;
+  if (ix === 0) return rgb(34, 24, 16);
+  if (y >= 28 && y <= 35) {
+    if (y === 35) return rgb(40, 28, 18);
+    if ((ix === 7 || ix === 8) && (y === 31 || y === 32)) return ix === 7 && y === 31 ? rgb(186, 186, 192) : rgb(84, 84, 92);
+    const k = (0.82 + GRAINX[i] * 0.34) * (y === 28 ? 1.2 : 1);
+    return rgb(140 * k, 100 * k, 62 * k);
+  }
+  if ((ix === 7 || ix === 8) && (y === 5 || y === 6 || y === 57 || y === 58)) return ix === 7 && (y === 5 || y === 57) ? rgb(186, 186, 192) : rgb(84, 84, 92);
+  let k = boardK[x >> 4] * (0.66 + GRAIN[i] * 0.5 + (rnd() - 0.5) * 0.08);
+  if (y === 36) k *= 0.55;
+  if (ix === 1) k *= 1.15;
+  else if (ix === 15) k *= 0.78;
+  return rgb(118 * k, 82 * k, 50 * k);
+});
+const stoneK = Array.from({ length: 8 }, () => 0.72 + rnd() * 0.4);
+const STONE = tex((x, y, i) => {
+  const row = y >> 4, sx = (x + row * 21) & 63, ix = sx & 31, iy = y & 15;
+  if (iy === 0 || ix === 0) return rgb(38, 36, 34);
+  let k = stoneK[row * 2 + (sx >> 5)] * (0.6 + N8[i] * 0.35 + N32[i] * 0.3 + (rnd() - 0.5) * 0.14);
+  if (Math.abs(N16[i] - 0.5) < 0.018) k *= 0.6;
+  if (iy === 1 || ix === 1) k *= 1.18;
+  else if (iy === 15 || ix === 31) k *= 0.75;
+  return y > 44 && N32[i] > 0.62 ? rgb(64 * k, 92 * k, 52 * k) : rgb(108 * k, 106 * k, 100 * k);
+});
+// The server racks: a grid of green squares, like a contribution graph, that blinks.
+const GH = [rgb(22, 27, 34), rgb(14, 68, 41), rgb(0, 109, 50, 1), rgb(38, 166, 65, 1), rgb(57, 211, 83, 1)];
+function rack(seed) {
+  const r = rng(seed);
+  const lv = Array.from({ length: 48 }, () => {
+    const v = r();
+    return v < 0.34 ? 0 : v < 0.6 ? 1 : v < 0.8 ? 2 : v < 0.93 ? 3 : 4;
+  });
+  return tex((x, y, i) => {
+    if (x < 2 || y < 2) return rgb(98, 106, 124);
+    if (x > 61 || y > 61) return rgb(22, 26, 34);
+    if (y >= 4 && y <= 9 && x >= 8 && x <= 55) return y & 1 ? rgb(24, 28, 36) : rgb(72, 80, 96);
+    const gx = x - 4, gy = y - 12;
+    if (gx >= 0 && gy >= 0 && gx < 56 && gy < 42 && gx % 7 < 5 && gy % 7 < 5) return GH[lv[((gy / 7) | 0) * 8 + ((gx / 7) | 0)]];
+    if (y === 56 || y === 57) {
+      if (x === 6 || x === 7) return rgb(255, 70, 50, seed & 1);
+      if (x === 11 || x === 12) return rgb(60, 230, 90, 1);
+      if (x === 16 || x === 17) return rgb(255, 190, 40, !(seed & 1));
+    }
+    if ((x === 4 || x === 59) && (y === 4 || y === 59)) return rgb(150, 156, 170);
+    const k = 0.85 + N16[i] * 0.25;
+    return rgb(44 * k, 50 * k, 62 * k);
+  });
+}
+const RACKS = [rack(1), rack(2), rack(3)];
+const DOORT = tex((x, y, i) => {
+  if (x === 0 || x === 63) return rgb(26, 30, 38);
+  if (y >= 28 && y <= 35) return ((x + y) >> 2) & 1 ? rgb(214, 162, 10) : rgb(28, 28, 30);
+  if (y === 27 || y === 36) return rgb(20, 22, 26);
+  if ((y === 2 || y === 61) && x % 6 === 3) return rgb(176, 184, 202);
+  let k = 0.82 + N16[i] * 0.2 + (rnd() - 0.5) * 0.06;
+  for (const [a, b, c, d] of [[6, 28, 6, 23], [35, 57, 6, 23], [6, 28, 40, 57], [35, 57, 40, 57]]) {
+    if (x < a || x > b || y < c || y > d) continue;
+    k *= x === a || y === c ? 0.6 : x === b || y === d ? 1.25 : 0.9;
+    break;
+  }
+  return rgb(86 * k, 96 * k, 116 * k);
+});
+const JAMB = tex((x, y, i) => {
+  const k = (x & 7) < 2 ? 0.55 : (x & 7) === 2 ? 1.2 : 0.9 + N16[i] * 0.15;
+  return rgb(88 * k, 96 * k, 112 * k);
+});
+const EXITT = BRICK.slice();
+for (let y = 8; y <= 24; y++) for (let x = 10; x <= 53; x++) EXITT[y * TS + x] = x === 10 || x === 53 || y === 8 || y === 24 ? rgb(150, 150, 158) : rgb(46, 8, 8);
+textTo(EXITT, TS, TS, "EXIT", 21, 13, rgb(255, 64, 44, 1));
+for (let y = 34; y <= 56; y++) for (let x = 22; x <= 41; x++) EXITT[y * TS + x] = x === 22 || y === 34 ? rgb(130, 134, 146) : x === 41 || y === 56 ? rgb(30, 32, 38) : rgb(84, 88, 100);
+for (let y = 38; y <= 50; y++) for (let x = 30; x <= 33; x++) EXITT[y * TS + x] = y < 41 ? rgb(230, 70, 50) : rgb(150, 30, 24);
+const tileK = Array.from({ length: 16 }, () => 0.85 + rnd() * 0.25);
+const TILE = tex((x, y, i) => {
+  const ix = x & 15, iy = y & 15;
+  if (ix === 0 || iy === 0) return rgb(40, 37, 34);
+  let k = tileK[(y >> 4) * 4 + (x >> 4)] * (0.74 + N8[i] * 0.3 + N32[i] * 0.2 + (rnd() - 0.5) * 0.1);
+  if (ix === 1 || iy === 1) k *= 1.12;
+  return ((x >> 4) + (y >> 4)) & 1 ? rgb(96 * k, 88 * k, 76 * k) : rgb(80 * k, 76 * k, 70 * k);
+});
+const GRATE = tex((x, y, i) => {
+  if ((x & 31) === 0 || (y & 31) === 0) return rgb(70, 76, 88);
+  const a = (x + y) & 7, b = (x - y) & 7, k = 0.9 + N16[i] * 0.2;
+  if (a === 0 || b === 0) return rgb(98 * k, 104 * k, 118 * k);
+  if (a === 1 || b === 1) return rgb(50, 54, 62);
+  return rgb(16, 18, 22);
+});
+const BEAMS = tex((x, y, i) => {
+  const bx = x & 31;
+  if (bx < 7) {
+    let k = 0.78 + GRAIN[i] * 0.36;
+    k *= bx === 0 ? 0.55 : bx === 1 ? 1.2 : bx === 6 ? 0.7 : 1;
+    return rgb(74 * k, 50 * k, 30 * k);
+  }
+  if ((y & 7) === 0) return rgb(22, 15, 10);
+  const k = 0.66 + GRAINX[i] * 0.36;
+  return rgb(92 * k, 66 * k, 42 * k);
+});
+const LIGHTS = tex((x, y, i) => {
+  if (x >= 18 && x <= 45 && y >= 22 && y <= 41) {
+    if (x === 18 || x === 45 || y === 22 || y === 41) return rgb(130, 136, 150, 1);
+    return (x - 18) % 7 === 0 ? rgb(190, 205, 225, 1) : rgb(226, 236, 255, 1);
+  }
+  if ((x & 31) === 0 || (y & 31) === 0) return rgb(30, 32, 38);
+  const k = 0.8 + N16[i] * 0.2 + (rnd() - 0.5) * 0.06;
+  return rgb(72 * k, 76 * k, 86 * k);
+});
+const MUD = tex((x, y, i) => {
+  const k = 0.68 + N8[i] * 0.3 + N32[i] * 0.25 + (rnd() - 0.5) * 0.16;
+  if (POOLS[i] < 0.24) {
+    const w = 0.8 + N32[i] * 0.3;
+    return POOLS[i] > 0.21 ? rgb(66 * k, 54 * k, 40 * k) : rgb(44 * w, 48 * w, 54 * w);
+  }
+  if (N32[i] > 0.64 && rnd() < 0.6) return rgb(62 * k, 98 * k, 42 * k);
+  return rgb(88 * k, 72 * k, 50 * k);
+});
+// The rack texture blinks, so it is swapped in place; the others are fixed.
+const TEX = [BRICK, PLANK, STONE, RACKS[0], DOORT, EXITT, JAMB, TILE, GRATE, BEAMS, LIGHTS, MUD];
+const T_RACK = 3, T_DOOR = 4, T_JAMB = 6, SKYT = 255;
+// The sky over the yard: a dark lid of cloud, the green light of tornado weather, and two funnels.
+const SW = 1024, SH = 112, SKY_OFF = 22;
+const SKY = new Uint32Array(SW * SH);
+{
+  const r = rng(7), cl = fbm(SW, SH, 16, 2, 4, r), st = noise(SW, SH, 128, 6, r), lid = rgb(16, 20, 26);
+  const funnels = [[975, 14, 46], [560, 30, 20]];
+  for (let y = 0; y < SH; y++) {
+    // What is the same along a row, worked out once: the sky's colour, and where each funnel is and how wide.
+    const t = (y / SH) ** 1.5, dark = y < 30 ? 0.7 + y / 100 : 1, r0 = (18 + 64 * t) * dark, g0 = (24 + 84 * t) * dark, b0 = (40 + 38 * t) * dark;
+    const rows = funnels.map(([fx, base, w0]) => {
+      const f = (y - base) / (SH - base);
+      return { cx: fx + Math.sin(y * 0.09) * 6 * ((y - base) / SH), f, cloud: y < base + 4 ? w0 * 1.7 : 0, w: y < base ? 0 : w0 * (1 - f) ** 1.7 + 3 + (f > 0.86 ? (f - 0.86) * 60 : 0) };
+    });
+    for (let x = 0; x < SW; x++) {
+      const i = y * SW + x, k = 0.5 + cl[i] * 0.8;
+      let c = rgb(r0 * k, g0 * k, b0 * k);
+      for (let n = 0; n < rows.length; n++) {
+        const F = rows[n];
+        let d = x - F.cx;
+        d -= Math.round(d / SW) * SW;
+        const dx = d < 0 ? -d : d;
+        if (dx < F.cloud) c = mix(c, lid, 0.5 * (1 - dx / F.cloud));
+        if (dx >= F.w) continue;
+        const e = dx / F.w, fk = (0.4 + cl[i] * 0.25) * (0.84 + 0.16 * Math.sin(y * 0.55 - e * 5 + st[i] * 7));
+        const fc = F.f > 0.86 ? rgb(112 * fk, 95 * fk, 73 * fk) : rgb(50 * fk, 56 * fk, 60 * fk);
+        c = mix(fc, c, e > 0.7 ? (e - 0.7) / 0.3 : 0);
+      }
+      SKY[i] = c;
+    }
+  }
+}
+
+// ---------------------------------------------------------------- sprites
+const OUT = rgb(14, 8, 18), LEG = rgb(44, 30, 34);
+function beetle(phase, bite, flat) {
+  const s = spr(48, 40), Y = (y) => (flat ? 40 - (40 - y) * 0.5 : y);
+  for (const m of [1, -1]) {
+    const X = (x) => 24 + (x - 24) * m, f = phase ^ (m < 0) ? 2 : 0;
+    const leg = (ax, ay, kx, ky, fx, fy) => {
+      seg(s, X(ax), Y(ay), X(kx), Y(ky), LEG, 2);
+      seg(s, X(kx), Y(ky), X(fx), Y(fy), LEG, 2);
+    };
+    if (flat) {
+      leg(13, 22, 4, 30, 0, 37);
+      leg(13, 26, 4, 35, 2, 39);
+      leg(15, 30, 9, 37, 7, 39);
+    } else {
+      leg(14, 16, 6, 10 + f, 3, 24 - f);
+      leg(12, 22, 4, 18 + f, 1, 33 - f);
+      leg(14, 27, 7, 25 - f, 4, 37);
+    }
+  }
+  const spots = [[16, 14], [19, 23], [31, 15], [29, 24], [35, 20], [13, 20]];
+  oval(s, 24, Y(19), 15, flat ? 6 : 12, (nx, ny, x, y) => {
+    if (x === 24) return rgb(30, 18, 36);
+    const left = x < 24;
+    let l = 0.98 - ny * 0.38 - Math.abs(nx) * 0.22;
+    if ((nx - (left ? -0.45 : 0.45)) ** 2 + (ny + 0.5) ** 2 < 0.05) l += 0.5;
+    for (const [sx, sy] of spots) if ((x - sx) ** 2 + (y - Y(sy)) ** 2 < 2.5) l *= 0.62;
+    return left ? rgb(214 * l, 80 * l, 80 * l) : rgb(60 * l, 124 * l, 214 * l);
+  });
+  const hy = Y(30);
+  oval(s, 24, hy, 9, flat ? 3.5 : 6.5, (nx, ny) => {
+    const l = 0.9 - ny * 0.3 + (ny < -0.4 && Math.abs(nx) < 0.5 ? 0.3 : 0);
+    return rgb(58 * l, 44 * l, 70 * l);
+  });
+  if (!flat) {
+    const eye = bite ? rgb(255, 70, 40, 1) : rgb(255, 214, 70, 1), jaw = rgb(112, 76, 46), o = bite ? 4 : 1;
+    for (const ex of [19, 27]) for (const [a, b] of [[0, -1], [1, -1], [0, 0], [1, 0]]) dot(s, ex + a, hy + b, eye);
+    seg(s, 21, hy + 4, 20 - o, hy + 8, jaw, 2);
+    seg(s, 26, hy + 4, 27 + o, hy + 8, jaw, 2);
+    seg(s, 20, hy - 4, 10, 10, LEG);
+    seg(s, 10, 10, 6, 3, LEG);
+    seg(s, 28, hy - 4, 38, 10, LEG);
+    seg(s, 38, 10, 42, 3, LEG);
+  }
+  return outline(s, OUT);
+}
+function splat() {
+  const s = spr(48, 40);
+  oval(s, 24, 36, 21, 4, (nx, ny) => mul(rgb(96, 178, 64), 0.8 - ny * 0.3 + (rnd() - 0.5) * 0.2));
+  oval(s, 15, 34, 6, 3, (nx, ny) => rgb(200 * (0.9 - ny * 0.3), 76, 76));
+  oval(s, 33, 35, 6, 3, (nx, ny) => rgb(60, 120, 210 * (0.9 - ny * 0.3)));
+  oval(s, 24, 33, 4, 2.5, rgb(58, 44, 70));
+  for (const [x0, y0, x1, y1] of [[6, 33, 2, 37], [40, 34, 45, 38], [10, 38, 4, 39], [36, 38, 42, 39]]) seg(s, x0, y0, x1, y1, LEG);
+  return outline(s, OUT);
+}
+const wingC = (x, dim) => {
+  const d = Math.abs(x + 0.5 - 24) / 22, l = (1.08 - d * 0.4 + (rnd() - 0.5) * 0.16) * dim;
+  return d > 0.82 ? rgb(96 * l, 78 * l, 60 * l) : rgb(164 * l, 140 * l, 112 * l);
+};
+function moth(up, att) {
+  const s = spr(48, 40), wy = up ? -7 : 0;
+  for (const m of [1, -1]) {
+    const X = (x) => 24 + (x - 24) * m;
+    tri(s, X(23), 12, X(2), 4 + wy, X(7), 26 + wy * 0.3, (x) => wingC(x, 1));
+    tri(s, X(23), 19, X(7), 27 + wy * 0.2, X(19), 35, (x) => wingC(x, 0.82));
+    const ex = X(11), ey = 14 + wy * 0.45;
+    oval(s, ex, ey, 3.6, 3.6, (nx, ny) => {
+      const r = Math.hypot(nx, ny);
+      return r < 0.42 ? rgb(20, 16, 22) : r < 0.76 ? rgb(232, 176, 30) : rgb(90, 64, 40);
+    });
+    dot(s, ex - 1, ey - 1, rgb(255, 255, 230));
+  }
+  oval(s, 24, 22, 3.5, 10, (nx, ny, x, y) => ((y & 3) === 0 ? rgb(150, 126, 90) : mul(rgb(226, 206, 160), 1 - Math.abs(nx) * 0.3)));
+  oval(s, 24, 11, 4.5, 4, (nx, ny) => mul(rgb(196, 172, 130), 1 - ny * 0.25));
+  for (const ex of [21.5, 26.5]) oval(s, ex, 11, 1.6, 1.8, rgb(120, 20, 30, att));
+  dot(s, 21, 10, rgb(255, 90, 70, 1));
+  dot(s, 26, 10, rgb(255, 90, 70, 1));
+  for (const m of [1, -1]) {
+    const X = (x) => 24 + (x - 24) * m;
+    seg(s, X(22), 7, X(16), 1, LEG);
+    for (let i = 1; i < 5; i++) dot(s, X(22 - i * 1.5 - 1), 7 - i * 1.5, LEG);
+  }
+  if (att) oval(s, 24, 15.5, 2, 1.6, rgb(210, 255, 130, 1));
+  return outline(s, OUT);
+}
+function mothDown() {
+  const s = spr(48, 40);
+  tri(s, 24, 30, 6, 38, 22, 39, (x) => wingC(x, 0.8));
+  tri(s, 24, 30, 42, 38, 26, 39, (x) => wingC(x, 0.8));
+  oval(s, 24, 35, 3, 4.5, (nx, ny, x, y) => ((y & 3) === 0 ? rgb(150, 126, 90) : rgb(210, 190, 146)));
+  return outline(s, OUT);
+}
+const BEETLE = { walk: [beetle(0, false, false), beetle(1, false, false)], bite: beetle(0, true, false), down: [beetle(0, false, true), splat()] };
+BEETLE.pain = tint(BEETLE.walk[0], rgb(255, 255, 255), 0.55);
+const MOTH = { fly: [moth(false, false), moth(true, false)], spit: moth(false, true), down: mothDown() };
+MOTH.pain = tint(MOTH.fly[0], rgb(255, 255, 255), 0.55);
+const SPIT = [0, 1].map((k) => {
+  const s = spr(12, 12);
+  oval(s, 6, 6, 5, 5, (nx, ny) => {
+    const r = Math.hypot(nx, ny);
+    return r < 0.42 + k * 0.16 ? rgb(236, 255, 180, 1) : r < 0.8 ? rgb(130, 222, 70, 1) : rgb(60, 140, 40, 1);
+  });
+  return s;
+});
+const puffs = (base, spark) =>
+  [0, 1, 2].map((i) => {
+    const s = spr(12, 12), r = 2.4 + i * 1.3;
+    oval(s, 6, 6, r, r, (nx, ny, x, y) => (i === 2 && (x + y) & 1 ? 0 : spark && i === 0 && Math.hypot(nx, ny) < 0.55 ? spark : mul(base, 1 - Math.hypot(nx, ny) * 0.4)));
+    return s;
+  });
+const PUFF = puffs(rgb(170, 166, 158), rgb(255, 230, 140, 1)), GOO = puffs(rgb(110, 200, 70, 1), 0);
+const AMMO = (() => {
+  const s = spr(28, 18);
+  for (let i = 0; i < 5; i++) for (let y = 0; y < 5; y++) for (let x = 4 + i * 4; x < 6 + i * 4; x++) dot(s, x, y, y < 2 ? rgb(196, 120, 64) : rgb(232, 194, 96));
+  for (let y = 4; y < 18; y++)
+    for (let x = 1; x < 27; x++) {
+      let k = 0.85 + (rnd() - 0.5) * 0.1;
+      if (y === 4) k = 1.25;
+      else if (y === 5) k = 1.1;
+      if (x === 26 || y === 17) k *= 0.7;
+      dot(s, x, y, rgb(156 * k, 122 * k, 38 * k));
+    }
+  textTo(s.px, 28, 18, "AMMO", 3, 8, rgb(44, 30, 8));
+  return outline(s, OUT);
+})();
+const COFFEE = (() => {
+  const s = spr(17, 18);
+  for (let y = 6; y < 18; y++)
+    for (let x = 2; x < 12; x++) {
+      const k = 1.08 - Math.abs((x - 2) / 9 - 0.3) * 0.6;
+      dot(s, x, y, y === 10 || y === 11 ? rgb(242 * k, 183 * k, 5 * k) : rgb(232 * k, 230 * k, 222 * k));
+    }
+  for (let y = 7; y < 16; y++) for (let x = 12; x < 16; x++) {
+    const r = Math.hypot(x + 0.5 - 12, y + 0.5 - 11.5);
+    if (r > 2 && r < 3.6) dot(s, x, y, rgb(214, 212, 204));
+  }
+  oval(s, 7, 6.5, 5, 1.6, rgb(84, 50, 26));
+  for (const [x, y] of [[5, 3], [6, 2], [5, 1], [9, 3], [8, 2], [9, 1]]) dot(s, x, y, rgb(210, 214, 222, 1));
+  return outline(s, OUT);
+})();
+const COMMIT = (() => {
+  const s = spr(18, 16);
+  for (let x = 0; x < 18; x++) {
+    dot(s, x, 7, rgb(255, 214, 80, 1));
+    dot(s, x, 8, rgb(204, 142, 0, 1));
+  }
+  oval(s, 9, 8, 6, 6, (nx, ny) => (Math.hypot(nx, ny) < 0.48 ? 0 : rgb(255 - ny * 40, 204 - ny * 50, 40, 1)));
+  for (let y = 5; y < 11; y++) for (let x = 6; x < 12; x++) if (Math.hypot(x + 0.5 - 9, y + 0.5 - 8) < 2.9) s.px[y * 18 + x] = 0;
+  return outline(s, rgb(70, 44, 0, 1));
+})();
+const BARREL = (() => {
+  const s = spr(22, 30);
+  for (let y = 2; y < 30; y++)
+    for (let x = 1; x < 21; x++) {
+      const k = 0.4 + 0.8 * Math.max(0, Math.cos(((x + 0.5 - 11) / 10) * 1.3 + 0.35));
+      const rim = y === 3 || y === 4 || y === 15 || y === 16 || y === 27 || y === 28;
+      const label = y >= 18 && y <= 25 && x >= 7 && x <= 14;
+      dot(s, x, y, rim ? rgb(122 * k, 128 * k, 134 * k) : label ? rgb(232 * k, 176 * k, 20 * k) : rgb(54 * k, 92 * k, 58 * k));
+    }
+  textTo(s.px, 22, 30, "!", 8, 19, rgb(20, 16, 10));
+  oval(s, 11, 2.5, 9.5, 2.5, (nx, ny) => rgb(110 - ny * 30, 232, 80, 1));
+  return outline(s, OUT);
+})();
+const LAMP = (() => {
+  const s = spr(14, 60);
+  oval(s, 7, 57, 6, 2.5, (nx, ny) => mul(rgb(74, 76, 86), 1 - ny * 0.3));
+  for (let y = 12; y < 56; y++) {
+    dot(s, 6, y, rgb(124, 128, 140));
+    dot(s, 7, y, rgb(70, 72, 84));
+  }
+  for (let y = 3; y < 11; y++) {
+    const hw = 2 + (y - 3) * 0.7;
+    for (let x = Math.round(7 - hw); x < Math.round(7 + hw); x++) dot(s, x, y, mul(rgb(190, 140, 40), 1.15 - ((x + 0.5 - 7) / hw) * 0.4));
+  }
+  oval(s, 7, 12, 3.2, 2, rgb(255, 244, 200, 1));
+  return outline(s, OUT);
+})();
+// What you hold: a double barrel over a walnut fore-end, gloved fingers round it, a blue glow
+// down the rib between the barrels.
+const GUN = (() => {
+  const s = spr(96, 64), hwAt = (y) => 13 + ((y - 26) / 38) * 17;
+  for (let y = 26; y < 64; y++) {
+    const f = (y - 26) / 38, hw = hwAt(y);
+    for (let x = Math.round(48 - hw); x < Math.round(48 + hw); x++) {
+      const u = (x + 0.5 - 48) / hw;
+      let k = 1.05 - u * 0.35 - f * 0.25 + (GRAIN[(y & 63) * TS + (x & 63)] - 0.5) * 0.35;
+      if (Math.abs(u) < 0.5 && y > 38 && y < 58 && ((x + y) % 4 === 0 || (x - y + 64) % 4 === 0)) k *= 0.72;
+      if (y === 26) k = 1.3;
+      s.px[y * 96 + x] = rgb(124 * k, 74 * k, 40 * k);
+    }
+  }
+  for (const side of [-1, 1]) {
+    for (let y = 1; y < 34; y++) {
+      const f = (y - 1) / 33, cx = 48 + side * (4.5 + f * 3), hw = 4.5 + f * 3.2;
+      for (let x = Math.round(cx - hw); x < Math.round(cx + hw); x++) {
+        const k = 0.42 + 0.8 * Math.max(0, Math.cos(((x + 0.5 - cx) / hw + 0.4) * 1.45));
+        s.px[y * 96 + x] = y === 22 || y === 23 ? rgb(242 * k, 183 * k, 30 * k) : rgb(92 * k, 98 * k, 114 * k);
+      }
+    }
+    oval(s, 48 + side * 4.5, 2, 4.6, 2.2, (nx, ny) => (Math.hypot(nx, ny) < 0.62 ? rgb(6, 6, 10) : rgb(150, 156, 172)));
+  }
+  for (let y = 4; y < 22; y++) s.px[y * 96 + 48] = rgb(110, 176, 245, 1);
+  const glove = (nx, ny) => mul(rgb(74, 60, 50), 1 - ny * 0.3 - Math.abs(nx) * 0.15);
+  for (const side of [-1, 1]) for (let j = 0; j < 4; j++) oval(s, 48 + side * (hwAt(40 + j * 6) - 1), 40 + j * 6, 4.5, 3.3, glove);
+  oval(s, 48, 66, 24, 7, glove);
+  return outline(s, rgb(10, 10, 14));
+})();
+const FLASH = (() => {
+  const s = spr(40, 30);
+  for (let y = 0; y < 30; y++)
+    for (let x = 0; x < 40; x++) {
+      const dx = (x + 0.5 - 20) / 20, dy = (y + 0.5 - 19) / 15, r = Math.hypot(dx, dy);
+      const lim = 0.5 + 0.45 * Math.abs(Math.sin(Math.atan2(dy, dx) * 3.5)) + (rnd() - 0.5) * 0.1;
+      if (r < lim * 0.4) s.px[y * 40 + x] = rgb(255, 255, 225, 1);
+      else if (r < lim * 0.7) s.px[y * 40 + x] = rgb(255, 216, 96, 1);
+      else if (r < lim) s.px[y * 40 + x] = rgb(240, 132, 40, 1);
+    }
+  return s;
+})();
+
+// ---------------------------------------------------------------- the cellar
+// # brick, P planks, S stone, T server racks, D door, X the exit. On the floor: p you, b beetle,
+// m moth, a ammo, h coffee, c commit, u barrel, o lamp.
+const LEVEL = [
+  "SSSSSSSSSSSSSSSSSSSSSSS#####",
+  "SSSSSSh.....b.......m.S#####",
+  "SSSSSS..b..........S..S....#",
+  "SSSSSS....SS.....b....S..c.#",
+  "SSSSSS.......c........D....X",
+  "SSSSSS.........S......S....#",
+  "SSSSSS.......b......b.S.h..#",
+  "SSSSSS...............aS#####",
+  "SSSSSSDSSSSSSSSSS.SSSSS#####",
+  "S............S###c##########",
+  "S.b........b.S###.##########",
+  "S...S....S...STTTDTTT#######",
+  "S.....c......D.......T######",
+  "S...S....S...S.m...m.T######",
+  "S.....b....b.S.......T######",
+  "Sa...........S.......T######",
+  "SSSSDSSSSSSSST.TT.TT.T######",
+  "Po.....oP####T.......T######",
+  "P.a.....P####T...c...T######",
+  "P.......P####T.b...m.T######",
+  "P.......P####Ta.....hT######",
+  "P...p..uP####TTTTTTTTT######",
+  "P......uP###################",
+  "PPPPPPPPP###################",
+];
+const MW = LEVEL[0].length, MH = LEVEL.length;
+const WALLS = { "#": 1, P: 2, S: 3, T: 4, D: 5, X: 6 }, DOOR = 5, EXIT = 6, WALL_TEX = [0, 0, 1, 2, T_RACK, T_DOOR, 5];
+const floorT = new Uint8Array(MW * MH).fill(7), ceilT = new Uint8Array(MW * MH).fill(9), zone = new Uint8Array(MW * MH);
+const light0 = new Float32Array(MW * MH).fill(0.7), lit = new Float32Array(MW * MH), flow = new Int16Array(MW * MH);
+// x0, y0, x1, y1, light, floor, ceiling, and zone: 1 is open to the sky, 2 has a flickering light.
+for (const [x0, y0, x1, y1, l, f, c, z] of [
+  [6, 1, 21, 7, 1.15, 11, SKYT, 1],
+  [23, 2, 26, 6, 1, 7, 10, 0],
+  [1, 9, 12, 15, 0.74, 7, 9, 0],
+  [14, 12, 20, 20, 0.62, 8, 10, 2],
+  [17, 8, 17, 10, 0.6, 8, 10, 0],
+  [1, 17, 7, 22, 0.82, 7, 9, 0],
+])
+  for (let y = y0; y <= y1; y++)
+    for (let x = x0; x <= x1; x++) {
+      const i = y * MW + x;
+      [light0[i], floorT[i], ceilT[i], zone[i]] = [l, f, c, z];
+    }
+for (let y = 0; y < MH; y++)
+  for (let x = 0; x < MW; x++) {
+    if (LEVEL[y][x] !== "o") continue;
+    for (let j = 0; j < MW * MH; j++) {
+      const d = Math.hypot((j % MW) - x, ((j / MW) | 0) - y);
+      if (d < 2.6) light0[j] += 0.4 * (1 - d / 2.6);
+    }
+  }
+const cellOf = (x, y) => (y | 0) * MW + (x | 0);
+const KINDS = {
+  b: { kind: "beetle", hp: 30, r: 0.32, foe: true, solid: true },
+  m: { kind: "moth", hp: 20, r: 0.32, foe: true, solid: true, z: 0.32 },
+  a: { kind: "ammo", r: 0.3, item: true },
+  h: { kind: "coffee", r: 0.3, item: true },
+  c: { kind: "commit", r: 0.3, item: true },
+  u: { kind: "barrel", r: 0.3, solid: true },
+  o: { kind: "lamp", r: 0.22, solid: true },
+};
+let map, doors, ents, shots, fx, P, total = 0, totalC = 0;
+const G = { state: "title", t: 0, muzzle: 0, flash: 0, flashT: 9, boltT: 5, fl: 1, flick: 0, lastAlert: -9, doneT: 0, flowCell: -1 };
+function reset() {
+  map = new Uint8Array(MW * MH);
+  doors = new Map();
+  ents = [];
+  shots = [];
+  fx = [];
+  P = { x: 4.5, y: 21.5, a: -Math.PI / 2, hp: 100, ammo: 40, kills: 0, commits: 0, bob: 0, bobAmp: 0, eye: 0.5, fireT: 0, shotT: 9, hurtT: 0, gotT: 0, msg: "", msgT: 0, time: 0, deadT: 0 };
+  const wall = (ch) => !!WALLS[ch] && ch !== "D";
+  for (let y = 0; y < MH; y++)
+    for (let x = 0; x < MW; x++) {
+      const ch = LEVEL[y][x], i = y * MW + x;
+      if (WALLS[ch]) {
+        map[i] = WALLS[ch];
+        if (ch === "D") doors.set(i, { x, y, open: 0, hold: 0, want: 0, vertical: wall(LEVEL[y - 1][x]) && wall(LEVEL[y + 1][x]) });
+      } else if (ch === "p") [P.x, P.y] = [x + 0.5, y + 0.5];
+      else if (KINDS[ch]) ents.push({ ...KINDS[ch], x: x + 0.5, y: y + 0.5, st: "idle", t: 0, cd: 0, anim: rnd() * 3, look: rnd() * 0.3, seed: rnd() * TAU, stuck: 0, sx: 0, sy: 0 });
+    }
+  total = ents.filter((e) => e.foe).length;
+  totalC = ents.filter((e) => e.kind === "commit").length;
+  G.flowCell = -1;
+}
+
+// ---------------------------------------------------------------- sound, made on the spot
+let sound = true;
+try {
+  sound = localStorage.getItem("github-leaderboard.sound") !== "off";
+} catch {}
+let ac = null, master = null, hissBuf = null;
+function audio() {
+  if (!sound) return null;
+  if (!ac) {
+    try {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      master = ac.createGain();
+      master.gain.value = 0.3;
+      master.connect(ac.destination);
+      hissBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+      const d = hissBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    } catch {
+      ac = null;
+      return null;
+    }
+  }
+  if (ac.state === "suspended") ac.resume().catch(() => {});
+  return ac;
+}
+function tone(type, f0, f1, dur, vol, delay = 0) {
+  const a = audio();
+  if (!a) return;
+  const t = a.currentTime + delay, o = a.createOscillator(), g = a.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(f0, t);
+  o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
+  g.gain.setValueAtTime(Math.max(0.001, vol), t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g).connect(master);
+  o.start(t);
+  o.stop(t + dur + 0.02);
+}
+function hiss(f0, f1, dur, vol, delay = 0, q = 0.7, type = "lowpass") {
+  const a = audio();
+  if (!a) return;
+  const t = a.currentTime + delay, s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  s.buffer = hissBuf;
+  s.loop = true;
+  f.type = type;
+  f.Q.value = q;
+  f.frequency.setValueAtTime(f0, t);
+  f.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+  g.gain.setValueAtTime(Math.max(0.001, vol), t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  s.connect(f).connect(g).connect(master);
+  s.start(t);
+  s.stop(t + dur + 0.02);
+}
+const SFX = {
+  shot: () => (hiss(3800, 160, 0.4, 0.9), tone("sine", 150, 38, 0.2, 0.9)),
+  empty: () => tone("square", 1100, 900, 0.04, 0.12),
+  alert: () => (tone("square", 240, 520, 0.14, 0.16), tone("square", 360, 760, 0.12, 0.1, 0.09)),
+  flutter: () => [0, 1, 2, 3].forEach((i) => hiss(1800, 900, 0.05, 0.25, i * 0.06, 2, "bandpass")),
+  squeal: () => tone("square", 680, 300, 0.13, 0.16),
+  die: () => (hiss(1600, 120, 0.5, 0.55, 0, 2, "bandpass"), tone("sawtooth", 300, 45, 0.45, 0.22)),
+  bite: () => hiss(2600, 700, 0.09, 0.5, 0, 3, "bandpass"),
+  ouch: () => tone("sawtooth", 170, 70, 0.22, 0.3),
+  spit: (v) => tone("sine", 240, 880, 0.22, 0.22 * v),
+  splash: () => hiss(1200, 300, 0.16, 0.25, 0, 1.5, "bandpass"),
+  item: () => (tone("square", 660, 660, 0.06, 0.12), tone("square", 990, 990, 0.09, 0.12, 0.06)),
+  commit: () => [523, 659, 784, 1047].forEach((f, i) => tone("triangle", f, f, 0.14, 0.24, i * 0.07)),
+  door: (v) => (hiss(420, 140, 0.55, 0.28 * v), tone("square", 60, 50, 0.5, 0.06 * v)),
+  thunder: (d, v) => hiss(260, 35, 2.6, 0.9 * v, d),
+  win: () => [392, 523, 659, 784, 1047].forEach((f, i) => tone("square", f, f, 0.18, 0.12, i * 0.12)),
+  dead: () => (tone("sawtooth", 230, 36, 1.1, 0.32), hiss(800, 60, 1, 0.3)),
+};
+
+// ---------------------------------------------------------------- rays
+// One ray through the grid. Doors sit halfway into their cell and slide aside as they open; the
+// walls beside an open door show a metal jamb. Sets what it hit, for the renderer.
+let rTex = 0, rSide = 0, rU = 0, rCell = 0;
+function cast(ox, oy, dx, dy) {
+  let mx = ox | 0, my = oy | 0, side = 0, jamb = false;
+  const ddx = dx === 0 ? 1e30 : Math.abs(1 / dx), ddy = dy === 0 ? 1e30 : Math.abs(1 / dy), sx = dx < 0 ? -1 : 1, sy = dy < 0 ? -1 : 1;
+  let tx = (dx < 0 ? ox - mx : mx + 1 - ox) * ddx, ty = (dy < 0 ? oy - my : my + 1 - oy) * ddy;
+  rCell = my * MW + mx;
+  for (let n = 0; n < 96; n++) {
+    if (tx < ty) {
+      mx += sx;
+      tx += ddx;
+      side = 0;
+    } else {
+      my += sy;
+      ty += ddy;
+      side = 1;
+    }
+    const cell = my * MW + mx, m = map[cell];
+    if (m === 0) {
+      rCell = cell;
+      jamb = false;
+      continue;
+    }
+    if (m === DOOR) {
+      const d = doors.get(cell);
+      if (d.vertical ? dx !== 0 : dy !== 0) {
+        const t = d.vertical ? (mx + 0.5 - ox) / dx : (my + 0.5 - oy) / dy;
+        const f = d.vertical ? oy + t * dy - my : ox + t * dx - mx;
+        if (t > 0 && f >= d.open && f < 1) {
+          rTex = T_DOOR;
+          rSide = d.vertical ? 0 : 1;
+          rU = f - d.open;
+          return t;
+        }
+      }
+      jamb = true;
+      continue;
+    }
+    const t = side === 0 ? tx - ddx : ty - ddy;
+    let u = side === 0 ? oy + t * dy : ox + t * dx;
+    u -= Math.floor(u);
+    if ((side === 0 && dx > 0) || (side === 1 && dy < 0)) u = 1 - u;
+    rTex = jamb ? T_JAMB : WALL_TEX[m];
+    rSide = side;
+    rU = u;
+    return t;
+  }
+  return 1e9;
+}
+const wallAt = (x, y) => {
+  const i = cellOf(x, y), m = map[i];
+  return m !== 0 && !(m === DOOR && doors.get(i).open > 0.8);
+};
+
+// ---------------------------------------------------------------- drawing
+function flats(dirX, dirY) {
+  const rx0 = dirX + dirY, ry0 = dirY - dirX, rx1 = dirX - dirY, ry1 = dirY + dirX, skyL = band(1 + G.flash * 0.9);
+  for (let y = 0; y < VH; y++) {
+    if (y === HALF) continue;
+    const ceil = y < HALF, d = ceil ? ((1 - P.eye) * PROJ) / (HALF - y - 0.5) : (P.eye * PROJ) / (y + 0.5 - HALF);
+    const f = fall(d), row = y * W, srow = (y + SKY_OFF) * SW, tbl = ceil ? ceilT : floorT;
+    let fx = P.x + d * rx0, fy = P.y + d * ry0;
+    const stx = (d * (rx1 - rx0)) / W, sty = (d * (ry1 - ry0)) / W;
+    for (let x = 0; x < W; x++, fx += stx, fy += sty) {
+      const cx = fx | 0, cy = fy | 0;
+      if (fx < 0 || fy < 0 || cx >= MW || cy >= MH) {
+        buf[row + x] = 0xff000000;
+        continue;
+      }
+      const cell = cy * MW + cx, t = tbl[cell];
+      if (t === SKYT) buf[row + x] = shade(SKY[srow + skyX[x]], skyL);
+      else buf[row + x] = shade(TEX[t][(((fy - cy) * TS) | 0) * TS + (((fx - cx) * TS) | 0)], band(lit[cell] * f));
+    }
+  }
+  // The horizon row sits exactly at eye level: copy the row above it.
+  buf.copyWithin(HALF * W, (HALF - 1) * W, HALF * W);
+}
+function walls(dirX, dirY) {
+  for (let x = 0; x < W; x++) {
+    const cam = (2 * (x + 0.5)) / W - 1, t = cast(P.x, P.y, dirX - dirY * cam, dirY + dirX * cam);
+    zbuf[x] = t;
+    const h = PROJ / t, top = HALF - (1 - P.eye) * h, bot = HALF + P.eye * h;
+    const y0 = Math.max(0, Math.ceil(top - 0.5)), y1 = Math.min(VH, Math.ceil(bot - 0.5)), tx = TEX[rTex], u = Math.min(63, (rU * TS) | 0), step = TS / h;
+    const l = band(lit[rCell] * fall(t) * (rSide ? 0.86 : 1));
+    let v = (y0 + 0.5 - top) * step;
+    for (let y = y0; y < y1; y++, v += step) buf[y * W + x] = shade(tx[Math.min(63, v | 0) * TS + u], l);
+  }
+}
+function look(e) {
+  switch (e.kind) {
+    case "beetle": {
+      const s = e.st === "dead" || (e.st === "dying" && e.t > 0.18) ? BEETLE.down[1] : e.st === "dying" ? BEETLE.down[0] : e.st === "pain" ? BEETLE.pain : e.st === "attack" ? BEETLE.bite : BEETLE.walk[e.st === "idle" ? 0 : ((e.anim * 6) | 0) & 1];
+      return [s, 1.25, 0, false];
+    }
+    case "moth": {
+      const s = e.st === "dead" ? MOTH.down : e.st === "dying" || e.st === "pain" ? MOTH.pain : e.st === "attack" ? MOTH.spit : MOTH.fly[((e.anim * 8) | 0) & 1];
+      return [s, 1.1, e.z, false];
+    }
+    case "ammo": return [AMMO, 1, 0, false];
+    case "coffee": return [COFFEE, 1.1, 0, false];
+    case "commit": return [COMMIT, 1, 0.22 + Math.sin(G.t * 3 + e.seed) * 0.04, true];
+    case "barrel": return [BARREL, 1.35, 0, false];
+    default: return [LAMP, 1, 0, false];
+  }
+}
+function sprites(dirX, dirY) {
+  const list = [];
+  const add = (x, y, s, k, z, glow) => {
+    const sx = x - P.x, sy = y - P.y, depth = dirX * sx + dirY * sy;
+    if (depth > 0.15) list.push({ x, y, s, k, z, glow, depth, side: dirX * sy - dirY * sx });
+  };
+  for (const e of ents) add(e.x, e.y, ...look(e));
+  for (const s of shots) add(s.x, s.y, SPIT[((G.t * 12) | 0) & 1], 1, 0.36, true);
+  for (const f of fx) add(f.x, f.y, f.frames[Math.min(2, ((f.t / f.life) * 3) | 0)], 1, f.z, f.frames === GOO);
+  list.sort((a, b) => b.depth - a.depth);
+  for (const o of list) {
+    const { s, depth: ty } = o, cx = PROJ * (1 + o.side / ty), sw = (PROJ * (s.w / TS) * o.k) / ty, sh = (PROJ * (s.h / TS) * o.k) / ty;
+    const bot = HALF + ((P.eye - o.z) * PROJ) / ty, top = bot - sh, left = cx - sw / 2;
+    const x0 = Math.max(0, Math.ceil(left - 0.5)), x1 = Math.min(W, Math.ceil(left + sw - 0.5)), y0 = Math.max(0, Math.ceil(top - 0.5)), y1 = Math.min(VH, Math.ceil(bot - 0.5));
+    const l = o.glow ? 256 : band(lit[cellOf(o.x, o.y)] * fall(ty));
+    for (let x = x0; x < x1; x++) {
+      if (ty >= zbuf[x]) continue;
+      const u = Math.min(s.w - 1, (((x + 0.5 - left) / sw) * s.w) | 0);
+      for (let y = y0; y < y1; y++) {
+        const c = s.px[Math.min(s.h - 1, (((y + 0.5 - top) / sh) * s.h) | 0) * s.w + u];
+        if (c) buf[y * W + x] = shade(c, l);
+      }
+    }
+  }
+}
+function blit(s, x0, y0, l) {
+  for (let y = 0; y < s.h; y++) {
+    const yy = y0 + y;
+    if (yy < 0 || yy >= VH) continue;
+    for (let x = 0; x < s.w; x++) {
+      const xx = x0 + x, c = s.px[y * s.w + x];
+      if (c && xx >= 0 && xx < W) buf[yy * W + xx] = shade(c, l);
+    }
+  }
+}
+function gun() {
+  const since = P.shotT, kick = since < 0.06 ? -3 : since < 0.32 ? 7 * (1 - (since - 0.06) / 0.26) : 0;
+  const gx = Math.round(112 + Math.cos(P.bob) * 5 * P.bobAmp), gy = Math.round(VH - 58 + Math.abs(Math.sin(P.bob)) * 6 * P.bobAmp + kick);
+  blit(GUN, gx, gy, since < 0.06 ? 330 : band(Math.min(1.2, lit[cellOf(P.x, P.y)] + 0.12)));
+  if (since < 0.06) blit(FLASH, gx + 28, gy - 18, 256);
+}
+function wash(c, t, y1 = VH) {
+  const r = c & 255, g = (c >> 8) & 255, b = (c >> 16) & 255, k = Math.round(t * 256);
+  for (let i = 0; i < W * y1; i++) {
+    const p = buf[i], pr = p & 255, pg = (p >> 8) & 255, pb = (p >> 16) & 255;
+    buf[i] = 0xff000000 | ((pb + (((b - pb) * k) >> 8)) << 16) | ((pg + (((g - pg) * k) >> 8)) << 8) | (pr + (((r - pr) * k) >> 8));
+  }
+}
+// The status bar: ammo, health, a little spinning storm where an old game kept its face, bugs, commits.
+const BAR = new Uint32Array(W * (H - VH)), SEPS = [60, 130, 190, 258];
+for (let y = 0; y < H - VH; y++)
+  for (let x = 0; x < W; x++) {
+    let k = 0.9 + N16[(y & 63) * TS + (x & 63)] * 0.25;
+    if (x > 131 && x < 189 && y > 2 && y < 30) k *= 0.55;
+    let c = rgb(18 * k, 29 * k, 61 * k);
+    if (y === 0) c = rgb(70, 86, 130);
+    else if (y === 1) c = rgb(40, 54, 96);
+    else if (y === H - VH - 1) c = rgb(6, 10, 24);
+    else if (SEPS.includes(x)) c = rgb(6, 10, 24);
+    else if (SEPS.includes(x - 1)) c = rgb(40, 54, 96);
+    BAR[y * W + x] = c;
+  }
+function storm(cx, cy) {
+  const dead = P.hp <= 0, hurt = P.hurtT > 0, spin = dead ? 0 : G.t * (P.hp < 30 ? 10 : 5);
+  for (const front of [false, true])
+    for (let i = 0; i < 7; i++) {
+      const rx = dead ? 3 + i * 0.4 : 12 - i * 1.45, y = cy - 11 + i * 3.4 + (dead ? 4 : 0), sway = Math.sin(G.t * 1.7 + i * 0.7) * i * 0.35;
+      for (let s = 0; s < 44; s++) {
+        const a = (s / 44) * TAU;
+        if (Math.sin(a) > 0 !== front) continue;
+        let c = Math.cos(a - spin) < 0 ? RED : BLUE;
+        if (!front) c = mix(c, rgb(10, 14, 30), 0.55);
+        if (hurt) c = mix(c, rgb(255, 255, 255), 0.6);
+        if (dead) c = mix(MUTED, rgb(10, 14, 30), front ? 0.3 : 0.6);
+        const px = Math.round(cx + sway + Math.cos(a) * rx), py = Math.round(y + Math.sin(a) * 1.6);
+        if (py >= VH && py < H) buf[py * W + px] = c;
+      }
+    }
+}
+function hud() {
+  buf.set(BAR, VH * W);
+  const num = (s, cx, c) => sayC(s, cx, VH + 4, c, 2, 1), label = (s, cx) => sayC(s, cx, VH + 22, MUTED, 1, 0);
+  num(String(P.ammo), 30, P.ammo ? GOLD : RED);
+  label("AMMO", 30);
+  num(`${Math.max(0, Math.ceil(P.hp))}%`, 95, P.hp > 25 ? GOLD : RED);
+  label("HEALTH", 95);
+  storm(160, VH + 16);
+  num(`${P.kills}/${total}`, 224, GOLD);
+  label("BUGS", 224);
+  num(`${P.commits}/${totalC}`, 289, GOLD);
+  label("COMMITS", 289);
+}
+const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+function render() {
+  TEX[T_RACK] = RACKS[((G.t * 2.5) | 0) % 3];
+  for (let i = 0; i < lit.length; i++) lit[i] = light0[i] * (zone[i] === 2 ? G.fl : 1) + (zone[i] === 1 ? G.flash * 0.9 : 0) + G.muzzle;
+  const dirX = Math.cos(P.a), dirY = Math.sin(P.a);
+  for (let x = 0; x < W; x++) {
+    let v = (((P.a + colAng[x]) / TAU) * SW) % SW;
+    if (v < 0) v += SW;
+    skyX[x] = v | 0;
+  }
+  flats(dirX, dirY);
+  walls(dirX, dirY);
+  sprites(dirX, dirY);
+  if (G.state !== "title" && P.hp > 0) gun();
+  if (P.hurtT > 0) wash(rgb(200, 0, 0), Math.min(0.55, P.hurtT));
+  if (P.gotT > 0) wash(rgb(255, 210, 60), Math.min(0.28, P.gotT));
+  if (G.state === "dead") wash(rgb(130, 0, 0), 0.38);
+  hud();
+  if (G.state === "playing" && P.msgT > 0) say(P.msg, 4, 4, GOLD, 1, 1);
+  if (G.state === "title") {
+    wash(rgb(0, 0, 0), 0.45);
+    say("STORM", 160 - textW("STORM", 5) / 2, 12, logo, 5, 3);
+    say("CELLAR", 160 - textW("CELLAR", 5) / 2, 52, logo, 5, 3);
+    sayC("THE TORNADO SHOOK THE BUGS LOOSE.", 160, 100, INK);
+    sayC("CLICK OR PRESS ENTER TO PLAY", 160, 120, GOLD);
+    sayC("WASD MOVE   MOUSE OR ARROWS TURN", 160, 140, MUTED);
+    sayC("CLICK OR SPACE SHOOTS   SHIFT RUNS", 160, 151, MUTED);
+  } else if (G.state === "paused") {
+    wash(rgb(0, 0, 0), 0.5);
+    sayC("PAUSED", 160, 52, logo, 3, 2);
+    sayC("CLICK OR PRESS ENTER TO GO ON", 160, 92, INK);
+  } else if (G.state === "dead") {
+    sayC("YOU GOT BUGGED", 160, 46, logo, 3, 2);
+    if (P.deadT > 0.9) sayC("CLICK OR PRESS ENTER TO TRY AGAIN", 160, 88, INK);
+  } else if (G.state === "done") {
+    const t = G.doneT, row = (k, v, y) => (say(k, 64, y, INK, 2, 1), say(v, 256 - textW(v, 2), y, GOLD, 2, 1));
+    wash(rgb(0, 0, 0), 0.6);
+    sayC("CELLAR CLEARED", 160, 16, logo, 3, 2);
+    row("BUGS", `${Math.min(Math.round((P.kills / total) * 100), Math.floor(t * 100))}%`, 56);
+    if (t > 0.6) row("COMMITS", `${Math.min(Math.round((P.commits / totalC) * 100), Math.floor((t - 0.6) * 100))}%`, 78);
+    if (t > 1.2) row("TIME", clock(P.time), 100);
+    if (t > 1.6) sayC("CLICK OR PRESS ENTER TO PLAY AGAIN", 160, 134, GOLD);
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+// ---------------------------------------------------------------- play
+const keys = new Set(), touch = { move: 0, turn: 0, fire: false };
+let mouseDX = 0, mouseFire = false, locked = false;
+const held = (...k) => k.some((c) => keys.has(c));
+function note(s) {
+  P.msg = s;
+  P.msgT = 2.6;
+}
+function fits(o, x, y, r, me) {
+  if (wallAt(x - r, y - r) || wallAt(x + r, y - r) || wallAt(x - r, y + r) || wallAt(x + r, y + r)) return false;
+  // Something in the way, unless the move takes you away from it (so nothing ever sticks).
+  const clear = (ox, oy, or) => {
+    const d2 = (ox - x) ** 2 + (oy - y) ** 2;
+    return d2 >= (or + r) ** 2 || d2 >= (ox - o.x) ** 2 + (oy - o.y) ** 2;
+  };
+  for (const e of ents) if (e !== o && e.solid && e.st !== "dying" && e.st !== "dead" && !clear(e.x, e.y, e.r)) return false;
+  return me || clear(P.x, P.y, 0.24);
+}
+function walk(o, dx, dy, r, me) {
+  if (fits(o, o.x + dx, o.y, r, me)) o.x += dx;
+  else if (me) bump(o.x + dx, o.y, r);
+  if (fits(o, o.x, o.y + dy, r, me)) o.y += dy;
+  else if (me) bump(o.x, o.y + dy, r);
+}
+function bump(x, y, r) {
+  for (const [a, b] of [[-r, -r], [r, -r], [-r, r], [r, r]]) if (map[cellOf(x + a, y + b)] === EXIT) return finish();
+}
+function controls(dt) {
+  const fw = Math.max(-1, Math.min(1, (held("KeyW", "ArrowUp") ? 1 : 0) - (held("KeyS", "ArrowDown") ? 1 : 0) + touch.move));
+  const st = (held("KeyD") ? 1 : 0) - (held("KeyA") ? 1 : 0);
+  P.a += ((held("ArrowRight") ? 1 : 0) - (held("ArrowLeft") ? 1 : 0)) * 2.6 * dt + touch.turn * 2.2 * dt + mouseDX * 0.0024;
+  const run = held("ShiftLeft", "ShiftRight") ? 1.6 : 1, dx = Math.cos(P.a), dy = Math.sin(P.a);
+  let mx = dx * fw - dy * st, my = dy * fw + dx * st;
+  const m = Math.hypot(mx, my);
+  if (m > 1) [mx, my] = [mx / m, my / m];
+  walk(P, mx * 3.4 * run * dt, my * 3.4 * run * dt, 0.24, true);
+  P.bob += dt * 9 * Math.min(1, m) * Math.sqrt(run);
+  P.bobAmp += ((reduced ? 0 : Math.min(1, m)) - P.bobAmp) * Math.min(1, dt * 8);
+  if ((mouseFire || touch.fire || held("Space", "KeyF")) && P.fireT <= 0) shoot();
+}
+function shoot() {
+  if (P.ammo <= 0) {
+    P.fireT = 0.3;
+    SFX.empty();
+    if (P.msgT < 1) note("OUT OF AMMO. FIND A BOX.");
+    return;
+  }
+  P.ammo--;
+  P.fireT = 0.5;
+  P.shotT = 0;
+  G.muzzle = 0.3;
+  SFX.shot();
+  // The bang carries along the open paths, and wakes the bugs within earshot.
+  for (const e of ents) if (e.foe && e.st === "idle" && flow[cellOf(e.x, e.y)] >= 0 && flow[cellOf(e.x, e.y)] <= 10) wake(e);
+  const hits = new Map();
+  for (let i = 0; i < 6; i++) {
+    const a = P.a + (rnd() - 0.5) * 0.11, dx = Math.cos(a), dy = Math.sin(a), wt = cast(P.x, P.y, dx, dy);
+    let best = null, bt = wt;
+    for (const e of ents) {
+      if (!e.foe || e.st === "dying" || e.st === "dead") continue;
+      const vx = e.x - P.x, vy = e.y - P.y, along = vx * dx + vy * dy;
+      if (along > 0 && along < bt && Math.abs(vx * dy - vy * dx) < e.r + 0.04) [best, bt] = [e, along];
+    }
+    if (best) hits.set(best, (hits.get(best) ?? 0) + 5 + rnd() * 5);
+    else if (wt > 0.6 && wt < 40) fx.push({ x: P.x + dx * (wt - 0.06), y: P.y + dy * (wt - 0.06), z: 0.38 + (rnd() - 0.5) * 0.2, t: 0, life: 0.24, frames: PUFF });
+  }
+  for (const [e, n] of hits) hurtBug(e, n);
+}
+function hurtBug(e, n) {
+  e.hp -= n;
+  fx.push({ x: e.x + (P.x - e.x) * 0.1, y: e.y + (P.y - e.y) * 0.1, z: (e.z ?? 0) + 0.2, t: 0, life: 0.3, frames: GOO });
+  if (e.hp <= 0) {
+    to(e, "dying");
+    P.kills++;
+    SFX.die();
+    if (P.kills === total) note("THAT'S EVERY BUG. NOW FIND THE EXIT.");
+  } else if (rnd() < 0.65) {
+    to(e, "pain");
+    SFX.squeal();
+  } else if (e.st === "idle") wake(e);
+}
+function hurt(n) {
+  if (P.hp <= 0) return;
+  P.hp -= n;
+  P.hurtT = Math.min(0.6, Math.max(P.hurtT, 0) + n / 30);
+  SFX.ouch();
+  if (P.hp <= 0) {
+    P.hp = 0;
+    P.deadT = 0;
+    setState("dead", "The bugs got you. Press Enter to try again.");
+    SFX.dead();
+  }
+}
+function to(e, st) {
+  e.st = st;
+  e.t = 0;
+  e.hit = false;
+}
+function wake(e) {
+  to(e, "chase");
+  e.cd = 0.3 + rnd() * 0.4;
+  if (G.t - G.lastAlert > 0.7) {
+    G.lastAlert = G.t;
+    (e.kind === "moth" ? SFX.flutter : SFX.alert)();
+  }
+}
+function think(e, dt) {
+  e.t += dt;
+  e.anim += dt;
+  e.cd -= dt;
+  if (e.st === "dead") return;
+  if (e.st === "dying") {
+    if (e.kind === "moth") e.z = Math.max(0, 0.32 - e.t * 1.1);
+    if (e.t > 0.45) e.st = "dead";
+    return;
+  }
+  const dx = P.x - e.x, dy = P.y - e.y, dist = Math.hypot(dx, dy) || 0.01;
+  if ((e.look -= dt) <= 0) {
+    e.look = 0.2 + rnd() * 0.15;
+    e.sees = dist < 16 && cast(e.x, e.y, dx / dist, dy / dist) >= dist - 0.1;
+  }
+  if (e.kind === "moth") e.z = 0.32 + Math.sin(e.anim * 3 + e.seed) * 0.05;
+  if (e.st === "idle") {
+    if (e.sees && P.hp > 0) wake(e);
+    return;
+  }
+  if (P.hp <= 0) return;
+  if (e.st === "pain") {
+    if (e.t > 0.28) to(e, "chase");
+    return;
+  }
+  if (e.kind === "beetle") {
+    if (e.st === "attack") {
+      if (!e.hit && e.t > 0.22) {
+        e.hit = true;
+        if (dist < 1.15) {
+          SFX.bite();
+          hurt(5 + rnd() * 6);
+        }
+      }
+      if (e.t > 0.5) {
+        to(e, "chase");
+        e.cd = 0.45;
+      }
+    } else if (dist < 0.85 && e.cd <= 0) to(e, "attack");
+    else steer(e, dt, 1.9, dist, dx, dy, false);
+    return;
+  }
+  if (e.st === "attack") {
+    if (!e.hit && e.t > 0.32) {
+      e.hit = true;
+      shots.push({ x: e.x + (dx / dist) * 0.3, y: e.y + (dy / dist) * 0.3, vx: (dx / dist) * 4.6, vy: (dy / dist) * 4.6, t: 0 });
+      SFX.spit(Math.max(0.2, 1 - dist / 14));
+    }
+    if (e.t > 0.6) {
+      to(e, "chase");
+      e.cd = 1.3 + rnd() * 1.3;
+    }
+  } else if (e.sees && e.cd <= 0 && dist < 11) to(e, "attack");
+  else steer(e, dt, 1.35, dist, dx, dy, true);
+}
+// Straight at you when they can see you (moths keep their distance and weave); otherwise down the
+// flow field, the number of steps to you from every open cell, which leads round walls and through doors.
+function steer(e, dt, speed, dist, dx, dy, weave) {
+  let tx, ty;
+  if (e.sees && dist < 9) {
+    [tx, ty] = [dx / dist, dy / dist];
+    if (weave) {
+      const want = dist > 5 ? 1 : dist < 2.6 ? -1 : 0.15, w = Math.sin(e.anim * 1.7 + e.seed);
+      [tx, ty] = [tx * want - ty * w, ty * want + tx * w];
+    }
+  } else {
+    const c = cellOf(e.x, e.y);
+    let best = flow[c], next = -1;
+    for (const o of [1, -1, MW, -MW]) if (flow[c + o] >= 0 && (best < 0 || flow[c + o] < best)) [best, next] = [flow[c + o], c + o];
+    if (next < 0) return;
+    [tx, ty] = [(next % MW) + 0.5 - e.x, ((next / MW) | 0) + 0.5 - e.y];
+    const m = Math.hypot(tx, ty) || 1;
+    [tx, ty] = [tx / m, ty / m];
+  }
+  if (e.stuck > 0) {
+    e.stuck -= dt;
+    [tx, ty] = [e.sx, e.sy];
+  }
+  const s = speed * dt, x0 = e.x, y0 = e.y;
+  walk(e, tx * s, ty * s, e.r, false);
+  if (Math.abs(e.x - x0) + Math.abs(e.y - y0) < s * 0.2 && e.stuck <= 0) {
+    const a = rnd() * TAU;
+    [e.sx, e.sy, e.stuck] = [Math.cos(a), Math.sin(a), 0.4];
+  }
+}
+function flowField() {
+  flow.fill(-1);
+  const q = [cellOf(P.x, P.y)];
+  flow[q[0]] = 0;
+  for (let h = 0; h < q.length; h++)
+    for (const o of [1, -1, MW, -MW]) {
+      const n = q[h] + o;
+      if (flow[n] === -1 && (map[n] === 0 || map[n] === DOOR)) {
+        flow[n] = flow[q[h]] + 1;
+        q.push(n);
+      }
+    }
+}
+function doorsTick(dt) {
+  for (const d of doors.values()) {
+    const cx = d.x + 0.5, cy = d.y + 0.5, movers = [[P.x, P.y, P.hp > 0 ? 1.6 : 0, 0.24]];
+    for (const e of ents) if (e.foe && e.st !== "idle" && e.st !== "dying" && e.st !== "dead") movers.push([e.x, e.y, 1.3, e.r]);
+    let near = false, inside = false;
+    for (const [x, y, reach, r] of movers) {
+      near ||= Math.hypot(x - cx, y - cy) < reach;
+      inside ||= Math.abs(x - cx) < 0.5 + r && Math.abs(y - cy) < 0.5 + r;
+    }
+    d.hold = near || inside ? 1.2 : d.hold - dt;
+    const want = d.hold > 0 ? 1 : 0;
+    if (want !== d.want) {
+      d.want = want;
+      const far = Math.hypot(P.x - cx, P.y - cy);
+      if (far < 9) SFX.door(1 - far / 10);
+    }
+    d.open = Math.max(0, Math.min(1, d.open + (want ? 1.8 : -1.8) * dt));
+  }
+}
+function tick(dt) {
+  for (let i = shots.length - 1; i >= 0; i--) {
+    const s = shots[i];
+    s.t += dt;
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+    const hitMe = P.hp > 0 && Math.hypot(P.x - s.x, P.y - s.y) < 0.36;
+    if (hitMe || wallAt(s.x, s.y) || s.t > 5) {
+      if (hitMe) hurt(7 + rnd() * 6);
+      else SFX.splash();
+      fx.push({ x: s.x - s.vx * dt, y: s.y - s.vy * dt, z: 0.3, t: 0, life: 0.3, frames: GOO });
+      shots.splice(i, 1);
+    }
+  }
+  for (let i = fx.length - 1; i >= 0; i--) if ((fx[i].t += dt) > fx[i].life) fx.splice(i, 1);
+}
+function pickups() {
+  for (let i = ents.length - 1; i >= 0; i--) {
+    const e = ents[i];
+    if (!e.item || (e.x - P.x) ** 2 + (e.y - P.y) ** 2 > 0.36) continue;
+    if (e.kind === "ammo") {
+      if (P.ammo >= 99) continue;
+      P.ammo = Math.min(99, P.ammo + 12);
+      note("PICKED UP A BOX OF AMMO.");
+      SFX.item();
+    } else if (e.kind === "coffee") {
+      if (P.hp >= 100) continue;
+      P.hp = Math.min(100, P.hp + 25);
+      note("A HOT COFFEE. +25 HEALTH.");
+      SFX.item();
+    } else {
+      P.commits++;
+      note(`FOUND A COMMIT. ${P.commits} OF ${totalC}.`);
+      SFX.commit();
+    }
+    P.gotT = 0.25;
+    ents.splice(i, 1);
+  }
+}
+// The server room's tubes flicker; every so often lightning lights the yard, and thunder follows.
+function weather(dt) {
+  if ((G.flick -= dt) <= 0) {
+    G.flick = 0.06 + rnd() * 0.12;
+    G.fl = rnd() < 0.15 ? 0.45 : 0.85 + rnd() * 0.25;
+  }
+  if ((G.boltT -= dt) <= 0) {
+    G.boltT = 6 + rnd() * 8;
+    G.flashT = 0;
+    SFX.thunder(0.3 + rnd() * 0.9, ceilT[cellOf(P.x, P.y)] === SKYT ? 0.9 : 0.4);
+  }
+  const t = (G.flashT += dt);
+  G.flash = reduced ? 0 : t < 0.07 ? 1 : t < 0.15 ? 0 : t < 0.27 ? 0.7 : 0;
+}
+function finish() {
+  if (G.state !== "playing") return;
+  G.doneT = 0;
+  keys.clear();
+  SFX.win();
+  setState("done", `Cellar cleared in ${clock(P.time)}: ${P.kills} of ${total} bugs and ${P.commits} of ${totalC} commits. Press Enter to play again.`);
+  if (document.pointerLockElement === cv) document.exitPointerLock();
+}
+function update(dt) {
+  G.t += dt;
+  if (G.state === "done") {
+    G.doneT += dt;
+    return;
+  }
+  P.shotT += dt;
+  if (G.state === "playing" && P.hp > 0) {
+    P.time += dt;
+    controls(dt);
+  }
+  mouseDX = 0;
+  if (G.state === "dead") {
+    P.deadT += dt;
+    P.eye = Math.max(0.1, 0.5 - P.deadT * 0.7);
+  } else P.eye = 0.5 + Math.sin(P.bob * 2) * 0.014 * P.bobAmp;
+  if (cellOf(P.x, P.y) !== G.flowCell) {
+    G.flowCell = cellOf(P.x, P.y);
+    flowField();
+  }
+  doorsTick(dt);
+  for (const e of ents) if (e.foe) think(e, dt);
+  tick(dt);
+  if (G.state === "playing" && P.hp > 0) pickups();
+  weather(dt);
+  P.fireT -= dt;
+  P.hurtT -= dt;
+  P.gotT -= dt;
+  P.msgT -= dt;
+  G.muzzle = Math.max(0, G.muzzle - dt * 5);
+}
+
+// ---------------------------------------------------------------- the loop, and what starts and stops it
+const said = document.getElementById("gameSaid");
+const LABEL = {
+  title: "Storm Cellar, a first-person shooter. Press Enter to play.",
+  playing: "Storm Cellar, playing. Escape pauses.",
+  paused: "Storm Cellar, paused. Press Enter to go on.",
+  dead: "Storm Cellar: the bugs got you. Press Enter to try again.",
+  done: "Storm Cellar, cleared. Press Enter to play again.",
+};
+function setState(s, speak) {
+  G.state = s;
+  cv.dataset.state = s;
+  cv.setAttribute("aria-label", LABEL[s]);
+  if (speak) said.textContent = speak;
+}
+let raf = 0, last = 0;
+function loop(now) {
+  raf = 0;
+  const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
+  last = now;
+  update(dt);
+  render();
+  if (G.state === "playing" || (G.state === "dead" && P.deadT < 1.2) || (G.state === "done" && G.doneT < 2)) raf = requestAnimationFrame(loop);
+}
+function kick() {
+  if (raf) return;
+  last = performance.now();
+  raf = requestAnimationFrame(loop);
+}
+function start() {
+  reset();
+  setState("playing", "Playing. Clear the cellar and find the exit.");
+  note("SQUASH THE BUGS. FIND THE EXIT.");
+  kick();
+}
+function act() {
+  audio();
+  if (G.state === "paused") {
+    setState("playing", "Playing.");
+    kick();
+  } else if (G.state === "title" || (G.state === "dead" && P.deadT > 0.9) || (G.state === "done" && G.doneT > 1.6)) start();
+}
+function pause() {
+  if (G.state !== "playing") return;
+  keys.clear();
+  mouseFire = touch.fire = false;
+  setState("paused", "Paused.");
+  if (document.pointerLockElement === cv) document.exitPointerLock();
+  render();
+}
+function lock() {
+  try {
+    cv.requestPointerLock()?.catch?.(() => {});
+  } catch {}
+}
+function toggleSound() {
+  sound = !sound;
+  try {
+    localStorage.setItem("github-leaderboard.sound", sound ? "on" : "off");
+  } catch {}
+  if (ac) (sound ? ac.resume() : ac.suspend()).catch(() => {});
+  note(sound ? "SOUND ON." : "SOUND OFF.");
+}
+const GAME_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space", "ShiftLeft", "ShiftRight", "KeyF"]);
+cv.addEventListener("keydown", (e) => {
+  if (e.altKey || e.metaKey || e.ctrlKey) return;
+  if (G.state !== "playing") {
+    if (e.code === "Enter" || e.code === "NumpadEnter" || e.code === "Space") {
+      e.preventDefault();
+      if (!e.repeat) act();
+    }
+    return;
+  }
+  if (e.code === "Escape" || e.code === "KeyP") {
+    e.preventDefault();
+    pause();
+  } else if (e.code === "KeyM") toggleSound();
+  else if (GAME_KEYS.has(e.code)) {
+    e.preventDefault();
+    keys.add(e.code);
+  }
+});
+cv.addEventListener("keyup", (e) => keys.delete(e.code));
+const pad = document.getElementById("pad"), stick = document.getElementById("stick"), knob = stick.firstElementChild, fire = document.getElementById("fire");
+cv.addEventListener("blur", (e) => {
+  keys.clear();
+  if (!locked && !pad.contains(e.relatedTarget)) pause();
+});
+cv.addEventListener("pointerdown", (e) => {
+  if (e.pointerType === "touch") pad.hidden = false;
+  if (e.button !== 0) return;
+  e.preventDefault();
+  cv.focus({ preventScroll: true });
+  if (G.state === "playing") {
+    if (e.pointerType === "mouse" && !locked) lock();
+    mouseFire = true;
+    return;
+  }
+  act();
+  if (G.state === "playing" && e.pointerType === "mouse") lock();
+});
+addEventListener("pointerup", () => (mouseFire = false));
+document.addEventListener("pointerlockchange", () => {
+  const was = locked;
+  locked = document.pointerLockElement === cv;
+  if (was && !locked) pause();
+});
+document.addEventListener("mousemove", (e) => {
+  if (locked && G.state === "playing") mouseDX += e.movementX;
+});
+document.addEventListener("visibilitychange", () => document.hidden && pause());
+new IntersectionObserver(([e]) => e.isIntersecting || pause()).observe(cv);
+// On a touch screen: a stick to move and turn, and a fire button.
+if (matchMedia("(pointer: coarse)").matches) pad.hidden = false;
+let stickId = null;
+function moveStick(e) {
+  const r = stick.getBoundingClientRect(), R = r.width / 2;
+  let dx = (e.clientX - r.left - R) / R, dy = (e.clientY - r.top - R) / R;
+  const m = Math.hypot(dx, dy);
+  if (m > 1) [dx, dy] = [dx / m, dy / m];
+  touch.turn = Math.abs(dx) < 0.15 ? 0 : dx;
+  touch.move = Math.abs(dy) < 0.15 ? 0 : -dy;
+  knob.style.transform = `translate(${dx * R * 0.6}px, ${dy * R * 0.6}px)`;
+}
+stick.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  stickId = e.pointerId;
+  stick.setPointerCapture(e.pointerId);
+  moveStick(e);
+  if (G.state !== "playing") act();
+});
+stick.addEventListener("pointermove", (e) => e.pointerId === stickId && moveStick(e));
+const endStick = (e) => {
+  if (e.pointerId !== stickId) return;
+  stickId = null;
+  touch.move = touch.turn = 0;
+  knob.style.transform = "";
+};
+stick.addEventListener("pointerup", endStick);
+stick.addEventListener("pointercancel", endStick);
+fire.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  if (G.state === "playing") touch.fire = true;
+  else act();
+});
+for (const ev of ["pointerup", "pointercancel", "pointerleave"]) fire.addEventListener(ev, () => (touch.fire = false));
+fire.addEventListener("click", () => G.state !== "playing" && act());
+
+// The title: the yard, the storm, and the bugs waiting. Drawn once; nothing moves until you play.
+reset();
+[P.x, P.y, P.a] = [6.8, 6.5, -0.3];
+render();
+});
 </script>
 </body>
 </html>
