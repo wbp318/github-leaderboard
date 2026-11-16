@@ -4,3 +4,4 @@ node_modules/
 site/leaderboard.html
 site/badge/
 site/version.txt
+site/us-counties.js

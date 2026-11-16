@@ -6,9 +6,10 @@
 //   SCOPE=LA,MS,AR   only some states (default: all)
 //   HISTORY=<file>   the daily history to show (default: data/history.json, if there is one)
 //   OUT=<file>       where to write the page (default: site/leaderboard.html); the badges go in
-//                    badge/ beside it, and version.txt, the build's time, which an open page checks
-//                    to see if there is a newer one
+//                    badge/ beside it, version.txt, the build's time, which an open page checks
+//                    to see if there is a newer one, and us-counties.js, the county map's shapes
 //   BADGES=0         no badges (for test builds)
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { resolve } from "node:path";
@@ -139,8 +140,20 @@ data.history = lastYear(readHistory(process.env.HISTORY ?? new URL("../data/hist
 data.home = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).homepage;
 
 const out = process.env.OUT ? pathToFileURL(resolve(process.env.OUT)) : new URL("../site/leaderboard.html", import.meta.url);
+// The county map's shapes (web/us-counties.json, from scripts/make-geo.mjs), as a script the page
+// loads when the map comes near: a script rather than JSON, so it loads into a file:// page too.
+// Its name carries a hash of it, so a browser's cache never serves old shapes. The page decodes
+// them with src/geo.mjs, copied in here, so the page and its tests run the same code.
+const geoJson = readFileSync(new URL("../web/us-counties.json", import.meta.url), "utf8").trim();
+const geoJs = `/* The shape of every county: ${JSON.parse(geoJson).license}. */\n__countyGeo(${geoJson});\n`;
+writeFileSync(new URL("us-counties.js", out), geoJs);
+data.geo = `us-counties.js?v=${createHash("sha256").update(geoJs).digest("hex").slice(0, 8)}`;
+const decodeGeo = readFileSync(new URL("../src/geo.mjs", import.meta.url), "utf8").replace(/^export function decodeGeo/m, "function decodeGeo");
+
 const tpl = readFileSync(new URL("../web/template.html", import.meta.url), "utf8");
-const page = tpl.replace("/*__DATA__*/null", () => JSON.stringify(data).replace(/</g, String.fromCharCode(92) + "x3c"));
+const page = tpl
+  .replace("/*__DECODE_GEO__*/", () => decodeGeo)
+  .replace("/*__DATA__*/null", () => JSON.stringify(data).replace(/</g, String.fromCharCode(92) + "x3c"));
 writeFileSync(out, page);
 writeFileSync(new URL("version.txt", out), `${data.generated}
 `);
