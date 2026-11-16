@@ -302,7 +302,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
 </header>
 <section id="cellar" aria-labelledby="cellarTitle">
   <h2 id="cellarTitle">Storm Cellar</h2>
-  <p class="lede">The tornado shook the bugs loose. A little first-person shooter in the old blocky style, drawn and coded for this page: clear out the cellar, find the five commits, and get to the exit. Then go down the storm drain under it, where something big is waiting by the way out.</p>
+  <p class="lede">The tornado shook the bugs loose. A little first-person shooter in the old blocky style, drawn and coded for this page: clear out the cellar, find the five commits and the neighbours sheltering there, and get to the exit, with Biscuit the dog at your heels. Then go down the storm drain under it, where something big is waiting by the way out.</p>
   <div class="arcade">
     <canvas id="game" width="320" height="200" tabindex="0" role="application" data-state="title" aria-roledescription="game" aria-label="Storm Cellar, a first-person shooter. Press Enter to play." aria-describedby="gameKeys"></canvas>
     <div class="pad" id="pad" hidden>
@@ -328,7 +328,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
     <div class="scroll"><table id="keyTable"><thead><tr><th>Action</th><th>Keys</th><th></th></tr></thead><tbody></tbody></table></div>
     <div class="bar"><button type="button" class="btn" id="keyReset">Reset all keys</button><span class="lbl" id="keyMsg" role="status" aria-live="polite"></span></div>
   </details>
-  <p class="note" id="gameKeys">Click the game or press Enter to play. W A S D or the arrow keys move, the mouse or the left and right arrows turn, click or Space shoots, the mouse up and down looks up and down (or, with V or the switch below, walks you forward and back), 1 and 2, Q, or the mouse wheel switch weapons, Shift runs, M turns the sound off and on, and Esc pauses. Paused, S saves your progress in this browser, and C on the title picks it up again; the buttons below do the same. On a phone, drag the left pad to move and turn, hold Fire, and tap Swap or the gun at the bottom left to switch weapons.</p>
+  <p class="note" id="gameKeys">Click the game or press Enter to play. W A S D or the arrow keys move, the mouse or the left and right arrows turn, click or Space shoots, the mouse up and down looks up and down (or, with V or the switch below, walks you forward and back), 1 and 2, Q, or the mouse wheel switch weapons, Shift runs, M turns the sound off and on, and Esc pauses. Walk up to a neighbour sheltering from the storm and they'll tell you what they know, and Biscuit, Hank's dog, follows you and goes for the bugs. Paused, S saves your progress in this browser, and C on the title picks it up again; the buttons below do the same. On a phone, drag the left pad to move and turn, hold Fire, and tap Swap or the gun at the bottom left to switch weapons.</p>
   <p class="sr" id="gameSaid" role="status" aria-live="polite"></p>
 </section>
 <form class="findme" id="findme" autocomplete="off">
@@ -3798,6 +3798,435 @@ const BULB = (() => {
   return s;
 })();
 
+// ---------------------------------------------------------------- the neighbours, and Biscuit
+// Six neighbours sheltering from the storm, three to a level, and Biscuit, Hank's scruffy dog, who
+// comes along with you. Made after everything above, with their own random numbers, so the
+// pictures above stay as they were.
+const r3 = rng(3);
+function fillR(s, x0, y0, x1, y1, fn) {
+  for (let y = y0; y <= y1; y++)
+    for (let x = x0; x <= x1; x++) {
+      const c = typeof fn === "function" ? fn(x, y) : fn;
+      if (c) dot(s, x, y, c);
+    }
+}
+// Cloth lit from the upper left, with a little grain.
+const cloth = (c, x0, x1, y0, y1) => (x, y) => mul(c, 1.12 - ((x - x0) / Math.max(1, x1 - x0)) * 0.36 - ((y - y0) / Math.max(1, y1 - y0)) * 0.12 + (r3() - 0.5) * 0.07);
+const skinOf = (c) => (nx, ny) => mul(c, 1.08 - nx * 0.18 - ny * 0.12);
+function flip(s) {
+  const o = spr(s.w, s.h);
+  for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) o.px[y * s.w + x] = s.px[y * s.w + s.w - 1 - x];
+  return o;
+}
+// An arm: a thick line from a to b, in a colour or a colour for each pixel.
+function limb(s, ax, ay, bx, by, c, th = 3) {
+  const n = Math.ceil(Math.max(Math.abs(bx - ax), Math.abs(by - ay))) || 1, o = Math.floor(th / 2);
+  for (let i = 0; i <= n; i++) {
+    const x = Math.round(ax + ((bx - ax) * i) / n) - o, y = Math.round(ay + ((by - ay) * i) / n) - o;
+    for (let a = 0; a < th; a++) for (let b = 0; b < th; b++) dot(s, x + a, y + b, typeof c === "function" ? c(x + a, y + b) : c);
+  }
+}
+const EYE = rgb(30, 22, 26);
+
+// Hank, in the cellar's back room: straw hat, plaid shirt, overalls. Biscuit is his. He waves.
+function hank(wave) {
+  const s = spr(32, 60), skin = rgb(226, 170, 132), denimC = rgb(64, 96, 156), denim = cloth(denimC, 9, 22, 26, 55);
+  const plaid = (x, y) => mul(rgb(186, 52, 44), (x % 4 === 0 ? 0.68 : 1) * (y % 4 === 1 ? 0.74 : 1) * (1.1 - (x - 6) * 0.018));
+  for (const x0 of [9, 17]) fillR(s, x0, 55, x0 + 5, 59, (x, y) => mul(rgb(104, 66, 38), y === 55 ? 1.25 : 1.05 - (x - x0) * 0.05));
+  fillR(s, 10, 38, 14, 54, denim);
+  fillR(s, 17, 38, 21, 54, denim);
+  fillR(s, 10, 19, 21, 19, plaid);
+  fillR(s, 9, 20, 22, 39, plaid);
+  fillR(s, 10, 36, 21, 40, denim);
+  fillR(s, 11, 27, 20, 37, denim);
+  fillR(s, 14, 30, 17, 33, mul(denimC, 0.78));
+  fillR(s, 11, 19, 12, 27, denim);
+  fillR(s, 19, 19, 20, 27, denim);
+  for (const x of [12, 19]) dot(s, x, 27, rgb(236, 200, 96));
+  limb(s, 7, 21, 7, 35, plaid);
+  oval(s, 7, 37, 2, 2, skin);
+  if (!wave) {
+    limb(s, 24, 21, 24, 35, plaid);
+    oval(s, 24, 37, 2, 2, skin);
+  }
+  fillR(s, 14, 17, 17, 19, mul(skin, 0.8));
+  oval(s, 15.5, 12, 5, 6, skinOf(skin));
+  dot(s, 10, 12, mul(skin, 0.8));
+  dot(s, 21, 12, mul(skin, 0.75));
+  for (const x of [13, 18]) dot(s, x, 12, EYE);
+  fillR(s, 12, 10, 14, 10, rgb(206, 204, 198));
+  fillR(s, 17, 10, 19, 10, rgb(206, 204, 198));
+  fillR(s, 15, 13, 16, 14, mul(skin, 0.82));
+  fillR(s, 12, 15, 19, 15, rgb(218, 216, 210));
+  fillR(s, 13, 16, 18, 16, rgb(196, 194, 188));
+  dot(s, 12, 16, rgb(196, 194, 188));
+  dot(s, 19, 16, rgb(196, 194, 188));
+  for (const [x, y] of [[13, 17], [15, 18], [17, 17], [18, 18], [14, 18]]) dot(s, x, y, mul(skin, 0.86));
+  const straw = (x, y) => mul(rgb(224, 190, 112), ((x + y * 2) % 3 === 0 ? 0.8 : 1) * (1.1 - (x - 5) * 0.012));
+  fillR(s, 11, 1, 20, 6, straw);
+  dot(s, 11, 1, 0);
+  dot(s, 20, 1, 0);
+  fillR(s, 11, 5, 20, 5, rgb(140, 46, 36));
+  oval(s, 15.5, 7, 11, 2, straw);
+  if (wave) {
+    const hx = wave === 1 ? 28 : 26, hy = wave === 1 ? 7 : 3;
+    limb(s, 24, 21, 27, 16, plaid);
+    limb(s, 27, 16, hx, hy + 2, plaid);
+    oval(s, hx, hy, 2.2, 2.4, skin);
+  }
+  return outline(s, OUT);
+}
+// Junie, in the cellar's west room: a yellow raincoat with the hood up, red boots, and a flashlight
+// pointed your way that flickers.
+function junie(on) {
+  const s = spr(28, 44), skin = rgb(236, 186, 150), coatC = rgb(244, 194, 36), coat = cloth(coatC, 5, 22, 16, 34);
+  for (const x0 of [8, 15]) fillR(s, x0, 38, x0 + 4, 43, (x, y) => (x === x0 + 1 && y < 41 ? rgb(255, 150, 140) : mul(rgb(206, 40, 44), y === 38 ? 1.15 : 1 - (x - x0) * 0.05)));
+  fillR(s, 9, 33, 12, 37, rgb(52, 58, 98));
+  fillR(s, 15, 33, 18, 37, rgb(44, 50, 88));
+  for (let y = 16; y <= 34; y++) {
+    const hw = 6 + ((y - 16) / 18) * 2.6;
+    fillR(s, Math.round(13.5 - hw), y, Math.round(13.5 + hw) - 1, y, coat);
+  }
+  for (let y = 18; y <= 34; y++) dot(s, 13, y, mul(coatC, 0.7));
+  for (const y of [20, 25, 30]) dot(s, 12, y, rgb(120, 80, 20));
+  fillR(s, 6, 27, 9, 27, mul(coatC, 0.72));
+  fillR(s, 17, 27, 20, 27, mul(coatC, 0.66));
+  limb(s, 5, 18, 4, 29, coat);
+  oval(s, 4, 31, 1.6, 1.8, skin);
+  limb(s, 21, 18, 23, 23, coat);
+  limb(s, 23, 23, 19, 26, coat);
+  // The flashlight, held at the chest and pointed at you, and the glow round it.
+  if (on) for (let y = 16; y <= 30; y++) for (let x = 11; x <= 26; x++) {
+    const r = Math.hypot(x + 0.5 - 18, y + 0.5 - 23);
+    if (r > 2.6 && r < 4.8 && (x + y) & 1) dot(s, x, y, r < 3.8 ? rgb(255, 236, 160, 1) : rgb(250, 210, 110, 1));
+  }
+  fillR(s, 17, 24, 20, 27, rgb(70, 74, 86));
+  oval(s, 19, 27, 1.8, 1.6, skin);
+  oval(s, 18, 23, 2.4, 2.4, (nx, ny) => {
+    const r = Math.hypot(nx, ny);
+    if (!on) return r > 0.7 ? rgb(120, 124, 136) : rgb(150, 140, 100);
+    return r > 0.7 ? rgb(180, 184, 196) : r > 0.35 ? rgb(255, 226, 120, 1) : rgb(255, 255, 230, 1);
+  });
+  oval(s, 13.5, 10, 7, 7.5, (nx, ny) => mul(coatC, 1.12 - nx * 0.25 - ny * 0.15));
+  oval(s, 13.5, 11.5, 4.6, 5, skinOf(skin));
+  fillR(s, 10, 7, 17, 7, rgb(118, 70, 38));
+  fillR(s, 9, 8, 11, 8, rgb(118, 70, 38));
+  fillR(s, 16, 8, 18, 8, rgb(104, 60, 32));
+  for (const x of [11, 16]) {
+    dot(s, x, 11, EYE);
+    dot(s, x, 12, EYE);
+  }
+  dot(s, 10, 14, rgb(240, 130, 120));
+  dot(s, 17, 14, rgb(240, 130, 120));
+  fillR(s, 13, 15, 14, 15, rgb(170, 70, 60));
+  return outline(s, OUT);
+}
+// Dale from IT, hiding behind the server racks: a hoodie and a lanyard, glasses lit by the laptop
+// he's still typing on.
+function dale(typing) {
+  const s = spr(32, 60), skin = rgb(196, 138, 98), hoodC = rgb(84, 94, 116), hood = cloth(hoodC, 6, 25, 19, 40);
+  for (const x0 of [9, 17]) fillR(s, x0, 56, x0 + 5, 59, (x, y) => (y === 59 ? rgb(150, 150, 156) : y === 58 ? rgb(196, 70, 60) : rgb(226, 226, 232)));
+  fillR(s, 10, 39, 14, 55, cloth(rgb(58, 76, 116), 10, 21, 39, 55));
+  fillR(s, 17, 39, 21, 55, cloth(rgb(58, 76, 116), 10, 21, 39, 55));
+  oval(s, 15.5, 19.5, 7, 3, mul(hoodC, 0.72));
+  fillR(s, 10, 20, 21, 20, hood);
+  fillR(s, 9, 21, 22, 40, hood);
+  for (const x of [13, 18]) fillR(s, x, 21, x, 25, rgb(230, 230, 236));
+  seg(s, 12, 20, 15, 27, rgb(206, 50, 50));
+  seg(s, 19, 20, 16, 27, rgb(206, 50, 50));
+  fillR(s, 14, 27, 17, 30, rgb(236, 236, 240));
+  fillR(s, 15, 28, 16, 28, rgb(60, 120, 200));
+  limb(s, 7, 21, 7, 31, hood);
+  limb(s, 24, 21, 24, 31, hood);
+  // The laptop, its lid towards you, with a sticker like the contribution graph.
+  fillR(s, 7, 32, 24, 39, (x, y) => (y === 32 ? rgb(196, 200, 208) : mul(rgb(150, 154, 166), 1.08 - (x - 7) * 0.014)));
+  for (const [x, y, c] of [[14, 34, 3], [16, 34, 2], [14, 36, 1], [16, 36, 3]]) fillR(s, x, y, x + 1, y + 1, GH[c + 1]);
+  const f = typing ? 1 : 0;
+  oval(s, 8 + f, 32 - f, 1.8, 1.6, skin);
+  oval(s, 23 - f, 32, 1.8, 1.6, skin);
+  fillR(s, 14, 17, 17, 18, mul(skin, 0.8));
+  oval(s, 15.5, 12, 5, 6, skinOf(skin));
+  dot(s, 10, 12, mul(skin, 0.8));
+  dot(s, 21, 12, mul(skin, 0.75));
+  oval(s, 15.5, 7, 5.6, 3.2, (nx, ny, x, y) => (y > 8 ? 0 : rgb(44, 34, 30)));
+  fillR(s, 10, 8, 11, 10, rgb(44, 34, 30));
+  fillR(s, 20, 8, 21, 10, rgb(44, 34, 30));
+  // Glasses, catching the screen's glow.
+  for (const x0 of [11, 17]) {
+    fillR(s, x0, 11, x0 + 3, 11, rgb(54, 46, 46));
+    dot(s, x0, 12, rgb(54, 46, 46));
+    dot(s, x0 + 3, 12, rgb(54, 46, 46));
+    dot(s, x0 + 1, 12, typing ? rgb(150, 220, 255, 1) : EYE);
+    dot(s, x0 + 2, 12, typing ? EYE : rgb(150, 220, 255, 1));
+  }
+  fillR(s, 15, 12, 16, 12, rgb(54, 46, 46));
+  fillR(s, 14, 16, 17, 16, mul(skin, 0.7));
+  for (const [x, y] of [[12, 16], [19, 16], [13, 17], [18, 17], [15, 17]]) dot(s, x, y, mul(skin, 0.8));
+  return outline(s, OUT);
+}
+// Gus the plumber, down the drain in his waders, with a headlamp and a pipe wrench he taps.
+function gus(tap) {
+  const s = spr(32, 62), skin = rgb(220, 158, 120), wadeC = rgb(76, 92, 60), wade = cloth(wadeC, 8, 23, 26, 58);
+  for (const x0 of [8, 17]) fillR(s, x0, 56, x0 + 6, 61, (x, y) => mul(rgb(46, 54, 38), y === 56 ? 1.2 : 1.05 - (x - x0) * 0.04));
+  fillR(s, 10, 38, 14, 55, wade);
+  fillR(s, 17, 38, 21, 55, wade);
+  const flannel = (x, y) => mul(rgb(64, 82, 124), ((x + 1) % 4 === 0 ? 0.7 : 1) * (y % 5 === 0 ? 0.76 : 1) * (1.1 - (x - 6) * 0.016));
+  fillR(s, 10, 19, 21, 19, flannel);
+  fillR(s, 9, 20, 22, 27, flannel);
+  fillR(s, 9, 27, 22, 40, wade);
+  fillR(s, 11, 19, 12, 27, rgb(40, 46, 34));
+  fillR(s, 19, 19, 20, 27, rgb(40, 46, 34));
+  for (const x of [12, 19]) dot(s, x, 28, rgb(170, 176, 180));
+  limb(s, 24, 21, 24, 35, flannel);
+  oval(s, 24, 37, 2, 2, skin);
+  // The wrench, in his left hand: hanging, or swung up to tap.
+  const [ex, ey] = tap ? [2, 31] : [6, 50];
+  limb(s, 7, 21, 7, 34, flannel);
+  limb(s, 7, 37, ex, ey, rgb(196, 44, 40), 2);
+  oval(s, 7, 36, 2.1, 2.1, skin);
+  const jx = tap ? ex - 1 : ex, jy = tap ? ey - 3 : ey;
+  fillR(s, jx - 2, jy, jx + 2, jy + 3, rgb(150, 156, 166));
+  dot(s, jx, jy + 1, rgb(60, 64, 70));
+  dot(s, jx, jy + 2, rgb(60, 64, 70));
+  fillR(s, 14, 17, 17, 19, mul(skin, 0.8));
+  oval(s, 15.5, 12, 5, 6, skinOf(skin));
+  dot(s, 10, 12, mul(skin, 0.8));
+  dot(s, 21, 12, mul(skin, 0.75));
+  for (const x of [13, 18]) dot(s, x, 12, EYE);
+  fillR(s, 15, 13, 16, 14, mul(skin, 0.78));
+  for (let y = 14; y <= 17; y++) for (let x = 11; x <= 20; x++) if ((x + y) & 1 && Math.hypot((x + 0.5 - 15.5) / 5, (y + 0.5 - 12) / 6) < 1) dot(s, x, y, rgb(150, 146, 140));
+  fillR(s, 14, 16, 17, 16, rgb(120, 60, 50));
+  // An orange beanie with a headlamp on it.
+  oval(s, 15.5, 7.5, 6, 4.8, (nx, ny, x, y) => (y > 8 ? 0 : mul(rgb(234, 116, 30), 1.1 - nx * 0.25)));
+  fillR(s, 10, 7, 21, 9, (x) => mul(rgb(196, 90, 24), 1.08 - (x - 10) * 0.025));
+  fillR(s, 10, 8, 21, 8, rgb(40, 40, 44));
+  fillR(s, 14, 6, 17, 9, rgb(60, 62, 70));
+  fillR(s, 15, 7, 16, 8, rgb(255, 250, 200, 1));
+  return outline(s, OUT);
+}
+// Nana Rose, in the pump room: a lavender cardigan, curls, glasses, and her knitting.
+function rose(k) {
+  const s = spr(30, 52), skin = rgb(236, 194, 166), cardC = rgb(150, 118, 184), card = cloth(cardC, 6, 23, 18, 33);
+  for (const x0 of [9, 16]) fillR(s, x0, 48, x0 + 4, 51, (x, y) => (y === 48 ? rgb(70, 70, 76) : rgb(30, 30, 34)));
+  fillR(s, 10, 44, 12, 47, mul(skin, 0.86));
+  fillR(s, 17, 44, 19, 47, mul(skin, 0.82));
+  for (let y = 32; y <= 44; y++) {
+    const hw = 7 + ((y - 32) / 12) * 2.5;
+    fillR(s, Math.round(14.5 - hw), y, Math.round(14.5 + hw) - 1, y, (x) => mul(rgb(40, 98, 106), 1.1 - (x - 5) * 0.02));
+  }
+  for (let n = 0; n < 16; n++) dot(s, 6 + r3() * 18, 33 + r3() * 11, n & 1 ? rgb(240, 150, 180) : rgb(250, 230, 200));
+  fillR(s, 9, 18, 20, 18, card);
+  fillR(s, 8, 19, 21, 33, card);
+  fillR(s, 13, 19, 16, 30, rgb(240, 236, 228));
+  for (const y of [21, 24, 27, 30]) dot(s, 12, y, rgb(80, 50, 110));
+  limb(s, 6, 20, 7, 27, card);
+  limb(s, 7, 27, 11, 28, card);
+  limb(s, 23, 20, 22, 27, card);
+  limb(s, 22, 27, 18, 28, card);
+  // The knitting: two needles, the scarf so far, and the yarn down to a ball by her feet.
+  fillR(s, 12, 29, 17, 35, (x, y) => ((x + y) & 1 ? rgb(196, 46, 56) : rgb(226, 70, 80)));
+  seg(s, 17, 34, 25, 46, rgb(206, 56, 66));
+  oval(s, 25, 48, 2.6, 2.6, (nx, ny) => mul(rgb(220, 60, 70), 1.1 - ny * 0.3 - nx * 0.1));
+  oval(s, 11.5, 28.5, 1.7, 1.7, skin);
+  oval(s, 18.5, 28.5, 1.7, 1.7, skin);
+  const [a, b] = k ? [[8, 23, 17, 31], [21, 23, 12, 31]] : [[9, 26, 20, 29], [20, 25, 9, 30]];
+  seg(s, ...a, rgb(236, 236, 244));
+  seg(s, ...b, rgb(206, 206, 216));
+  fillR(s, 13, 16, 16, 18, mul(skin, 0.82));
+  oval(s, 14.5, 11.5, 5, 5.5, skinOf(skin));
+  const curls = (nx, ny) => mul(r3() < 0.3 ? rgb(176, 176, 190) : rgb(234, 234, 242), 1.06 - nx * 0.16 - ny * 0.08);
+  oval(s, 14.5, 7, 7.2, 5.4, (nx, ny, x, y) => (y > 9 && Math.abs(nx) < 0.62 ? 0 : y > 12 ? 0 : curls(nx, ny)));
+  for (const cx of [12, 17]) {
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) dot(s, cx + dx, 11 + dy, rgb(120, 92, 60));
+    dot(s, cx, 11, EYE);
+  }
+  dot(s, 14, 11, rgb(120, 92, 60));
+  dot(s, 15, 11, rgb(120, 92, 60));
+  dot(s, 11, 14, rgb(240, 140, 140));
+  dot(s, 18, 14, rgb(240, 140, 140));
+  fillR(s, 13, 15, 16, 15, rgb(170, 80, 80));
+  return outline(s, OUT);
+}
+// Sal, out on a delivery when the storm hit: a green cap and shirt, and two pizzas. Sal glances about.
+function sal(glance) {
+  const s = spr(32, 60), skin = rgb(176, 116, 80), greenC = rgb(46, 138, 84), green = cloth(greenC, 6, 25, 19, 38);
+  for (const x0 of [9, 17]) fillR(s, x0, 56, x0 + 5, 59, (x, y) => (y === 59 ? rgb(150, 150, 156) : rgb(232, 232, 236)));
+  fillR(s, 10, 38, 14, 55, cloth(rgb(40, 40, 48), 10, 21, 38, 55));
+  fillR(s, 17, 38, 21, 55, cloth(rgb(40, 40, 48), 10, 21, 38, 55));
+  fillR(s, 10, 19, 21, 19, green);
+  fillR(s, 9, 20, 22, 38, green);
+  fillR(s, 12, 19, 19, 20, rgb(236, 236, 240));
+  fillR(s, 15, 21, 16, 23, rgb(236, 236, 240));
+  fillR(s, 18, 23, 21, 24, rgb(240, 240, 244));
+  dot(s, 19, 23, rgb(200, 40, 40));
+  limb(s, 7, 21, 6, 31, green);
+  limb(s, 24, 21, 25, 31, green);
+  // Two pizza boxes, a little steam off the top one.
+  const up = glance ? 1 : 0;
+  for (const y0 of [31 - up, 35 - up]) {
+    fillR(s, 5, y0, 26, y0 + 3, (x, y) => (y === y0 ? rgb(232, 204, 150) : y === y0 + 3 ? rgb(150, 116, 70) : mul(rgb(206, 170, 112), 1.06 - (x - 5) * 0.012)));
+  }
+  fillR(s, 14, 32 - up, 17, 33 - up, rgb(200, 40, 40));
+  fillR(s, 15, 32 - up, 16, 32 - up, rgb(250, 200, 60));
+  oval(s, 5, 33 - up, 1.8, 2, skin);
+  oval(s, 26, 33 - up, 1.8, 2, skin);
+  fillR(s, 14, 17, 17, 18, mul(skin, 0.8));
+  oval(s, 15.5, 12, 5, 6, skinOf(skin));
+  fillR(s, 10, 9, 11, 14, rgb(36, 26, 22));
+  fillR(s, 20, 9, 21, 14, rgb(36, 26, 22));
+  for (const x of [13, 18]) {
+    dot(s, x, 12, rgb(250, 250, 250));
+    dot(s, x + (glance ? 1 : 0), 12, EYE);
+  }
+  fillR(s, 15, 13, 16, 14, mul(skin, 0.8));
+  fillR(s, 14, 16, 17, 16, rgb(150, 74, 62));
+  dot(s, 13, 15, mul(skin, 0.8));
+  dot(s, 18, 15, mul(skin, 0.8));
+  oval(s, 15.5, 7, 5.8, 3.8, (nx, ny, x, y) => (y > 8 ? 0 : mul(greenC, 1.1 - nx * 0.25)));
+  fillR(s, 14, 4, 17, 4, rgb(196, 140, 60));
+  fillR(s, 14, 5, 17, 5, rgb(250, 204, 70));
+  fillR(s, 15, 6, 16, 6, rgb(250, 204, 70));
+  dot(s, 15, 5, rgb(214, 50, 40));
+  oval(s, 15.5, 9, 7.5, 1.4, mul(greenC, 0.7));
+  return outline(s, OUT);
+}
+// Each neighbour: their frames, and the corner of the first that shows in the talk box.
+const FOLK_ART = {
+  hank: { frames: [hank(0), hank(1), hank(2)], face: [2, 0] },
+  junie: { frames: [junie(true), junie(false)], face: [0, 2] },
+  dale: { frames: [dale(false), dale(true)], face: [2, 0] },
+  gus: { frames: [gus(false), gus(true)], face: [2, 0] },
+  rose: { frames: [rose(false), rose(true)], face: [1, 0] },
+  sal: { frames: [sal(false), sal(true)], face: [2, 0] },
+};
+
+// Biscuit: a scruffy little terrier mix, tan with a dark patch over one eye and a red collar.
+const FUR = rgb(196, 150, 96), FURD = rgb(112, 76, 46), CREAM = rgb(234, 212, 172), NOSE = rgb(26, 20, 20), TONGUE = rgb(232, 112, 124);
+const furry = (c) => (nx, ny) => mul(c, 1.08 - nx * 0.18 - ny * 0.22 + (r3() - 0.5) * 0.16);
+function tufts(s, cx, cy, rx, ry, c, n) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.PI + (i / (n - 1)) * Math.PI, x = cx + Math.cos(a) * (rx + 0.6), y = cy + Math.sin(a) * (ry + 0.6);
+    if (r3() < 0.6) dot(s, x, y, mul(c, 0.8 + r3() * 0.3));
+  }
+}
+// Sitting, facing you: panting, and wagging.
+function dogSit(f) {
+  const s = spr(34, 34);
+  const tail = f ? [[9, 27], [4, 23], [3, 17]] : [[24, 27], [29, 23], [30, 17]];
+  seg(s, ...tail[0], ...tail[1], FUR, 2);
+  seg(s, ...tail[1], ...tail[2], FUR, 2);
+  dot(s, tail[2][0], tail[2][1] - 1, FURD);
+  oval(s, 16.5, 28.5, 11, 5.5, furry(FUR));
+  oval(s, 16.5, 22, 7.5, 8, (nx, ny) => (Math.abs(nx) < 0.55 ? mul(CREAM, 1.05 - ny * 0.15 + (r3() - 0.5) * 0.12) : furry(FUR)(nx, ny)));
+  for (const x0 of [12, 19]) {
+    fillR(s, x0, 24, x0 + 2, 31, (x) => mul(CREAM, 1.04 - (x - x0) * 0.06));
+    fillR(s, x0 - 1, 32, x0 + 3, 33, mul(CREAM, 0.94));
+    dot(s, x0, 33, mul(CREAM, 0.7));
+    dot(s, x0 + 2, 33, mul(CREAM, 0.7));
+  }
+  fillR(s, 11, 17, 22, 18, rgb(204, 40, 40));
+  fillR(s, 16, 19, 17, 20, rgb(244, 192, 40));
+  oval(s, 8.5, 12, 2.6, 5.2, furry(FURD));
+  oval(s, 24.5, 12, 2.6, 5.2, furry(FURD));
+  oval(s, 16.5, 10.5, 8, 7, furry(FUR));
+  tufts(s, 16.5, 10.5, 8, 7, FUR, 14);
+  oval(s, 20.5, 8.5, 3, 2.6, mul(FURD, 1.05));
+  oval(s, 16.5, 14, 4.2, 3, (nx, ny) => mul(CREAM, 1.05 - ny * 0.15));
+  fillR(s, 15, 12, 18, 13, NOSE);
+  dot(s, 15, 12, rgb(110, 100, 100));
+  for (const x of [13, 20]) {
+    fillR(s, x, 8, x + 1, 9, rgb(30, 20, 16));
+    dot(s, x, 8, rgb(240, 240, 240));
+  }
+  for (const [x, y] of [[12, 6], [13, 6], [19, 6], [20, 5], [21, 6]]) dot(s, x, y, mul(FUR, 0.72));
+  fillR(s, 14, 15, 19, 15, rgb(70, 30, 30));
+  fillR(s, 16, 16, 17, f ? 18 : 19, TONGUE);
+  dot(s, 16, 16, rgb(250, 160, 170));
+  return outline(s, OUT);
+}
+// Running, side on, facing right: stretched out, then gathered; and biting, jaws open.
+function dogSide(f, bite) {
+  const s = spr(44, 28);
+  const tailEnd = f ? [4, 5] : [1, 9];
+  seg(s, 9, 14, 5, 10, FUR, 2);
+  seg(s, 5, 10, ...tailEnd, FUR, 2);
+  dot(s, tailEnd[0], tailEnd[1] - 1, FURD);
+  const legs = bite
+    ? [[13, 20, 10, 24, 8, 27], [27, 20, 30, 24, 32, 27]]
+    : f
+      ? [[12, 20, 14, 24, 13, 27], [28, 20, 27, 24, 28, 27]]
+      : [[12, 20, 8, 24, 5, 26], [28, 20, 33, 24, 36, 26]];
+  const far = (l) => l.map((v, i) => v + (i % 2 ? 0 : i === 0 ? 1 : 3));
+  for (const l of legs) {
+    const g = far(l);
+    seg(s, g[0], g[1], g[2], g[3], mul(FUR, 0.62), 2);
+    seg(s, g[2], g[3], g[4], g[5], mul(FUR, 0.62), 2);
+  }
+  oval(s, 20, 16, 12, 5.5, (nx, ny) => (ny > 0.45 ? mul(CREAM, 1 - ny * 0.1) : furry(FUR)(nx, ny)));
+  tufts(s, 20, 16, 12, 5.5, FUR, 16);
+  oval(s, 16, 12.5, 5, 2.4, furry(FURD));
+  for (const l of legs) {
+    seg(s, l[0], l[1], l[2], l[3], FUR, 2);
+    seg(s, l[2], l[3], l[4], l[5], FUR, 2);
+    fillR(s, l[4] - 1, l[5], l[4] + 1, l[5] + 1, CREAM);
+  }
+  const hx = bite ? 35 : 34, hy = bite ? 11 : 9;
+  oval(s, 30, 13, 4.5, 5.5, furry(FUR));
+  oval(s, hx, hy, 6.2, 5.6, furry(FUR));
+  tufts(s, hx, hy, 6.2, 5.6, FUR, 10);
+  oval(s, hx + 1, hy - 1, 2.4, 2.2, mul(FURD, 1.05));
+  if (bite) {
+    oval(s, hx + 5, hy - 1, 3.6, 2, (nx, ny) => mul(CREAM, 1.05 - ny * 0.15));
+    fillR(s, hx + 3, hy + 1, hx + 7, hy + 3, rgb(90, 24, 30));
+    seg(s, hx + 1, hy + 3, hx + 7, hy + 5, CREAM, 2);
+    for (const x of [hx + 4, hx + 6]) dot(s, x, hy + 1, rgb(250, 250, 250));
+    dot(s, hx + 5, hy + 4, rgb(250, 250, 250));
+    fillR(s, hx + 7, hy - 2, hx + 8, hy - 1, NOSE);
+  } else {
+    oval(s, hx + 5.5, hy + 2, 3.5, 2.5, (nx, ny) => mul(CREAM, 1.05 - ny * 0.15));
+    fillR(s, hx + 8, hy + 1, hx + 9, hy + 2, NOSE);
+    fillR(s, hx + 4, hy + 3, hx + 7, hy + 3, rgb(70, 30, 30));
+    fillR(s, hx + 3, hy + 4, hx + 4, f ? hy + 5 : hy + 6, TONGUE);
+  }
+  fillR(s, hx + 1, hy - 2, hx + 2, hy - 1, rgb(30, 20, 16));
+  dot(s, hx + 1, hy - 2, rgb(240, 240, 240));
+  oval(s, hx - 4, hy + (f ? 0 : -2), 2.4, 4, furry(FURD));
+  fillR(s, 28, 10, 29, 16, rgb(204, 40, 40));
+  dot(s, 29, 17, rgb(244, 192, 40));
+  return outline(s, OUT);
+}
+// Knocked out: flat on his side, tongue out, with Zs over him.
+function dogKO(f) {
+  const s = spr(44, 30);
+  seg(s, 8, 24, 2, 26, FUR, 2);
+  for (const [ax, ay, bx, by] of [[13, 26, 9, 29], [17, 27, 15, 29], [26, 26, 30, 29], [23, 27, 26, 29]]) seg(s, ax, ay, bx, by, FUR, 2);
+  oval(s, 19, 23, 12, 4.5, (nx, ny) => (ny > 0.35 ? mul(CREAM, 1 - ny * 0.1) : furry(FUR)(nx, ny)));
+  tufts(s, 19, 23, 12, 4.5, FUR, 14);
+  oval(s, 33, 23.5, 5.5, 4.5, furry(FUR));
+  oval(s, 34, 22, 2.4, 2, mul(FURD, 1.05));
+  oval(s, 38, 25, 3.2, 2.2, (nx, ny) => mul(CREAM, 1.05 - ny * 0.15));
+  fillR(s, 40, 24, 41, 25, NOSE);
+  for (const [x, y] of [[33, 21], [35, 23], [35, 21], [33, 23], [34, 22]]) dot(s, x, y, rgb(30, 20, 16));
+  fillR(s, 37, 27, 38, 28, TONGUE);
+  oval(s, 29, 26.5, 3, 1.6, furry(FURD));
+  fillR(s, 28, 20, 29, 26, rgb(204, 40, 40));
+  const z = rgb(180, 214, 255, 1);
+  textTo(s.px, 44, 30, "Z", 30, f ? 9 : 11, z);
+  textTo(s.px, 44, 30, "Z", 37, f ? 1 : 3, z);
+  return outline(s, OUT);
+}
+const DOG = (() => {
+  const runR = [dogSide(false, false), dogSide(true, false)], biteR = dogSide(false, true), sit = [dogSit(false), dogSit(true)];
+  return {
+    sit,
+    pain: tint(sit[0], rgb(255, 255, 255), 0.55),
+    run: [runR, runR.map(flip)],
+    bite: [biteR, flip(biteR)],
+    painSide: [tint(runR[0], rgb(255, 255, 255), 0.55), flip(tint(runR[0], rgb(255, 255, 255), 0.55))],
+    ko: [dogKO(false), dogKO(true)],
+  };
+})();
+
 // ---------------------------------------------------------------- the levels
 // 1, the cellar: # brick, P planks, S stone, T server racks. 2, the storm drain under it: C concrete,
 // O corrugated pipe, V the pumps, R bars over the outfall. Both: D a door, X the exit. On the floor:
@@ -3886,6 +4315,9 @@ const LEVELS = [
       [17, 8, 17, 10, 0.6, 8, 10, 0],
       [1, 17, 7, 22, 0.82, 7, 9, 0],
     ],
+    // The neighbours sheltering here, by the walls of the rooms (x, y, who): Hank in the back room
+    // where you start, Junie in the west room, and Dale behind the server racks.
+    folk: [[1, 19, "hank"], [1, 9, "junie"], [20, 12, "dale"]],
     thunder: 1,
   },
   {
@@ -3918,6 +4350,8 @@ const LEVELS = [
     kinds: { o: { kind: "bulb", r: 0.2 } },
     // The cistern, which the Heisenbug can blink about in.
     arena: [29, 16, 41, 29],
+    // Gus in the west tunnel, Nana Rose in the pump room, and Sal in the overflow room.
+    folk: [[2, 20, "gus"], [21, 4, "rose"], [23, 18, "sal"]],
     thunder: 0.5,
     drips: true,
   },
@@ -3939,7 +4373,18 @@ const KINDS = {
   u: { kind: "barrel", r: 0.3, solid: true },
   o: { kind: "lamp", r: 0.22, solid: true },
 };
-let doors, ents, shots, fx, P, total = 0, totalC = 0;
+// The neighbours: walk up to one and they talk. The first time, they count as found and say the
+// first thing (a hint, mostly); after that, the second. Bugs leave them be, and shots and lightning
+// go past them.
+const FOLK = {
+  hank: { name: "Hank", says: ["Biscuit's going with you. He bites bugs, and he's quicker than my knees. Bring him back in one piece!", "A hot coffee perks you both up. Don't tell Biscuit's vet."] },
+  junie: { name: "Junie", says: ["My flashlight found a commit in the little hall between the yard and the server room. There are five in all!", "I'm not scared. Bugs hate the light. And loud bangs. Mostly the loud bangs."] },
+  dale: { name: "Dale from IT", says: ["I'm not hiding, I'm monitoring. The exit's through the yard's east door, and there's a commit in there too.", "Have you tried turning the bugs off and on again? I have. It didn't help."] },
+  gus: { name: "Gus the plumber", says: ["Up the big drain, first gate on the north side: the pump room. There's a lightning rod in there. Batteries charge it.", "Forty years in pipes and I never saw a roach that size. That rod jumps from one bug to the next."] },
+  rose: { name: "Nana Rose", says: ["That big bug by the ladder blinks away when it's hurt, dear. Watch where it pops up, and step between its spit.", "I knitted through the storm of '74 and I'll knit through this one. Mind your feet in the water, dear."] },
+  sal: { name: "Sal", says: ["Pizza for... the Heisenbug? The order says the cistern, through the culvert east of here. I'm not going.", "It's been way more than thirty minutes. Is it free now? Please say it's free."] },
+};
+let doors, ents, shots, fx, P, dog, total = 0, totalC = 0, totalS = 0;
 // run is the cellar's tally, kept for the end; carry is the ammo you take down the drain.
 const G = { state: "title", level: 0, t: 0, muzzle: 0, flash: 0, flashT: 9, boltT: 5, fl: 1, flick: 0, lastAlert: -9, doneT: 0, flowCell: -1, boss: null, bar: 0, shake: 0, white: 0, drip: 1, run: null, carry: 40 };
 function reset(n) {
@@ -3972,7 +4417,7 @@ function reset(n) {
   ents = [];
   shots = [];
   fx = [];
-  P = { x: 4.5, y: 21.5, a: -Math.PI / 2, pitch: 0, hp: 100, ammo: 40, cells: 0, arm: 0, want: 0, has: [true, false], swapT: 9, step: 0, bolt: null, kills: 0, commits: 0, bob: 0, bobAmp: 0, eye: 0.5, fireT: 0, shotT: 9, hurtT: 0, gotT: 0, msg: "", msgT: 0, time: 0, deadT: 0 };
+  P = { x: 4.5, y: 21.5, a: -Math.PI / 2, pitch: 0, hp: 100, ammo: 40, cells: 0, arm: 0, want: 0, has: [true, false], swapT: 9, step: 0, bolt: null, kills: 0, commits: 0, bob: 0, bobAmp: 0, eye: 0.5, fireT: 0, shotT: 9, hurtT: 0, gotT: 0, msg: "", msgT: 0, time: 0, deadT: 0, met: 0 };
   const wall = (ch) => !!L.walls[ch] && ch !== "D";
   for (let y = 0; y < MH; y++)
     for (let x = 0; x < MW; x++) {
@@ -3984,9 +4429,13 @@ function reset(n) {
       // id: its place in the level's map order, the same every time, so a save can name it.
       else if (kind) ents.push({ ...kind, id: ents.length, max: kind.hp, x: x + 0.5, y: y + 0.5, st: "idle", t: 0, cd: 0, anim: rnd() * 3, look: rnd() * 0.3, seed: rnd() * TAU, stuck: 0, sx: 0, sy: 0, hitT: 0, blinks: 0 });
     }
+  // The neighbours come after everything on the map, so the ids a save uses stay as they were.
+  for (const [x, y, who] of L.folk) ents.push({ kind: "folk", who, ...FOLK[who], id: ents.length, x: x + 0.5, y: y + 0.5, r: 0.3, solid: true, st: "idle", seed: x * 1.7 + y, met: false, near: false });
   total = ents.filter((e) => e.foe).length;
   totalC = ents.filter((e) => e.kind === "commit").length;
-  Object.assign(G, { flowCell: -1, boss: null, bar: 0, shake: 0, white: 0, muzzle: 0 });
+  totalS = L.folk.length;
+  dog = newDog();
+  Object.assign(G, { flowCell: -1, boss: null, bar: 0, shake: 0, white: 0, muzzle: 0, talk: null });
   TEX[T_HATCH] = HATCH_SHUT;
   swapBtn.hidden = true;
 }
@@ -4079,6 +4528,13 @@ const SFX = {
   drip: (v) => tone("sine", 1700 + rnd() * 500, 700, 0.06, 0.07 * v),
   wade: () => hiss(900, 300, 0.12, 0.12, 0, 1.2, "bandpass"),
   fanfare: () => [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => tone("square", f, f, i === 6 ? 0.7 : 0.16, 0.12, i * 0.13)),
+  // Biscuit's bark (two woofs), his yelp, and the snap of his jaws; a neighbour's hello, and a word again.
+  woof: (d) => (tone("sawtooth", 520, 230, 0.1, 0.2, d), tone("square", 300, 160, 0.08, 0.08, d), hiss(1500, 500, 0.08, 0.3, d, 2, "bandpass")),
+  bark: () => (SFX.woof(0), SFX.woof(0.17)),
+  yelp: () => (tone("triangle", 900, 1500, 0.07, 0.22), tone("triangle", 1500, 700, 0.18, 0.18, 0.07)),
+  snap: () => (hiss(3200, 1200, 0.05, 0.35, 0, 2, "bandpass"), tone("square", 260, 160, 0.05, 0.1)),
+  hello: () => [392, 494, 587, 784].forEach((f, i) => tone("triangle", f, f * 1.02, 0.12, 0.2, i * 0.08)),
+  chat: () => (tone("triangle", 587, 600, 0.07, 0.14), tone("triangle", 740, 760, 0.09, 0.14, 0.08)),
 };
 
 // ---------------------------------------------------------------- rays
@@ -4199,8 +4655,38 @@ function look(e) {
     case "rod": return [RODITEM, 1.4, 0, false];
     case "barrel": return [BARREL, 1.35, 0, false];
     case "bulb": return [BULB, 1, 1 - BULB.h / TS, false];
+    case "folk": return [folkFrame(e), 1, 0, false];
     default: return [LAMP, 1, 0, false];
   }
+}
+// A neighbour's picture just now: still for a while, then a little something (Hank waves, Junie's
+// flashlight flickers, Dale types, Gus taps his wrench, Rose knits, Sal glances about). Still, with
+// reduced motion.
+function folkFrame(e) {
+  const f = FOLK_ART[e.who].frames;
+  if (reduced) return f[0];
+  const t = G.t + e.seed;
+  switch (e.who) {
+    case "hank": return t % 5 < 1.6 ? f[1 + (((t * 5) | 0) & 1)] : f[0];
+    case "junie": return (t * 7) % 9 < 0.6 || (t * 7) % 13 < 0.4 ? f[1] : f[0];
+    case "dale": return f[((t * 6) | 0) % 3 === 0 ? 1 : 0];
+    case "gus": return t % 3 < 0.9 ? f[((t * 3) | 0) & 1] : f[0];
+    case "rose": return f[((t * 3) | 0) & 1];
+    default: return t % 4 < 1.4 ? f[1] : f[0];
+  }
+}
+// Biscuit just now: asleep (knocked out), flinching, biting, running (side on, facing the way he's
+// going across the view), or sitting and wagging.
+function dogLook(dirX, dirY) {
+  const d = dog;
+  if (d.ko > 0) return [DOG.ko[reduced ? 0 : ((G.t * 1.5) | 0) & 1], 1, 0, false];
+  const fight = d.st === "bite" || d.prey, [vx, vy] = fight ? [d.fx, d.fy] : [d.vx, d.vy], across = dirX * vy - dirY * vx;
+  if (Math.abs(across) > 0.25 * Math.hypot(vx, vy)) d.face = across > 0 ? 0 : 1;
+  if (d.hitT > 0) return [d.moving || fight ? DOG.painSide[d.face] : DOG.pain, 1, 0, false];
+  if (d.st === "bite") return [DOG.bite[d.face], 1, 0, false];
+  // On a bug between bites: side on to it, squared up.
+  if (d.moving || fight) return [DOG.run[d.face][d.moving ? ((d.anim * 9) | 0) & 1 : 0], 1, 0, false];
+  return [DOG.sit[reduced ? 0 : ((G.t * 3) | 0) & 1], 1, 0, false];
 }
 function sprites(dirX, dirY) {
   const list = [];
@@ -4212,6 +4698,7 @@ function sprites(dirX, dirY) {
     const l = look(e);
     if (l) add(e.x, e.y, ...l);
   }
+  if (G.state !== "title") add(dog.x, dog.y, ...dogLook(dirX, dirY));
   for (const s of shots) add(s.x, s.y, (s.big ? ORB : SPIT)[((G.t * 12) | 0) & 1], s.big ? 1.4 : 1, s.big ? 0.3 : 0.36, true);
   for (const f of fx) add(f.x, f.y, f.frames[Math.min(2, ((f.t / f.life) * 3) | 0)], f.k ?? 1, f.z, f.frames !== PUFF);
   list.sort((a, b) => b.depth - a.depth);
@@ -4348,7 +4835,59 @@ function bossBar() {
       buf[y * W + x] = y === y0 || y === y0 + 5 || x === x0 - 1 || x === x0 + w ? DARK : at < f ? (y === y0 + 1 ? rgb(255, 170, 150) : RED) : at < G.bar ? INK : rgb(60, 22, 28);
     }
 }
+// Biscuit's health, in a small bar over him while he's hurt.
+function dogBar(dirX, dirY) {
+  const d = dog;
+  if (d.ko > 0 || d.hp >= DOG_MAX) return;
+  const sx = d.x - P.x, sy = d.y - P.y, depth = dirX * sx + dirY * sy;
+  if (depth < 0.3 || depth > 10) return;
+  const cx = Math.round(PROJ * (1 + (dirX * sy - dirY * sx) / depth)), y = Math.round(HZ + ((P.eye - 0.62) * PROJ) / depth) - 3;
+  if (cx < 0 || cx >= W || depth >= zbuf[cx] || y < 2 || y > VH - 4) return;
+  const w = Math.max(10, Math.min(24, Math.round((PROJ * 0.36) / depth))), x0 = cx - (w >> 1), f = d.hp / DOG_MAX;
+  const c = f > 0.5 ? rgb(90, 220, 110) : f > 0.25 ? GOLD : RED;
+  for (let yy = y - 1; yy <= y + 2; yy++)
+    for (let x = Math.max(0, x0 - 1); x <= Math.min(W - 1, x0 + w); x++)
+      buf[yy * W + x] = yy === y - 1 || yy === y + 2 || x === x0 - 1 || x === x0 + w ? DARK : (x - x0) / w < f ? c : rgb(50, 24, 28);
+}
+function wrapText(s, n) {
+  const out = [];
+  let line = "";
+  for (const w of s.split(" ")) {
+    if (line && line.length + 1 + w.length > n) {
+      out.push(line);
+      line = w;
+    } else line = line ? `${line} ${w}` : w;
+  }
+  if (line) out.push(line);
+  return out;
+}
+// What a neighbour says: a strip along the bottom of the view with their face, their name, and their
+// words, typed out (all at once, with reduced motion).
+function talkBox() {
+  const T = G.talk, e = T.e, x0 = 4, x1 = W - 5, y0 = VH - 47, y1 = VH - 4;
+  for (let y = y0; y <= y1; y++)
+    for (let x = x0; x <= x1; x++) {
+      const i = y * W + x, p = buf[i];
+      buf[i] = y === y0 || y === y1 || x === x0 || x === x1 ? rgb(70, 86, 130) : 0xff000000 | ((((p >> 16) & 255) * 0.22 + 34) << 16) | ((((p >> 8) & 255) * 0.22 + 16) << 8) | ((p & 255) * 0.22 + 8);
+    }
+  const s = folkFrame(e), [fx, fy] = FOLK_ART[e.who].face;
+  for (let y = 0; y < 38; y++)
+    for (let x = 0; x < 30; x++) {
+      const c = fx + x < s.w ? s.px[(fy + y) * s.w + fx + x] : 0;
+      buf[(y0 + 3 + y) * W + x0 + 3 + x] = c ? c | 0xff000000 : rgb(24, 32, 58);
+    }
+  const tx = x0 + 38;
+  say(e.name, tx, y0 + 4, GOLD, 1, 1);
+  let left = reduced ? 1e9 : Math.floor(T.t * 40);
+  T.rows.forEach((r, i) => {
+    if (left > 0) say(r.slice(0, left), tx, y0 + 15 + i * 9, INK, 1, 1);
+    left -= r.length + 1;
+  });
+}
 const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+// The cellar's tally, kept for the end of the drain. A save from before there were neighbours has no
+// count of them: none found, of the cellar's three.
+const runOf = () => ({ kills: 0, total: 0, commits: 0, totalC: 0, time: 0, ...G.run, met: G.run?.met ?? 0, totalS: G.run?.totalS ?? LEVELS[0].folk.length });
 function render() {
   HZ = HALF + Math.round(P.pitch);
   TEX[T_RACK] = RACKS[((G.t * 2.5) | 0) % 3];
@@ -4364,12 +4903,14 @@ function render() {
   flats(dirX, dirY);
   walls(dirX, dirY);
   sprites(dirX, dirY);
+  if (G.state !== "title") dogBar(dirX, dirY);
   if (G.state !== "title" && P.hp > 0) gun(dirX, dirY);
   if (P.hurtT > 0) wash(rgb(200, 0, 0), Math.min(0.55, P.hurtT));
   if (P.gotT > 0) wash(rgb(255, 210, 60), Math.min(0.28, P.gotT));
   if (G.white > 0) wash(rgb(255, 255, 255), Math.min(reduced ? 0.3 : 0.85, G.white));
   if (G.state === "dead") wash(rgb(130, 0, 0), 0.38);
   hud();
+  if (G.state === "playing" && G.talk) talkBox();
   const up = G.boss && G.boss.st !== "dead" && G.state !== "title";
   if (up) bossBar();
   if (G.state === "playing" && P.msgT > 0) say(P.msg, 4, up ? 24 : 4, GOLD, 1, 1);
@@ -4397,19 +4938,20 @@ function render() {
     if (P.deadT > 0.9 && saved) sayC(`OR PRESS ${kg("load")} TO LOAD YOUR SAVE`, 160, 100, INK);
   } else if (G.state === "cleared" || G.state === "won") {
     // The tally, counting up: the cellar's after level 1, both levels' at the end.
-    const t = G.doneT, won = G.state === "won", r = won ? G.run : { kills: 0, total: 0, commits: 0, totalC: 0, time: 0 };
+    const t = G.doneT, won = G.state === "won", r = won ? runOf() : { kills: 0, total: 0, commits: 0, totalC: 0, met: 0, totalS: 0, time: 0 };
     const row = (k, v, y) => (say(k, 64, y, INK, 2, 1), say(v, 256 - textW(v, 2), y, GOLD, 2, 1));
     const count = (n, at) => Math.min(n, Math.floor(((t - at) / 0.5) * n));
     wash(rgb(0, 0, 0), 0.6);
     sayC(won ? "ALL CLEAR" : "CELLAR CLEARED", 160, 14, logo, 3, 2);
     sayC(won ? "BOTH LEVELS" : "LEVEL 1 OF 2", 160, 42, MUTED, 1, 0);
-    row("BUGS", `${count(r.kills + P.kills, 0)}/${r.total + total}`, 56);
-    if (t > 0.6) row("COMMITS", `${count(r.commits + P.commits, 0.6)}/${r.totalC + totalC}`, 78);
-    if (t > 1.2) row("TIME", clock(r.time + P.time), 100);
+    row("BUGS", `${count(r.kills + P.kills, 0)}/${r.total + total}`, 54);
+    if (t > 0.4) row("COMMITS", `${count(r.commits + P.commits, 0.4)}/${r.totalC + totalC}`, 72);
+    if (t > 0.8) row("SURVIVORS", `${count(r.met + P.met, 0.8)}/${r.totalS + totalS}`, 90);
+    if (t > 1.2) row("TIME", clock(r.time + P.time), 108);
     if (t > 1.6) {
-      sayC(won ? "THE HEISENBUG IS SQUASHED. THE STORM HAS PASSED." : "NEXT: THE STORM DRAIN UNDER THE CELLAR", 160, 124, INK);
-      sayC(won ? "CLICK OR PRESS ENTER FOR THE TITLE" : "CLICK OR PRESS ENTER TO GO DOWN", 160, 140, GOLD);
-      if (!won) sayC(`${kg("save")} SAVES HERE, AT THE TOP OF THE DRAIN`, 160, 152, MUTED);
+      sayC(won ? "THE HEISENBUG IS SQUASHED. THE STORM HAS PASSED." : "NEXT: THE STORM DRAIN UNDER THE CELLAR", 160, 129, INK);
+      sayC(won ? "CLICK OR PRESS ENTER FOR THE TITLE" : "CLICK OR PRESS ENTER TO GO DOWN", 160, 142, GOLD);
+      if (!won) sayC(`${kg("save")} SAVES HERE, AT THE TOP OF THE DRAIN`, 160, 154, MUTED);
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -4541,6 +5083,7 @@ function describeKeys() {
     `Click the game or press Enter to play. ${move}, the mouse or ${kn("turnLeft")} and ${kn("turnRight")} turn, click or ${kn("fire")} shoots, ` +
     `the mouse up and down looks up and down (or, with ${kn("mouse")} or the switch below, walks you forward and back), ` +
     `${kn("arm1")} and ${kn("arm2")}, ${kn("swap")}, or the mouse wheel switch weapons, ${kn("run")} runs, ${kn("sound")} turns the sound off and on, and Esc pauses. ` +
+    "Walk up to a neighbour sheltering from the storm and they'll tell you what they know, and Biscuit, Hank's dog, follows you and goes for the bugs. " +
     `Paused, ${kn("save")} saves your progress in this browser, and ${kn("load")} on the title picks it up again; the buttons below do the same, and Keys changes any key. ` +
     "On a phone, drag the left pad to move and turn, hold Fire, and tap Swap or the gun at the bottom left to switch weapons.";
 }
@@ -4883,7 +5426,12 @@ function think(e, dt) {
     if (e.st === "attack") {
       if (!e.hit && e.t > 0.22) {
         e.hit = true;
-        if (dist < 1.15) {
+        if (e.atDog) {
+          if (dogBy(e, 1.05)) {
+            SFX.bite();
+            hurtDog((e.bite + rnd() * e.more) * 0.6);
+          }
+        } else if (dist < 1.15) {
           SFX.bite();
           hurt(e.bite + rnd() * e.more);
         }
@@ -4892,8 +5440,11 @@ function think(e, dt) {
         to(e, "chase");
         e.cd = 0.45;
       }
-    } else if (dist < 0.85 && e.cd <= 0) to(e, "attack");
-    else steer(e, dt, e.speed, dist, dx, dy, false);
+    } else if ((dist < 0.85 || dogBy(e, 0.8)) && e.cd <= 0) {
+      // You, if you're in reach; or else Biscuit, if he's at it.
+      to(e, "attack");
+      e.atDog = dist >= 0.85;
+    } else steer(e, dt, e.speed, dist, dx, dy, false);
     return;
   }
   if (e.st === "attack") {
@@ -4952,10 +5503,176 @@ function flowField() {
       }
     }
 }
+// ---------------------------------------------------------------- Biscuit
+// Hank's dog comes with you. He follows a little behind (straight to you when he can see you, or
+// down the flow field), runs to keep up, and goes for a bug that's awake and near, barking: a modest
+// bite now and then, through hurtBug, so his squashes count. He leaves the Heisenbug be, and only
+// barks at it. Bugs can bite him, and a moth's spit can hit him; knocked out, he lies down for
+// twenty seconds, then gets up with a little health.
+const DOG_MAX = 60, DOG_KO = 20;
+const dogAt = (x, y) => ({ x, y, r: 0.22, hp: DOG_MAX, ko: 0, st: "sit", t: 0, anim: 0, cd: 0, prey: null, look: 0, barkT: 0, hitT: 0, vx: 0, vy: 0, fx: 1, fy: 0, face: 0, moving: false, following: false, seesYou: true, stuck: 0, far: 0 });
+// Beside you, a step ahead, where you can see him.
+function newDog() {
+  const dx = Math.cos(P.a), dy = Math.sin(P.a);
+  for (const [f, s] of [[1, 0.6], [1, -0.6], [0.8, 0], [-0.8, 0.5], [0, 0.9], [0, -0.9]]) {
+    const x = P.x + dx * f - dy * s, y = P.y + dy * f + dx * s;
+    if (!blocked(x, y, 0.3) && !ents.some((e) => e.solid && Math.hypot(e.x - x, e.y - y) < e.r + 0.3)) return dogAt(x, y);
+  }
+  return dogAt(P.x, P.y);
+}
+// Is Biscuit up, and within reach of this?
+const dogBy = (o, reach) => dog.ko <= 0 && G.state === "playing" && Math.hypot(dog.x - o.x, dog.y - o.y) < reach;
+const inSight = (a, b, d) => cast(a.x, a.y, (b.x - a.x) / d, (b.y - a.y) / d) >= d - 0.1;
+function preyOk(e, reach) {
+  if (!e.foe || e.boss || !alive(e) || e.st === "idle") return false;
+  const d = Math.hypot(e.x - dog.x, e.y - dog.y) || 0.01;
+  return d < reach && Math.hypot(e.x - P.x, e.y - P.y) < 8 && inSight(dog, e, d);
+}
+function bark(gap = 2.2) {
+  if (dog.barkT > 0) return;
+  dog.barkT = gap;
+  SFX.bark();
+}
+function hurtDog(n) {
+  if (dog.ko > 0) return;
+  dog.hp -= n;
+  dog.hitT = 0.15;
+  SFX.yelp();
+  if (dog.hp > 0) return;
+  Object.assign(dog, { hp: 0, ko: DOG_KO, prey: null, st: "sit", moving: false });
+  note("BISCUIT IS KNOCKED OUT. HE'LL BE UP IN A BIT.");
+  said.textContent = "Biscuit is knocked out. He'll be back on his paws in about twenty seconds.";
+}
+function dogThink(dt) {
+  const d = dog, x0 = d.x, y0 = d.y;
+  d.t += dt;
+  d.cd -= dt;
+  d.hitT -= dt;
+  d.barkT -= dt;
+  d.moving = false;
+  d.vx = d.vy = 0;
+  if (d.ko > 0) {
+    if ((d.ko -= dt) > 0) return;
+    Object.assign(d, { ko: 0, hp: 20 });
+    if (G.state === "playing") {
+      note("BISCUIT IS BACK ON HIS PAWS.");
+      said.textContent = "Biscuit is back on his paws.";
+      bark();
+    }
+    return;
+  }
+  if (G.state !== "playing" || P.hp <= 0) return;
+  const pd = Math.hypot(P.x - d.x, P.y - d.y) || 0.01;
+  // A few times a second: a bug to go for (keeping the one he's on), can he see you, and is the
+  // Heisenbug up, to bark at?
+  if ((d.look -= dt) <= 0) {
+    d.look = 0.25;
+    d.seesYou = pd < 10 && inSight(d, P, pd);
+    let prey = d.prey && preyOk(d.prey, 7) ? d.prey : null;
+    if (!prey) {
+      let best = 5;
+      for (const e of ents) {
+        const pe = Math.hypot(e.x - d.x, e.y - d.y);
+        if (pe < best && preyOk(e, 5)) [prey, best] = [e, pe];
+      }
+      if (prey) bark();
+    }
+    d.prey = prey;
+    const k = G.boss;
+    if (!prey && k && (k.st === "chase" || k.st === "attack" || k.st === "stomp") && Math.hypot(k.x - d.x, k.y - d.y) < 8) bark(5 + rnd() * 3);
+  }
+  if (d.st === "bite") {
+    const e = d.prey;
+    if (!d.hit && d.t > 0.12) {
+      d.hit = true;
+      if (e && alive(e) && Math.hypot(e.x - d.x, e.y - d.y) < e.r + d.r + 0.5) {
+        SFX.snap();
+        hurtBug(e, 6 + rnd() * 4);
+      }
+    }
+    if (d.t > 0.32) d.st = "sit";
+    return;
+  }
+  let tx = 0, ty = 0, speed = 0;
+  const e = d.prey;
+  if (e) {
+    const dx = e.x - d.x, dy = e.y - d.y, de = Math.hypot(dx, dy) || 0.01;
+    [d.fx, d.fy] = [dx, dy];
+    if (de > e.r + d.r + 0.22) [tx, ty, speed] = [dx / de, dy / de, 4.8];
+    else if (d.cd <= 0) {
+      Object.assign(d, { st: "bite", t: 0, cd: 1, hit: false });
+      return;
+    }
+  } else if (pd > (d.following ? 1.25 : 1.9)) {
+    // Faster the further behind he is: quicker than you can run, once he's a few steps back.
+    speed = pd > 3.5 ? 6 : pd > 2.2 ? 4.4 : 3.2;
+    if (d.seesYou && d.stuck <= 0) [tx, ty] = [(P.x - d.x) / pd, (P.y - d.y) / pd];
+    else {
+      const c = cellOf(d.x, d.y);
+      let best = flow[c], next = -1;
+      for (const o of [1, -1, MW, -MW]) if (flow[c + o] >= 0 && (best < 0 || flow[c + o] < best)) [best, next] = [flow[c + o], c + o];
+      if (next >= 0) {
+        const nx = (next % MW) + 0.5 - d.x, ny = ((next / MW) | 0) + 0.5 - d.y, m = Math.hypot(nx, ny) || 1;
+        [tx, ty] = [nx / m, ny / m];
+      }
+    }
+  }
+  d.following = !e && speed > 0;
+  if (speed > 0) {
+    const v = speed * dt, was = d.stuck;
+    walk(d, tx * v, ty * v, d.r, false);
+    const moved = Math.hypot(d.x - x0, d.y - y0);
+    // Snagged on a corner going straight for you: down the flow field for a bit instead.
+    d.stuck = moved < v * 0.3 ? 0.8 : was - dt;
+    d.moving = moved > v * 0.3;
+  }
+  if (dt > 0) [d.vx, d.vy] = [(d.x - x0) / dt, (d.y - y0) / dt];
+  if (d.moving) d.anim += dt;
+  // Lost somewhere far behind, and out of your sight: he catches up, a step behind you.
+  const c = flow[cellOf(d.x, d.y)];
+  d.far = c < 0 || c > 16 ? d.far + dt : 0;
+  if (d.far > 1.5 && !(d.seesYou && Math.cos(P.a) * (d.x - P.x) + Math.sin(P.a) * (d.y - P.y) > 0)) {
+    for (const [f, s] of [[-1.2, 0], [-1, 0.6], [-1, -0.6], [-0.6, 0], [0, 0.8], [0, -0.8]]) {
+      const x = P.x + Math.cos(P.a) * f - Math.sin(P.a) * s, y = P.y + Math.sin(P.a) * f + Math.cos(P.a) * s, q = Math.hypot(x - P.x, y - P.y);
+      if (blocked(x, y, 0.3) || !inSight(P, { x, y }, q)) continue;
+      Object.assign(d, { x, y, far: 0, prey: null });
+      break;
+    }
+  }
+}
+
+// ---------------------------------------------------------------- the neighbours
+// Walk up to one and they talk: the first time, they count as found; after that, they say more.
+function folkTick(dt) {
+  for (const e of ents) {
+    if (e.kind !== "folk") continue;
+    const d = Math.hypot(e.x - P.x, e.y - P.y) || 0.01;
+    if (d > 2.2) e.near = false;
+    else if (d < 1.3 && !e.near && cast(P.x, P.y, (e.x - P.x) / d, (e.y - P.y) / d) >= d - 0.35) {
+      e.near = true;
+      talk(e);
+    }
+  }
+  const T = G.talk;
+  if (T && ((T.t += dt) > T.life || Math.hypot(T.e.x - P.x, T.e.y - P.y) > 2.6)) G.talk = null;
+}
+function talk(e) {
+  const first = !e.met, line = e.says[first ? 0 : 1];
+  G.talk = { e, rows: wrapText(line, 44), t: 0, life: Math.max(5, line.length / 40 + 3.5) };
+  if (first) {
+    e.met = true;
+    P.met++;
+    note(`FOUND A SURVIVOR. ${P.met} OF ${totalS}.`);
+    SFX.hello();
+  } else SFX.chat();
+  said.textContent = `${first ? `You found ${e.name}, sheltering from the storm: ${P.met} of ${totalS} survivors here. ` : ""}${e.name} says, "${line}"`;
+}
+
 function doorsTick(dt) {
   for (const d of doors.values()) {
     const cx = d.x + 0.5, cy = d.y + 0.5, movers = [[P.x, P.y, P.hp > 0 ? 1.6 : 0, 0.24]];
     for (const e of ents) if (e.foe && e.st !== "idle" && e.st !== "dying" && e.st !== "dead") movers.push([e.x, e.y, 1.3, e.r]);
+    movers.push([dog.x, dog.y, dog.ko > 0 ? 0 : 1.2, dog.r]);
     let near = false, inside = false;
     for (const [x, y, reach, r] of movers) {
       near ||= Math.hypot(x - cx, y - cy) < reach;
@@ -4979,8 +5696,11 @@ function tick(dt) {
     s.y += s.vy * dt;
     // The Heisenbug's storm is bigger than a moth's spit, and hits harder.
     const hitMe = P.hp > 0 && Math.hypot(P.x - s.x, P.y - s.y) < (s.big ? 0.48 : 0.36);
-    if (hitMe || wallAt(s.x, s.y) || s.t > 5) {
+    // A moth's spit can hit Biscuit too; the Heisenbug's storm flies over him.
+    const hitDog = !hitMe && !s.big && dogBy(s, 0.3);
+    if (hitMe || hitDog || wallAt(s.x, s.y) || s.t > 5) {
       if (hitMe) hurt(s.big ? 10 + rnd() * 7 : 7 + rnd() * 6);
+      else if (hitDog) hurtDog(4 + rnd() * 4);
       else if (!s.big) SFX.splash();
       else if (Math.hypot(P.x - s.x, P.y - s.y) < 8) SFX.pop();
       fx.push({ x: s.x - s.vx * dt, y: s.y - s.vy * dt, z: 0.3, t: 0, life: 0.3, frames: s.big ? BURST : GOO, k: s.big ? 1.6 : 1 });
@@ -4999,9 +5719,12 @@ function pickups() {
       note("PICKED UP A BOX OF AMMO.");
       SFX.item();
     } else if (e.kind === "coffee") {
-      if (P.hp >= 100) continue;
+      // Biscuit gets some too, if he's hurt and close by: it even wakes him.
+      const pup = dog.hp < DOG_MAX && Math.hypot(dog.x - P.x, dog.y - P.y) < 3.5;
+      if (P.hp >= 100 && !pup) continue;
       P.hp = Math.min(100, P.hp + 25);
-      note("A HOT COFFEE. +25 HEALTH.");
+      if (pup) Object.assign(dog, { hp: Math.min(DOG_MAX, dog.hp + 20), ko: 0 });
+      note(pup ? "A HOT COFFEE. +25 HEALTH, AND BISCUIT PERKS UP." : "A HOT COFFEE. +25 HEALTH.");
       SFX.item();
     } else if (e.kind === "battery") {
       if (P.cells >= 99) continue;
@@ -5052,14 +5775,14 @@ function finish() {
   keys.clear();
   mouseFire = touch.fire = false;
   if (G.level === 0) {
-    G.run = { kills: P.kills, total, commits: P.commits, totalC, time: P.time };
+    G.run = { kills: P.kills, total, commits: P.commits, totalC, met: P.met, totalS, time: P.time };
     G.carry = Math.max(24, P.ammo);
     SFX.win();
-    setState("cleared", `Cellar cleared in ${clock(P.time)}: ${P.kills} of ${total} bugs and ${P.commits} of ${totalC} commits. Press Enter to go down the storm drain, level 2.`);
+    setState("cleared", `Cellar cleared in ${clock(P.time)}: ${P.kills} of ${total} bugs, ${P.commits} of ${totalC} commits, and ${P.met} of ${totalS} survivors found. Press Enter to go down the storm drain, level 2.`);
   } else {
-    const r = G.run;
+    const r = runOf();
     SFX.fanfare();
-    setState("won", `All clear: the Heisenbug is squashed. Both levels in ${clock(r.time + P.time)}: ${r.kills + P.kills} of ${r.total + total} bugs and ${r.commits + P.commits} of ${r.totalC + totalC} commits. Press Enter for the title.`);
+    setState("won", `All clear: the Heisenbug is squashed. Both levels in ${clock(r.time + P.time)}: ${r.kills + P.kills} of ${r.total + total} bugs, ${r.commits + P.commits} of ${r.totalC + totalC} commits, and ${r.met + P.met} of ${r.totalS + totalS} survivors found. Press Enter for the title.`);
   }
   if (document.pointerLockElement === cv) document.exitPointerLock();
 }
@@ -5087,8 +5810,12 @@ function update(dt) {
   }
   doorsTick(dt);
   for (const e of ents) if (e.foe) think(e, dt);
+  dogThink(dt);
   tick(dt);
-  if (G.state === "playing" && P.hp > 0) pickups();
+  if (G.state === "playing" && P.hp > 0) {
+    pickups();
+    folkTick(dt);
+  }
   weather(dt);
   P.fireT -= dt;
   P.hurtT -= dt;
@@ -5103,7 +5830,9 @@ function update(dt) {
 // ---------------------------------------------------------------- the loop, and what starts and stops it
 // ---------------------------------------------------------------- saving your progress
 // One saved game, kept in this browser (localStorage): the level, where you stand and what you carry,
-// and which bugs are squashed and which pickups are gone. The level itself is rebuilt from its map,
+// which bugs are squashed and which pickups are gone, which neighbours you've found (met, by name),
+// and Biscuit (dog: x, y, health, and seconds left knocked out). A save from before the neighbours
+// and Biscuit has neither, and loads with no one found and Biscuit beside you. The level itself is rebuilt from its map,
 // so a save is small. Saved from the pause screen (S) or the Save button; the title (C) or Continue
 // picks it up. Saved after the cellar, it starts you at the top of the storm drain.
 const SAVE_KEY = "github-leaderboard.cellar";
@@ -5128,6 +5857,8 @@ function saveGame() {
     s.p = { x: r2(P.x), y: r2(P.y), a: r2(P.a), hp: Math.ceil(P.hp), ammo: P.ammo, cells: P.cells, want: P.want, has: P.has, kills: P.kills, commits: P.commits, time: r2(P.time) };
     s.items = ents.filter((e) => e.item).map((e) => e.id);
     s.foes = ents.filter((e) => e.foe).map((e) => [e.id, r2(e.x), r2(e.y), Math.ceil(e.hp), e.st === "dying" || e.st === "dead" ? 1 : 0, e.blinks]);
+    s.met = ents.filter((e) => e.kind === "folk" && e.met).map((e) => e.who);
+    s.dog = [r2(dog.x), r2(dog.y), Math.ceil(dog.hp), Math.ceil(dog.ko)];
   }
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(s));
@@ -5165,6 +5896,16 @@ function loadGame() {
       Object.assign(e, { st: "dead", t: 9, z: 0 });
       if (e.boss) TEX[T_HATCH] = HATCH_OPEN;
     }
+    const met = new Set(Array.isArray(s.met) ? s.met : []);
+    for (const e of ents) if (e.kind === "folk" && met.has(e.who)) [e.met, P.met] = [true, P.met + 1];
+    // Biscuit where he was, or else (from an older save) beside you.
+    const g = s.dog;
+    if (Array.isArray(g) && g.length >= 4 && g.every(Number.isFinite)) {
+      const ko = Math.max(0, Math.min(DOG_KO, g[3]));
+      Object.assign(dog, { hp: ko > 0 ? 0 : Math.max(1, Math.min(DOG_MAX, g[2])), ko });
+      if (!blocked(g[0], g[1], dog.r)) [dog.x, dog.y] = [g[0], g[1]];
+      else Object.assign(dog, { ...newDog(), hp: dog.hp, ko });
+    } else dog = newDog();
     swapBtn.hidden = !P.has[1];
   }
   setState("playing", `Back to your save: ${savedSays(s)}.`);
@@ -5203,8 +5944,8 @@ const LABEL = {
   playing: () => `Storm Cellar, playing level ${G.level + 1}, ${L.name}. Escape pauses, and ${kn("save")} then saves.`,
   paused: () => `Storm Cellar, paused. Press Enter to go on, or ${kn("save")} to save your progress${saved ? `, or ${kn("load")} to load your save` : ""}.`,
   dead: () => `Storm Cellar: the bugs got you. Press Enter to try ${G.level ? "the storm drain again" : "again"}${saved ? `, or ${kn("load")} to load your save` : ""}.`,
-  cleared: () => "Storm Cellar: the cellar is cleared. Press Enter to go down the storm drain, level 2.",
-  won: () => "Storm Cellar: all clear, both levels done. Press Enter for the title.",
+  cleared: () => `Storm Cellar: the cellar is cleared, with ${P.met} of ${totalS} survivors found. Press Enter to go down the storm drain, level 2.`,
+  won: () => `Storm Cellar: all clear, both levels done, with ${runOf().met + P.met} of ${runOf().totalS + totalS} survivors found. Press Enter for the title.`,
 };
 function setState(s, speak) {
   G.state = s;
