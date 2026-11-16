@@ -80,7 +80,6 @@ $env:GH_TOKEN = gh auth token; npm run collect      # PowerShell
 
 Each of these is an issue with what to build, where in the code, and how to know it is done. Comment on one to claim it.
 
-- [Counties for every state](https://github.com/wbp318/github-leaderboard/issues/19)
 - [Live lookups for anyone: a Cloudflare Worker behind Find yourself](https://github.com/wbp318/github-leaderboard/issues/10)
 
 [All good first issues](https://github.com/wbp318/github-leaderboard/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). Have a different idea? [Open an issue](https://github.com/wbp318/github-leaderboard/issues/new/choose).

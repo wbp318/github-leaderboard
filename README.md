@@ -27,7 +27,7 @@ Register-ScheduledTask -TaskName "Update Chromium" -Force `
 To stop it: `Unregister-ScheduledTask -TaskName "Update Chromium"`.
 </details>
 
-A year of GitHub contributions across the United States, drawn as a spinning tornado: all 50 states, the nine Census divisions and four regions, Louisiana parish by parish, Mississippi, Alabama, Arkansas, and Tennessee county by county, and leaderboards in eight categories. About 34,000 developers found, the likeliest-busiest 80 in each state compared, refreshed every day by GitHub Actions. One HTML file, no frameworks, no dependencies.
+A year of GitHub contributions across the United States, drawn as a spinning tornado: all 50 states, the nine Census divisions and four regions, every county in the country on a map, and leaderboards in eight categories. About 34,000 developers found, the likeliest-busiest 80 in each state compared, refreshed every day by GitHub Actions. One HTML page and the shapes of the counties, no frameworks, no dependencies, and nothing loaded from anywhere else.
 
 **See it live: https://wbp318.github.io/github-leaderboard/** and type your GitHub login to see where you rank. Not on it? One click adds you.
 
@@ -40,15 +40,16 @@ A year of GitHub contributions across the United States, drawn as a spinning tor
 ## What is on the page
 
 - **Storm Cellar.** At the top, a little first-person shooter in the old blocky style: the tornado shook the bugs loose, so clear the cellar, find the five commits, and get to the exit. Then go down the storm drain under it: a bigger, flooded level with roaches, five more commits, a lightning rod to find, and the Heisenbug, a storm bug as wide as the tunnel, holding the way out. It's drawn at 320×200 by a ray caster, and every texture, sprite, letter, and sound is made in code. You play it with the keyboard and mouse, or a stick and Fire and Swap buttons on a phone. It only runs while you play, and links to a view or to someone's ranks open past it.
-- **The tornado.** Each ring is a place, the busiest at the top. Its red half is public commits; its blue half is everything else: pull requests, reviews, issues, new repositories, and private contributions for people who show them. Click a ring to go down a level, from divisions to states to a state's busiest people. Louisiana by parish, and Mississippi, Alabama, Arkansas, and Tennessee by county, have tornadoes of their own. It works from the keyboard too: Tab to it, arrow keys to move between rings, Enter to go down, Escape to come back up. A screen reader reads each ring's place and numbers. Round it the weather rolls in: clouds, rain, debris riding the updraft, and every few seconds lightning that strikes the busiest ring, with thunder if you turn it on. The **Storm** switch turns it all off, and it starts off if your system asks for reduced motion.
+- **The tornado.** Each ring is a place, the busiest at the top. Its red half is public commits; its blue half is everything else: pull requests, reviews, issues, new repositories, and private contributions for people who show them. Click a ring to go down a level, from divisions to states to a state's busiest people. Every state by county has a tornado of its own (Louisiana by parish, Alaska by borough), the 24 busiest counties a ring each and the rest together. It works from the keyboard too: Tab to it, arrow keys to move between rings, Enter to go down, Escape to come back up. A screen reader reads each ring's place and numbers. Round it the weather rolls in: clouds, rain, debris riding the updraft, and every few seconds lightning that strikes the busiest ring, with thunder if you turn it on. The **Storm** switch turns it all off, and it starts off if your system asks for reduced motion.
 - **Find yourself.** Type your GitHub login to see your ranks in your parish or county, state, division, region, and the country, with you in gold in the tornado, the lists, and the map. `?me=<login>` links straight to anyone's ranks. Open any other state to see where you would rank there, and the states table shows your rank in all 50 at once.
 - **Share your ranks.** Once you've found yourself, **Share my ranks** draws a picture to post: your GitHub picture, your year, your ranks from county to country, and your state's tornado with you in gold. Download it, copy it, or share it straight from a phone. It also hands you a badge for your profile README, which the daily build redraws, so it always shows today's rank:
 
   ![contribution tornado: #3 in Hinds County · #12 in Mississippi](docs/badge.svg)
 - **Add yourself.** Not on it? The **Add me** button opens a one-click issue; [a bot](https://github.com/wbp318/github-leaderboard/blob/main/.github/workflows/add-me.yml) checks your profile location, adds you, and replies with a link to your ranks in a few minutes. You are refreshed daily after that.
-- **Leaderboards** in eight categories (total, public commits, private, pull requests, reviews, issues, new repositories, followers) for any state, division, region, Louisiana parish, or county in the four states that list them, with each person's location. Search by login, name, or place. **Download CSV** saves the list as you have it, every row and every category, for Excel or Google Sheets.
-- **A map** of all 50 states, coloured by contributions, people counted, or average.
-- **Tables** of the states, the regions and divisions, all 64 Louisiana parishes, and every county in Mississippi (82), Alabama (67), Arkansas (75), and Tennessee (95).
+- **Leaderboards** in eight categories (total, public commits, private, pull requests, reviews, issues, new repositories, followers) for any state, division, region, or county, with each person's location. Search by login, name, or place. **Download CSV** saves the list as you have it, every row and every category, for Excel or Google Sheets.
+- **Every county, on a map.** All 3,141 counties in the 50 states, coloured by contributions, people counted, or average. Click a state to zoom in, and a county to see its leaderboard; arrow keys, Enter, and Escape do the same. People are placed in a county by the town, city, university, or county named in their GitHub location, from the Census Bureau's lists of places. The map's shapes load only when you scroll near it.
+- **A tile map** of the 50 states, coloured the same ways.
+- **Tables** of the states, the regions and divisions, and each state's counties.
 - **Light or dark.** The page follows your system's setting; the switch at the top changes it and remembers your choice.
 - **History.** In the states table, a small line for each state shows how its contributions have moved since the history started. Open a state's tornado for a chart of its total, day by day.
 
@@ -89,10 +90,10 @@ To collect from GitHub yourself (about an hour for every state), see [CONTRIBUTI
 ## Where things are
 
 ```
-src/        placement rules: states.mjs, counties.mjs, counties/, opt-out.txt; badge.mjs
+src/        placement rules: states.mjs, counties.mjs, counties/ (us.json, aliases, 5 hand-made states), opt-out.txt; badge.mjs, geo.mjs (decodes the county map)
 scripts/    collect, audit, build, fetch-data
-web/        template.html, the whole page
-site/       what GitHub Pages serves (leaderboard.html and badge/ are built)
+web/        template.html, the whole page; us-counties.json, the county map's shapes
+site/       what GitHub Pages serves (leaderboard.html, us-counties.js, and badge/ are built)
 test/       placement test cases
 docs/       placement.md, data.md, the screenshots
 .github/    the daily workflow, issue forms

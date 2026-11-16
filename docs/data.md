@@ -48,7 +48,7 @@ A year of contributions for the people looked up: in each state, everyone who pu
 - `total`: the number on their contribution calendar for the last 12 months.
 - `commits`, `prs`, `reviews`, `issues`, `repos`: public contributions of each kind (`repos` is repositories created).
 - `private`: contributions to private repositories, counted only if they show them on their profile. For the busiest accounts GitHub cannot count this field in one query, so it is the calendar total minus the public kinds, which is how the calendar adds up.
-- `tier`: `"w"` for someone looked up weekly. Until every state has counties, the page shows them only in the states that do, and when they are in the sample states are compared on.
+- `tier`: `"w"` for someone looked up weekly.
 - `at`: when they were last looked up. The page and the history leave out anyone not looked up in the 21 days before the newest lookup; the collector forgets people it no longer looks up once their numbers are 60 days old.
 
 ### Who added themselves
@@ -105,4 +105,4 @@ The budget, as of November 2026: about 20,900 people who pushed in the last year
 
 ## Building something new
 
-`scripts/build.mjs` writes everything the page shows into one object in the page (`D` in [web/template.html](../web/template.html)): totals for the country, regions, divisions, states, and the counties of each state with a county list (`D.counties`; Louisiana's are parishes), and one row a person. A new view usually needs only a change to the template. If it needs something the build does not compute yet, add it to the `data` object at the end of the build.
+`scripts/build.mjs` writes everything the page shows into one object in the page (`D` in [web/template.html](../web/template.html)): totals for the country, regions, divisions, states, and each state's counties with someone counted (`D.counties`, by FIPS code; Louisiana's are parishes, Alaska's boroughs), and one row a person. The county map's shapes are a separate file, `us-counties.js`, made from [web/us-counties.json](../web/us-counties.json) (by [scripts/make-geo.mjs](../scripts/make-geo.mjs)) and loaded only when the map comes near. A new view usually needs only a change to the template. If it needs something the build does not compute yet, add it to the `data` object at the end of the build.
