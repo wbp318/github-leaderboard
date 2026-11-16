@@ -500,8 +500,9 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   await still.close();
 }
 // Storm Cellar, the game at the top: its title draws, Enter starts it from the keyboard, the arrow
-// keys turn the view without scrolling the page, Escape pauses it, and Tab moves on past it. On a
-// touch phone it has a stick and a fire button, and still nothing scrolls sideways.
+// keys turn the view and the weapon keys and mouse wheel switch weapons without scrolling the page,
+// Escape pauses it, and Tab moves on past it. On a touch phone it has a stick and a fire button,
+// and a Swap button once there's a second weapon, and still nothing scrolls sideways.
 {
   // Lit pixels on the game's canvas, and a sum over the upper view, below the messages: the
   // walls and ceiling, which change only when the view turns or moves.
@@ -538,9 +539,20 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   await g.waitForTimeout(100);
   check((await pixels(g)).view !== before, "the arrow keys turn the view");
   check((await g.evaluate(() => scrollY)) === scrolled, "and don't scroll the page while the game has them");
+  check(/playing level 1\b/.test((await game.getAttribute("aria-label")) ?? ""), "its label says which level is being played");
+  // The cellar has only the one weapon, so these leave it in hand; level 2 has a second to switch to.
+  const box = await game.boundingBox();
+  await g.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  for (const k of ["Digit2", "Digit1", "KeyQ"]) await g.keyboard.press(k);
+  await g.mouse.wheel(0, 240);
+  await g.waitForTimeout(200);
+  check((await game.getAttribute("data-state")) === "playing" && (await g.evaluate(() => scrollY)) === scrolled, "1, 2, Q, and the mouse wheel switch weapons without scrolling the page");
   await g.keyboard.press("Escape");
   await g.waitForTimeout(100);
   check((await game.getAttribute("data-state")) === "paused", "Escape pauses it");
+  await g.mouse.wheel(0, 240);
+  await g.waitForTimeout(400);
+  check((await g.evaluate(() => scrollY)) > scrolled, "and then the mouse wheel over it scrolls the page as usual");
   await g.keyboard.press("Tab");
   check((await g.evaluate(() => document.activeElement?.id)) !== "game", "and Tab moves on past it");
   check(!errors.some((e) => e.startsWith("game:")), "no script errors in the game");
@@ -552,10 +564,16 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   await t.goto(url);
   await drawn(t);
   check(await t.locator("#pad").isVisible(), "on a touch phone the game shows a stick and a fire button");
+  check(await t.locator("#swap").isHidden(), "and Swap waits until there's a second weapon");
   check((await t.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0, "and nothing scrolls sideways");
   await t.locator("#fire").tap();
   await t.waitForTimeout(300);
   check((await t.locator("#game").getAttribute("data-state")) === "playing", "and Fire starts the game");
+  // A tap on the weapon at the status bar's left switches weapons, and doesn't shoot or stop the game.
+  const screen = await t.locator("#game").boundingBox();
+  await t.locator("#game").tap({ position: { x: screen.width * 0.08, y: screen.height * 0.93 } });
+  await t.waitForTimeout(200);
+  check((await t.locator("#game").getAttribute("data-state")) === "playing", "and tapping the weapon on the status bar keeps it playing");
   check(!errors.some((e) => e.startsWith("game phone:")), "no script errors in the game on a phone");
   await touch.close();
 }
