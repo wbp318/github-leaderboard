@@ -21,17 +21,18 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 | [src/states.mjs](src/states.mjs) | Reads a free-text profile location and decides which state it names, if any. The rules most likely to need you. |
 | [src/counties.mjs](src/counties.mjs) | The states with county lists, and which county a location names. |
 | [src/counties/la.mjs](src/counties/la.mjs) | Louisiana's 64 parishes and the towns and universities in each. |
-| [src/counties/ms.mjs](src/counties/ms.mjs) | Mississippi's 82 counties and the towns and universities in each. |
+| [src/counties/ms.mjs](src/counties/ms.mjs), [al.mjs](src/counties/al.mjs), [ar.mjs](src/counties/ar.mjs), [tn.mjs](src/counties/tn.mjs) | Mississippi's, Alabama's, Arkansas's, and Tennessee's counties, and the towns and universities in each. |
 | [src/opt-out.txt](src/opt-out.txt) | People who asked to be left off. |
 | [src/exclude.mjs](src/exclude.mjs) | Who is left off: bot and test accounts, and the opt-out list. |
 | [scripts/collect.mjs](scripts/collect.mjs) | Gathers people and their contributions from GitHub's API into `data/`. |
 | [scripts/audit.mjs](scripts/audit.mjs) | Writes `data/audit.md`: what each rule placed and what it turned away. |
 | [scripts/build.mjs](scripts/build.mjs) | Places everyone, adds it all up, and writes the page. |
 | [src/sample.mjs](src/sample.mjs) | Who each state is compared on: the 80 likeliest to be busiest. Shared by the build and the history. |
+| [src/badge.mjs](src/badge.mjs) | The README badge: everyone's state and county rank, drawn as an SVG the build writes to `site/badge/<login>.svg` every day. |
 | [scripts/history.mjs](scripts/history.mjs) | Adds the day to `data/history.json` ([src/history.mjs](src/history.mjs) describes it), the daily record behind the page's sparklines and chart. |
 | [scripts/fetch-data.mjs](scripts/fetch-data.mjs) | Downloads the latest data from the `data` branch. |
 | [scripts/add-me.mjs](scripts/add-me.mjs) | Checks an "Add me" request and writes the bot's reply. |
-| [web/template.html](web/template.html) | The page: the canvas tornado, the map, the tables, and the Storm Cellar game at the top, all in one file. The game is the last script, in a block of its own. |
+| [web/template.html](web/template.html) | The page: the canvas tornado, the map, the tables, and the Storm Cellar game at the top, all in one file. The game is the last script, in a block of its own, with each level a map drawn in text (`LEVELS`). |
 | [test/states.test.mjs](test/states.test.mjs) | Locations and where they belong. |
 | [test/counties.test.mjs](test/counties.test.mjs) | Locations and the county or parish they name. |
 | [e2e/page.mjs](e2e/page.mjs) | Opens the built page in a browser and checks it works. |
@@ -43,13 +44,13 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 
 ### Add your state's counties
 
-Louisiana and Mississippi go down to the county. To add another state:
+Louisiana, Mississippi, Alabama, Arkansas, and Tennessee go down to the county. To add another state:
 
 1. Copy [src/counties/ms.mjs](src/counties/ms.mjs) to `src/counties/` with your state's code, such as `al.mjs`, and fill it in: the code, what the state calls its counties, every county, the towns, cities, and universities in each (a city in two counties goes in its principal one), and `ONLY`, the few names that mean your state and nowhere else. Leave a name out of `ONLY` if any other town, in the US or abroad, shares it.
 2. Add it to `STATES` in [src/counties.mjs](src/counties.mjs): one line. The placement rules, the collector, the build, and the page take it from there: a tornado and a table of its counties, leaderboards for each, and county ranks in Find yourself.
 3. Add locations and their counties to [test/counties.test.mjs](test/counties.test.mjs), and towns from `ONLY` to [test/states.test.mjs](test/states.test.mjs), then run `npm test`.
 4. Everyone active in a state with counties is looked up every day, up to 500. Count your state's active people and check the [budget](docs/data.md#who-is-looked-up) first.
-5. Name your state where README.md and the top of web/template.html list Louisiana and Mississippi.
+5. Name your state where README.md and the top of web/template.html list the states with counties.
 
 ## Someone is in the wrong place
 
@@ -93,7 +94,7 @@ CI ([refresh.yml](.github/workflows/refresh.yml)) checks every pull request:
 | Every script parses, and no doc links to a missing file | `npm run check:links` |
 | The workflows ([actionlint](https://github.com/rhysd/actionlint)) | `docker run --rm -v "$PWD:/repo" --workdir /repo rhysd/actionlint:1.7.12` |
 | The data looks whole | `npm run check:data` |
-| A full build, then the page in a real browser: it loads, the tornado draws, Find yourself and "where you'd rank" work, the game plays from the keyboard and on a touch phone, nothing scrolls sideways on a phone, no script errors | `npm run build && npm run e2e` |
+| A full build, then the page in a real browser: it loads, the tornado draws, Find yourself and "where you'd rank" work, Share my ranks draws a picture and its badge matches the page, the game plays from the keyboard and on a touch phone, nothing scrolls sideways on a phone, no script errors | `npm run build && npm run e2e` |
 
 The browser test needs Playwright, which is deliberately not a dependency: install it once with `npm i --no-save --no-package-lock playwright && npx playwright install chromium`. Please keep the project dependency-free and working at phone width.
 

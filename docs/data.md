@@ -33,7 +33,7 @@ Cheap facts about everyone found, used to place them and to pick whose contribut
 
 ### users.json
 
-A year of contributions for the people looked up: in each state, the 80 most likely to be busiest among those who pushed in the last year, scored by public repositories and followers; and in the states with county lists, Louisiana and Mississippi, everyone active, up to 500 a state ([who is looked up](#who-is-looked-up)).
+A year of contributions for the people looked up: in each state, the 80 most likely to be busiest among those who pushed in the last year, scored by public repositories and followers; and in the states with county lists (Louisiana, Mississippi, Alabama, Arkansas, and Tennessee), everyone active, up to 500 a state ([who is looked up](#who-is-looked-up)).
 
 ```json
 {
@@ -99,9 +99,12 @@ States are compared on the same sample everywhere: the 80 people in each who pus
 |---|---:|---:|
 | Louisiana | about 750 | 500 |
 | Mississippi | about 210 | all of them |
+| Alabama | about 345 | all of them |
+| Arkansas | about 360 | all of them |
+| Tennessee | about 425 | all of them |
 | Every other state | | 80 |
 
-The budget, as of November 2026: about 4,550 people are looked up each day, 8 to a query, so about 570 contribution queries at about a point each. The seventh of the profiles refreshed each day takes about 100 more queries at about two points each. So a daily run spends roughly 800 points, against the 1,000 an hour the workflow's token gets. Looking up everyone active in Mississippi, not only its 80, added about 130 people and 17 queries a day, about 2% more. A new state with a county list adds its active people past 80, up to 420 more; count them before adding it.
+The budget, as of November 2026: about 4,550 people are looked up each day, 8 to a query, so about 570 contribution queries at about a point each. The seventh of the profiles refreshed each day takes about 100 more queries at about two points each. So a daily run spends roughly 800 points, against the 1,000 an hour the workflow's token gets. Looking up everyone active in Mississippi, not only its 80, added about 130 people and 17 queries a day, about 2% more. Alabama, Arkansas, and Tennessee, added in November 2026, brought about 890 more people and 110 queries a day, so a daily run now spends roughly 900 points. Past 1,000 the collector waits for the next hour, so a bigger day takes longer rather than failing. A new state with a county list adds its active people past 80, up to 420 more; count them before adding it.
 
 ## Building something new
 

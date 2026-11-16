@@ -5,8 +5,12 @@
 //   VIEWER=<login>   whose ranks the page shows as "you" (they must be in data/users.json)
 //   SCOPE=LA,MS,AR   only some states (default: all)
 //   HISTORY=<file>   the daily history to show (default: data/history.json, if there is one)
-//   OUT=<file>       where to write the page (default: site/leaderboard.html)
-import { readFileSync, writeFileSync } from "node:fs";
+//   OUT=<file>       where to write the page (default: site/leaderboard.html); the badges go in
+//                    badge/ beside it
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import { BADGE_LABEL, badgeMessage, badgeSvg, ranksOf } from "../src/badge.mjs";
 import { COUNTY_STATES, countiesOf, countyKind, countyOf, hasCounties } from "../src/counties.mjs";
 import { isBot, optedOut } from "../src/exclude.mjs";
 import { stateOf } from "../src/states.mjs";
@@ -116,7 +120,22 @@ const data = { generated: new Date().toISOString(), refreshed, schedule, scopeNa
 // The daily history (scripts/history.mjs), its last year: a sparkline per state, and a chart of one.
 data.history = lastYear(readHistory(process.env.HISTORY ?? new URL("../data/history.json", import.meta.url)));
 
+// Where the page is published, for the links and badges it hands out.
+data.home = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).homepage;
+
+const out = process.env.OUT ? pathToFileURL(resolve(process.env.OUT)) : new URL("../site/leaderboard.html", import.meta.url);
 const tpl = readFileSync(new URL("../web/template.html", import.meta.url), "utf8");
-writeFileSync(process.env.OUT ?? new URL("../site/leaderboard.html", import.meta.url), tpl.replace("/*__DATA__*/null", () => JSON.stringify(data).replace(/</g, String.fromCharCode(92) + "x3c")));
-console.log(`placed ${people.length} of ${Object.keys(users).length} users in a state (${fair.length} in the per-state sample); leaderboard.html written`);
+writeFileSync(out, tpl.replace("/*__DATA__*/null", () => JSON.stringify(data).replace(/</g, String.fromCharCode(92) + "x3c")));
+
+// A badge for each person's profile README (src/badge.mjs), written fresh, so nobody who has left
+// keeps one.
+const badges = new URL("badge/", out);
+rmSync(badges, { recursive: true, force: true });
+mkdirSync(badges, { recursive: true });
+const ranks = ranksOf(people);
+for (const p of people) {
+  const kind = hasCounties(p.state) ? countyKind(p.state)[0] : "county";
+  writeFileSync(new URL(`${p.login.toLowerCase()}.svg`, badges), badgeSvg(BADGE_LABEL, badgeMessage(ranks.get(p.login), BY_AB[p.state].name, p.county, kind)));
+}
+console.log(`placed ${people.length} of ${Object.keys(users).length} users in a state (${fair.length} in the per-state sample); leaderboard.html and ${people.length} badges written`);
 if (me) console.log(`you: ${me.state}, ${me.total} contributions`);

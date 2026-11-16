@@ -3,6 +3,7 @@
 // game at the top plays, and nothing scrolls sideways on a phone. CI runs it on every pull request and before every deploy.
 //   npm i --no-save --no-package-lock playwright && npx playwright install chromium   (once)
 //   npm run build && npm run e2e
+import { readFileSync } from "node:fs";
 import { chromium } from "playwright";
 
 const url = new URL("../site/leaderboard.html", import.meta.url).href;
@@ -429,9 +430,79 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   check(!errors.some((e) => e.startsWith("mix:")), "no script errors with counties and the other features together");
   await mix.close();
 }
+// Share your ranks: the picture draws (with a stand-in for GitHub's avatar, so the test needs no
+// network, and the canvas can still be saved with a picture from another site on it), downloads
+// under the login's name, and the README badge is the one the build wrote for them, saying
+// what Find yourself says, with and without a county. Escape closes it and gives focus back.
+{
+  const sh = await browser.newPage({ viewport: { width: 1340, height: 900 } });
+  watch(sh, "share");
+  const dot = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+  await sh.route("https://avatars.githubusercontent.com/**", (r) =>
+    r.fulfill({ status: 200, contentType: "image/png", headers: { "Access-Control-Allow-Origin": "*" }, body: Buffer.from(dot, "base64") }),
+  );
+  await sh.goto(url);
+  await sh.waitForTimeout(400);
+  check(await sh.locator("#shareOpen").isHidden(), "Share my ranks is hidden until you find yourself");
+  const people = await sh.evaluate(() => {
+    const county = D.P.find((p) => COUNTIES[p[2]] && p[11]);
+    const plain = D.P.find((p) => !COUNTIES[p[2]]);
+    return [county?.[0], plain?.[0]].filter(Boolean);
+  });
+  for (const who of people) {
+    await sh.goto(`${url}?me=${encodeURIComponent(who)}`);
+    await sh.waitForTimeout(400);
+    await sh.click("#shareOpen");
+    const drew = await sh.waitForFunction(() => document.querySelector("#shareCard").naturalWidth === 1200, null, { timeout: 8000 }).then(() => true, () => false);
+    check(drew && (await sh.locator("#share").evaluate((d) => d.open)), `Share my ranks opens and draws ${who}'s picture`);
+    const [file] = await Promise.all([sh.waitForEvent("download", { timeout: 5000 }), sh.click("#shareSave")]).catch(() => [null]);
+    check(file?.suggestedFilename() === `tornado-${who}.png`, `and downloads it (${file?.suggestedFilename()})`);
+    const [said, loaded, md] = await sh.evaluate(() => [badgeText(), document.querySelector("#shareBadge").naturalWidth, document.querySelector("#shareMd").value]);
+    const svg = readFileSync(new URL(`../site/badge/${who.toLowerCase()}.svg`, import.meta.url), "utf8");
+    check(loaded > 0 && svg.includes(`aria-label="contribution tornado: ${said}"`), `the badge the build wrote says what the page says (${said})`);
+    check(md.includes(`badge/${who.toLowerCase()}.svg)](`) && md.includes(`leaderboard.html?me=${who}`), "and its Markdown links the badge to their ranks");
+    await sh.keyboard.press("Escape");
+    await sh.waitForTimeout(200);
+    check(!(await sh.locator("#share").evaluate((d) => d.open)) && (await sh.evaluate(() => document.activeElement?.id)) === "shareOpen", "Escape closes it and focus goes back to the button");
+  }
+  check(!errors.some((e) => e.startsWith("share:")), "no script errors sharing your ranks");
+  await sh.close();
+}
+// The storm round the tornado: on at first, lightning strikes the busiest ring and fades, the
+// Storm switch clears the sky but not the tornado and is remembered, and it starts off for anyone
+// whose system asks for reduced motion.
+{
+  const wx = await browser.newPage({ viewport: { width: 1340, height: 900 } });
+  watch(wx, "weather");
+  await wx.goto(`${url}#us`);
+  await wx.waitForTimeout(3000);
+  check((await wx.locator("#weather").getAttribute("aria-pressed")) === "true" && (await wx.locator("#thunder").isVisible()), "the storm round the tornado is on at first, with a Thunder switch");
+  await wx.evaluate(() => strike(geom()));
+  await wx.waitForTimeout(400);
+  check(await wx.evaluate(() => weather.hit > 0 && weather.hit < 1), "lightning strikes the busiest ring, and its glow fades");
+  const stormy = await lit(wx);
+  await wx.click("#weather");
+  await wx.waitForTimeout(300);
+  const calm = await lit(wx);
+  check(stormy > calm && calm > 1000, `the Storm switch clears the sky and leaves the tornado (${stormy} lit, then ${calm})`);
+  check((await wx.locator("#weather").getAttribute("aria-pressed")) === "false" && (await wx.locator("#thunder").isHidden()), "and says it is off, and hides Thunder");
+  await wx.reload();
+  await wx.waitForTimeout(600);
+  check((await wx.locator("#weather").getAttribute("aria-pressed")) === "false", "and is remembered");
+  check(!errors.some((e) => e.startsWith("weather:")), "no script errors in the weather");
+  await wx.close();
+  const still = await browser.newContext({ reducedMotion: "reduce", viewport: { width: 1340, height: 900 } });
+  const rm = await still.newPage();
+  watch(rm, "weather, reduced motion");
+  await rm.goto(`${url}#us`);
+  await rm.waitForTimeout(500);
+  check((await rm.locator("#weather").getAttribute("aria-pressed")) === "false", "with reduced motion, the storm starts off");
+  await still.close();
+}
 // Storm Cellar, the game at the top: its title draws, Enter starts it from the keyboard, the arrow
-// keys turn the view without scrolling the page, Escape pauses it, and Tab moves on past it. On a
-// touch phone it has a stick and a fire button, and still nothing scrolls sideways.
+// keys turn the view and the weapon keys and mouse wheel switch weapons without scrolling the page,
+// Escape pauses it, and Tab moves on past it. On a touch phone it has a stick and a fire button,
+// and a Swap button once there's a second weapon, and still nothing scrolls sideways.
 {
   // Lit pixels on the game's canvas, and a sum over the upper view, below the messages: the
   // walls and ceiling, which change only when the view turns or moves.
@@ -468,9 +539,20 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   await g.waitForTimeout(100);
   check((await pixels(g)).view !== before, "the arrow keys turn the view");
   check((await g.evaluate(() => scrollY)) === scrolled, "and don't scroll the page while the game has them");
+  check(/playing level 1\b/.test((await game.getAttribute("aria-label")) ?? ""), "its label says which level is being played");
+  // The cellar has only the one weapon, so these leave it in hand; level 2 has a second to switch to.
+  const box = await game.boundingBox();
+  await g.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  for (const k of ["Digit2", "Digit1", "KeyQ"]) await g.keyboard.press(k);
+  await g.mouse.wheel(0, 240);
+  await g.waitForTimeout(200);
+  check((await game.getAttribute("data-state")) === "playing" && (await g.evaluate(() => scrollY)) === scrolled, "1, 2, Q, and the mouse wheel switch weapons without scrolling the page");
   await g.keyboard.press("Escape");
   await g.waitForTimeout(100);
   check((await game.getAttribute("data-state")) === "paused", "Escape pauses it");
+  await g.mouse.wheel(0, 240);
+  await g.waitForTimeout(400);
+  check((await g.evaluate(() => scrollY)) > scrolled, "and then the mouse wheel over it scrolls the page as usual");
   await g.keyboard.press("Tab");
   check((await g.evaluate(() => document.activeElement?.id)) !== "game", "and Tab moves on past it");
   check(!errors.some((e) => e.startsWith("game:")), "no script errors in the game");
@@ -482,10 +564,16 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   await t.goto(url);
   await drawn(t);
   check(await t.locator("#pad").isVisible(), "on a touch phone the game shows a stick and a fire button");
+  check(await t.locator("#swap").isHidden(), "and Swap waits until there's a second weapon");
   check((await t.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0, "and nothing scrolls sideways");
   await t.locator("#fire").tap();
   await t.waitForTimeout(300);
   check((await t.locator("#game").getAttribute("data-state")) === "playing", "and Fire starts the game");
+  // A tap on the weapon at the status bar's left switches weapons, and doesn't shoot or stop the game.
+  const screen = await t.locator("#game").boundingBox();
+  await t.locator("#game").tap({ position: { x: screen.width * 0.08, y: screen.height * 0.93 } });
+  await t.waitForTimeout(200);
+  check((await t.locator("#game").getAttribute("data-state")) === "playing", "and tapping the weapon on the status bar keeps it playing");
   check(!errors.some((e) => e.startsWith("game phone:")), "no script errors in the game on a phone");
   await touch.close();
 }
