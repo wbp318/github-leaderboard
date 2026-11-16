@@ -59,7 +59,7 @@ If your location does name a US state and I misread it, please [tell us](${REPO}
     "added",
     `Adding you, @${name}! Your profile location, ${quote(user.location)}, places you in **${stateName}**.
 
-A refresh has started. In about five minutes your ranks will be at **[${ranksLink(name)}](${ranksLink(name)})**: your state, division, region, and the whole country. From then on you are refreshed every day with everyone else.
+A refresh has started. In about five minutes your ranks will be at **[${ranksLink(name)}](${ranksLink(name)})**: your state, division, region, and the whole country. From then on you are refreshed every day with everyone else, and **Share my ranks** there gives you a picture to post and a badge for your profile README that keeps itself up to date.
 
 How you are ranked: states are compared on the 80 people in each who look busiest by their public signals, and you are ranked among them. Private contributions count if you [show them on your profile](https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-github-profile/managing-contribution-settings-on-your-profile/showing-your-private-contributions-and-achievements-on-your-profile).`,
   ];

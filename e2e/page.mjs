@@ -3,6 +3,7 @@
 // game at the top plays, and nothing scrolls sideways on a phone. CI runs it on every pull request and before every deploy.
 //   npm i --no-save --no-package-lock playwright && npx playwright install chromium   (once)
 //   npm run build && npm run e2e
+import { readFileSync } from "node:fs";
 import { chromium } from "playwright";
 
 const url = new URL("../site/leaderboard.html", import.meta.url).href;
@@ -428,6 +429,44 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   check(name.includes(`-${want}-`), `a county's CSV is named for it (${name})`);
   check(!errors.some((e) => e.startsWith("mix:")), "no script errors with counties and the other features together");
   await mix.close();
+}
+// Share your ranks: the picture draws (with a stand-in for GitHub's avatar, so the test needs no
+// network, and the canvas can still be saved with a picture from another site on it), downloads
+// under the login's name, and the README badge is the one the build wrote for them, saying
+// what Find yourself says, with and without a county. Escape closes it and gives focus back.
+{
+  const sh = await browser.newPage({ viewport: { width: 1340, height: 900 } });
+  watch(sh, "share");
+  const dot = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+  await sh.route("https://avatars.githubusercontent.com/**", (r) =>
+    r.fulfill({ status: 200, contentType: "image/png", headers: { "Access-Control-Allow-Origin": "*" }, body: Buffer.from(dot, "base64") }),
+  );
+  await sh.goto(url);
+  await sh.waitForTimeout(400);
+  check(await sh.locator("#shareOpen").isHidden(), "Share my ranks is hidden until you find yourself");
+  const people = await sh.evaluate(() => {
+    const county = D.P.find((p) => COUNTIES[p[2]] && p[11]);
+    const plain = D.P.find((p) => !COUNTIES[p[2]]);
+    return [county?.[0], plain?.[0]].filter(Boolean);
+  });
+  for (const who of people) {
+    await sh.goto(`${url}?me=${encodeURIComponent(who)}`);
+    await sh.waitForTimeout(400);
+    await sh.click("#shareOpen");
+    const drew = await sh.waitForFunction(() => document.querySelector("#shareCard").naturalWidth === 1200, null, { timeout: 8000 }).then(() => true, () => false);
+    check(drew && (await sh.locator("#share").evaluate((d) => d.open)), `Share my ranks opens and draws ${who}'s picture`);
+    const [file] = await Promise.all([sh.waitForEvent("download", { timeout: 5000 }), sh.click("#shareSave")]).catch(() => [null]);
+    check(file?.suggestedFilename() === `tornado-${who}.png`, `and downloads it (${file?.suggestedFilename()})`);
+    const [said, loaded, md] = await sh.evaluate(() => [badgeText(), document.querySelector("#shareBadge").naturalWidth, document.querySelector("#shareMd").value]);
+    const svg = readFileSync(new URL(`../site/badge/${who.toLowerCase()}.svg`, import.meta.url), "utf8");
+    check(loaded > 0 && svg.includes(`aria-label="contribution tornado: ${said}"`), `the badge the build wrote says what the page says (${said})`);
+    check(md.includes(`badge/${who.toLowerCase()}.svg)](`) && md.includes(`leaderboard.html?me=${who}`), "and its Markdown links the badge to their ranks");
+    await sh.keyboard.press("Escape");
+    await sh.waitForTimeout(200);
+    check(!(await sh.locator("#share").evaluate((d) => d.open)) && (await sh.evaluate(() => document.activeElement?.id)) === "shareOpen", "Escape closes it and focus goes back to the button");
+  }
+  check(!errors.some((e) => e.startsWith("share:")), "no script errors sharing your ranks");
+  await sh.close();
 }
 // Storm Cellar, the game at the top: its title draws, Enter starts it from the keyboard, the arrow
 // keys turn the view without scrolling the page, Escape pauses it, and Tab moves on past it. On a

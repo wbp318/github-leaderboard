@@ -40,6 +40,9 @@ A year of GitHub contributions across the United States, drawn as a spinning tor
 - **Storm Cellar.** At the top, a little first-person shooter in the old blocky style: the tornado shook the bugs loose, so clear the cellar, find the five commits, and get to the exit. It's drawn at 320×200 by a ray caster, and every texture, sprite, letter, and sound is made in code. You play it with the keyboard and mouse, or a stick and a fire button on a phone. It only runs while you play, and links to a view or to someone's ranks open past it.
 - **The tornado.** Each ring is a place, the busiest at the top. Its red half is public commits; its blue half is everything else: pull requests, reviews, issues, new repositories, and private contributions for people who show them. Click a ring to go down a level, from divisions to states to a state's busiest people. Louisiana by parish and Mississippi by county have tornadoes of their own. It works from the keyboard too: Tab to it, arrow keys to move between rings, Enter to go down, Escape to come back up. A screen reader reads each ring's place and numbers.
 - **Find yourself.** Type your GitHub login to see your ranks in your parish or county, state, division, region, and the country, with you in gold in the tornado, the lists, and the map. `?me=<login>` links straight to anyone's ranks. Open any other state to see where you would rank there, and the states table shows your rank in all 50 at once.
+- **Share your ranks.** Once you've found yourself, **Share my ranks** draws a picture to post: your GitHub picture, your year, your ranks from county to country, and your state's tornado with you in gold. Download it, copy it, or share it straight from a phone. It also hands you a badge for your profile README, which the daily build redraws, so it always shows today's rank:
+
+  ![contribution tornado: #3 in Hinds County · #12 in Mississippi](docs/badge.svg)
 - **Add yourself.** Not on it? The **Add me** button opens a one-click issue; [a bot](https://github.com/wbp318/github-leaderboard/blob/main/.github/workflows/add-me.yml) checks your profile location, adds you, and replies with a link to your ranks in a few minutes. You are refreshed daily after that.
 - **Leaderboards** in eight categories (total, public commits, private, pull requests, reviews, issues, new repositories, followers) for any state, division, region, Louisiana parish, or Mississippi county, with each person's location. Search by login, name, or place. **Download CSV** saves the list as you have it, every row and every category, for Excel or Google Sheets.
 - **A map** of all 50 states, coloured by contributions, people counted, or average.
@@ -84,10 +87,10 @@ To collect from GitHub yourself (about an hour for every state), see [CONTRIBUTI
 ## Where things are
 
 ```
-src/        placement rules: states.mjs, counties.mjs, counties/, opt-out.txt
+src/        placement rules: states.mjs, counties.mjs, counties/, opt-out.txt; badge.mjs
 scripts/    collect, audit, build, fetch-data
 web/        template.html, the whole page
-site/       what GitHub Pages serves (leaderboard.html is built)
+site/       what GitHub Pages serves (leaderboard.html and badge/ are built)
 test/       placement test cases
 docs/       placement.md, data.md, the screenshots
 .github/    the daily workflow, issue forms
