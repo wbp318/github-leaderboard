@@ -165,7 +165,17 @@ const page = tpl
 // this site (us-counties.js); images from this site, the page's own drawings (data: and blob:),
 // and GitHub avatars for the share card; requests only to this site (version.txt). Nothing from
 // anywhere else, ever: a new outside host has to be added here on purpose (docs/optimjack.md).
-const scriptHashes = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(([, body]) => `'sha256-${createHash("sha256").update(body).digest("base64")}'`);
+// The page's scripts, found by plain text: the template writes each one plain, <script>…</script>,
+// and the build stops if any <script> isn't, so none can go unhashed.
+const scriptBodies = page.split("<script>").slice(1).map((part) => {
+  const end = part.indexOf("</script>");
+  if (end < 0) throw new Error("a <script> in web/template.html has no </script>");
+  return part.slice(0, end);
+});
+if (page.toLowerCase().split("<script").length - 1 !== scriptBodies.length) {
+  throw new Error("every script in web/template.html must be written plain, <script>…</script>, so the build can hash it into the Content Security Policy");
+}
+const scriptHashes = scriptBodies.map((body) => `'sha256-${createHash("sha256").update(body).digest("base64")}'`);
 const CSP = [
   "default-src 'none'",
   `script-src 'self' ${scriptHashes.join(" ")}`,
