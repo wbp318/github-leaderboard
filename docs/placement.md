@@ -46,7 +46,7 @@ flowchart TD
     listed -->|no| st
     code -->|no| name{"Names a state?"}
     name -->|yes| last["The state named last"]
-    name -->|no| town{"A Louisiana or Mississippi town<br/>that means nowhere else?"}
+    name -->|no| town{"A town in a state with counties<br/>that means nowhere else?"}
     town -->|yes| la["Its state"]
     town -->|no| none
 ```
@@ -54,13 +54,13 @@ flowchart TD
 1. **Another country.** A location that names another country (Brazil, India, Germany, and about a hundred more) or uses a script no US town is written in is not placed, unless it also says USA. US towns that share a country's name are listed so they still count: Norway, ME; Poland, OH; Little Canada, MN; Brazil, IN.
 2. **A trailing state code wins.** A two-letter code can follow a comma in any case ("Atlanta, Ga"), or it can be uppercase after a space ("Austin TX"). Either form can be followed by a ZIP code ("Denver, CO 80223") and by USA. The code counts only if the city is not in the `ELSEWHERE` list for that code and carries no accents a US town in that state would not. Delaware and Idaho are stricter: their codes are written far more often by people in Germany and Indonesia, so only towns listed for those states count. A code that does not count is not proof of anything either: the rest of the location is read as below, so "2600 Pasadena Ave, Metairie, LA 70001" is still Metairie, Louisiana.
 3. **The state named last.** "Kansas City, Missouri" is Missouri and "Washington Heights, New York" is New York. On a tie the longer name wins, so "West Virginia" is not Virginia. A river named after a state is the river: "West of the Mississippi" and "44th Parallel N and Mississippi River" are not Mississippi.
-4. **Towns that mean only one state.** "New Orleans", "Shreveport", "Ruston", and other names that mean only Louisiana place someone there, and so do "Hattiesburg", "Starkville", "Tupelo", "Biloxi", "Ole Miss", and others that mean only Mississippi. A name shared with a town anywhere else, in the US or abroad, is not on these lists: Jackson (Wyoming too), Columbus, Oxford, Columbia, Meridian (Idaho), Greenville, Clinton, Madison, Gulfport (Florida), Vicksburg (Michigan). Each list is `ONLY` in the state's file: [src/counties/la.mjs](../src/counties/la.mjs) and [src/counties/ms.mjs](../src/counties/ms.mjs).
+4. **Towns that mean only one state.** "New Orleans", "Shreveport", "Ruston", and other names that mean only Louisiana place someone there, and so do "Hattiesburg", "Starkville", "Tupelo", "Biloxi", "Ole Miss", and others that mean only Mississippi, "Tuscaloosa" and "Muscle Shoals" Alabama, "Little Rock" and "Bentonville" Arkansas, and "Chattanooga" and "Gatlinburg" Tennessee. A name shared with a town anywhere else, in the US or abroad, is not on these lists: Jackson (Wyoming too), Columbus, Oxford, Columbia, Meridian (Idaho), Greenville, Clinton, Madison, Gulfport (Florida), Vicksburg (Michigan). Each list is `ONLY` in the state's file in [src/counties/](../src/counties/): [la.mjs](../src/counties/la.mjs), [ms.mjs](../src/counties/ms.mjs), [al.mjs](../src/counties/al.mjs), [ar.mjs](../src/counties/ar.mjs), and [tn.mjs](../src/counties/tn.mjs).
 
 Anything else, including "Remote", "Earth", "Georgia" next to Tbilisi, and two places at once in different countries, is left out. Leaving someone out costs a little coverage; placing them wrongly misleads everyone.
 
 ## Counties
 
-Louisiana goes down to the parish and Mississippi to the county, for people already placed in the state. [src/counties.mjs](../src/counties.mjs) reads the location:
+Louisiana goes down to the parish, and Mississippi, Alabama, Arkansas, and Tennessee to the county, for people already placed in the state. [src/counties.mjs](../src/counties.mjs) reads the location:
 
 1. **A county named in full wins**: "East Carroll Parish", "Jackson County", "Jackson Co.". So "Jackson County, MS" is on the coast, not in the city of Jackson.
 2. **Otherwise the longest town, city, or university named**: "West Hattiesburg" is Lamar County and "Hattiesburg" Forrest; "University of Mississippi Medical Center" is Hinds and "University of Mississippi" Lafayette.
@@ -87,7 +87,7 @@ Or [open an issue](https://github.com/wbp318/github-leaderboard/issues/new/choos
 
 ## Not on the leaderboard?
 
-Each state looks up only its 80 likeliest-busiest people (and Louisiana and Mississippi everyone active, up to 500), so most people are not on it. On the page, typing a login that is not there offers **Add me**, a one-click [issue](https://github.com/wbp318/github-leaderboard/issues/new?template=add-me.yml): the bot places whoever opens it with these same rules and replies with their ranks, or with why it could not place them.
+Each state looks up only its 80 likeliest-busiest people (and the five states with parishes or counties everyone active, up to 500), so most people are not on it. On the page, typing a login that is not there offers **Add me**, a one-click [issue](https://github.com/wbp318/github-leaderboard/issues/new?template=add-me.yml): the bot places whoever opens it with these same rules and replies with their ranks, or with why it could not place them.
 
 ## Other people who are left off
 
