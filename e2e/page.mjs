@@ -468,6 +468,37 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   check(!errors.some((e) => e.startsWith("share:")), "no script errors sharing your ranks");
   await sh.close();
 }
+// The storm round the tornado: on at first, lightning strikes the busiest ring and fades, the
+// Storm switch clears the sky but not the tornado and is remembered, and it starts off for anyone
+// whose system asks for reduced motion.
+{
+  const wx = await browser.newPage({ viewport: { width: 1340, height: 900 } });
+  watch(wx, "weather");
+  await wx.goto(`${url}#us`);
+  await wx.waitForTimeout(3000);
+  check((await wx.locator("#weather").getAttribute("aria-pressed")) === "true" && (await wx.locator("#thunder").isVisible()), "the storm round the tornado is on at first, with a Thunder switch");
+  await wx.evaluate(() => strike(geom()));
+  await wx.waitForTimeout(400);
+  check(await wx.evaluate(() => weather.hit > 0 && weather.hit < 1), "lightning strikes the busiest ring, and its glow fades");
+  const stormy = await lit(wx);
+  await wx.click("#weather");
+  await wx.waitForTimeout(300);
+  const calm = await lit(wx);
+  check(stormy > calm && calm > 1000, `the Storm switch clears the sky and leaves the tornado (${stormy} lit, then ${calm})`);
+  check((await wx.locator("#weather").getAttribute("aria-pressed")) === "false" && (await wx.locator("#thunder").isHidden()), "and says it is off, and hides Thunder");
+  await wx.reload();
+  await wx.waitForTimeout(600);
+  check((await wx.locator("#weather").getAttribute("aria-pressed")) === "false", "and is remembered");
+  check(!errors.some((e) => e.startsWith("weather:")), "no script errors in the weather");
+  await wx.close();
+  const still = await browser.newContext({ reducedMotion: "reduce", viewport: { width: 1340, height: 900 } });
+  const rm = await still.newPage();
+  watch(rm, "weather, reduced motion");
+  await rm.goto(`${url}#us`);
+  await rm.waitForTimeout(500);
+  check((await rm.locator("#weather").getAttribute("aria-pressed")) === "false", "with reduced motion, the storm starts off");
+  await still.close();
+}
 // Storm Cellar, the game at the top: its title draws, Enter starts it from the keyboard, the arrow
 // keys turn the view without scrolling the page, Escape pauses it, and Tab moves on past it. On a
 // touch phone it has a stick and a fire button, and still nothing scrolls sideways.
