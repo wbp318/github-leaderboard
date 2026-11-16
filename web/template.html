@@ -275,6 +275,10 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
 .keys table { max-width: 560px; }
 .keys td.k { color: var(--gold); }
 .keys .btn:disabled { opacity: 0.5; cursor: default; }
+.keys .padh { margin: 16px 0 4px; font-size: 13px; color: var(--gold); }
+.padstep { border: 1px solid var(--gold); border-radius: 8px; padding: 8px 12px; margin: 8px 0; max-width: 560px; }
+.padstep p { margin: 0 0 8px; font-weight: 600; }
+.padstep[hidden] { display: none; }
 #gameLoad { border-color: var(--gold); color: var(--gold); }
 .pad .swap:active { background: radial-gradient(circle at 40% 35%, #6fb4e6, #2b6a98); }
 #gameKeys { margin: 8px 2px 0; max-width: 880px; }
@@ -319,6 +323,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
     <button type="button" class="btn" id="gameLoad" hidden>Continue</button>
     <button type="button" class="btn" id="gameForget" hidden>Delete save</button>
     <span class="lbl" id="saveNote"></span>
+    <span class="lbl" id="padHere" hidden>Controller connected: its buttons are under Keys.</span>
     <span class="lbl mousey">Mouse up and down</span>
     <fieldset class="seg" id="mouseY" aria-label="Mouse up and down">
       <button type="button" data-m="look" aria-pressed="true">Look</button>
@@ -330,6 +335,19 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
     <p class="note">Change any key: click Change, then press the new one. A key another action uses swaps over. Enter, Escape, and Tab stay as they are. Kept in this browser.</p>
     <div class="scroll"><table id="keyTable"><thead><tr><th>Action</th><th>Keys</th><th></th></tr></thead><tbody></tbody></table></div>
     <div class="bar"><button type="button" class="btn" id="keyReset">Reset all keys</button><span class="lbl" id="keyMsg" role="status" aria-live="polite"></span></div>
+    <h4 class="padh">Controller</h4>
+    <p class="note" id="padStatus">No controller yet. Plug one in (an Xbox controller works, by USB or Bluetooth) and press any button on it.</p>
+    <div class="bar">
+      <button type="button" class="btn" id="padWizard" disabled>Set up its buttons</button>
+      <button type="button" class="btn" id="padReset">Reset controller buttons</button>
+      <span class="lbl" id="padMsg" role="status" aria-live="polite"></span>
+    </div>
+    <div class="padstep" id="padStep" hidden>
+      <p id="padAsk" aria-live="assertive"></p>
+      <button type="button" class="btn" id="padSkip">Skip</button>
+      <button type="button" class="btn" id="padCancel">Cancel</button>
+    </div>
+    <div class="scroll"><table id="padTable"><thead><tr><th>Action</th><th>Buttons</th></tr></thead><tbody></tbody></table></div>
   </details>
   <p class="note" id="gameKeys">Click the game or press Enter to play. W A S D or the arrow keys move, the mouse or the left and right arrows turn, click or Space shoots, the mouse up and down looks up and down (or, with V or the switch below, walks you forward and back), 1 and 2, Q, or the mouse wheel switch weapons, Shift runs, M turns the sound off and on, and Esc pauses. Paused, S saves your progress in this browser, and C on the title picks it up again; the buttons below do the same. On a phone, drag the left pad to move and turn, hold Fire, and tap Swap or the gun at the bottom left to switch weapons.</p>
   <p class="sr" id="gameSaid" role="status" aria-live="polite"></p>
@@ -4384,7 +4402,7 @@ function render() {
     if (saved) {
       sayC(`PRESS ${kg("load")} TO CONTINUE: LEVEL ${saved.level + 1}${saved.p ? `  ${clock(saved.p.time)}` : ""}`, 160, 114, GOLD);
       sayC("CLICK OR PRESS ENTER FOR A NEW GAME", 160, 126, INK);
-    } else sayC("CLICK OR PRESS ENTER TO PLAY", 160, 120, GOLD);
+    } else sayC(gpAny ? `PRESS ${padName(PAD.act[0]).toUpperCase()} OR ENTER TO PLAY` : "CLICK OR PRESS ENTER TO PLAY", 160, 120, GOLD);
     const moved = ["forward", "back", "left", "right", "turnLeft", "turnRight"].some((a) => JSON.stringify(BOUND[a]) !== JSON.stringify(KEY_DEFAULTS[a]));
     sayC(moved ? `${["forward", "left", "back", "right"].map(kg).join(" ")} MOVE   MOUSE TURNS` : "WASD MOVE   MOUSE OR ARROWS TURN", 160, 140, MUTED);
     sayC(`CLICK OR ${kg("fire")} SHOOTS   ${kg("run")} RUNS`, 160, 151, MUTED);
@@ -4545,8 +4563,202 @@ function describeKeys() {
     `the mouse up and down looks up and down (or, with ${kn("mouse")} or the switch below, walks you forward and back), ` +
     `${kn("arm1")} and ${kn("arm2")}, ${kn("swap")}, or the mouse wheel switch weapons, ${kn("run")} runs, ${kn("sound")} turns the sound off and on, and Esc pauses. ` +
     `Paused, ${kn("save")} saves your progress in this browser, and ${kn("load")} on the title picks it up again; the buttons below do the same, and Keys changes any key. ` +
+    `A controller works too: the left stick walks, the right stick turns and looks, ${padList("fire")} shoots, ${padList("act")} starts, and ${padList("pause")} pauses; set its buttons under Keys. ` +
     "On a phone, drag the left pad to move and turn, hold Fire, and tap Swap or the gun at the bottom left to switch weapons.";
 }
+// ---------------------------------------------------------------- a game controller
+// Any controller the browser sees: an Xbox one, by USB or Bluetooth, comes in the "standard" layout.
+// The left stick walks and steps aside, the right stick turns and looks up and down, and each
+// button's job is yours to set, one by one, with the wizard under Keys (kept in this browser).
+// Buttons in the standard layout: 0 A, 1 B, 2 X, 3 Y, 4 LB, 5 RB, 6 LT, 7 RT, 8 View, 9 Menu, 10 and
+// 11 the sticks pressed in, 12 to 15 the D-pad, 16 the Xbox button.
+const PAD_DEFAULTS = {
+  act: [0, 9], fire: [7, 5], run: [6, 10], swap: [3], arm1: [14], arm2: [15],
+  forward: [12], back: [13], pause: [9], sound: [8], save: [2], load: [3],
+};
+const PAD_ORDER = ["act", "fire", "run", "swap", "arm1", "arm2", "pause", "sound", "save", "load", "forward", "back"];
+const PAD_WHAT = {
+  act: "Start and go on (the title and pause screens)", fire: "Shoot", run: "Run", swap: "Switch weapon", arm1: "Pea shooter", arm2: "Lightning rod",
+  forward: "Move forward", back: "Move back", pause: "Pause", sound: "Sound on and off", save: "Save (when paused)", load: "Load your save (on the title)",
+};
+// These work only on the title and pause screens, so they may share buttons with play (Menu pauses
+// a game, and on the pause screen goes on with it).
+const PAD_MENU = new Set(["act", "save", "load"]);
+const PAD_NAMES = ["A", "B", "X", "Y", "LB", "RB", "LT", "RT", "View", "Menu", "Left stick", "Right stick", "D-pad up", "D-pad down", "D-pad left", "D-pad right", "Xbox"];
+const PAD_STORE = "github-leaderboard.pad";
+let PAD = structuredClone(PAD_DEFAULTS);
+try {
+  const mine = JSON.parse(localStorage.getItem(PAD_STORE));
+  for (const a of PAD_ORDER) {
+    const v = mine?.[a];
+    if (Array.isArray(v) && v.length && v.every((i) => Number.isInteger(i) && i >= 0 && i < 32)) PAD[a] = v;
+  }
+} catch {}
+let gp = null, gpAny = false, gpStandard = true, padWas = [], padLoop = 0, cvSeen = true;
+const padIn = { fw: 0, st: 0, turn: 0, look: 0 };
+const padName = (i) => (gpStandard ? PAD_NAMES[i] : null) ?? `Button ${i + 1}`;
+const padList = (a) => PAD[a].map(padName).join(" or ");
+function readPad() {
+  gp = null;
+  try {
+    for (const g of navigator.getGamepads?.() ?? []) {
+      if (g?.connected) {
+        gp = g;
+        break;
+      }
+    }
+  } catch {}
+  return gp;
+}
+const padDown = (i) => {
+  const b = gp?.buttons[i];
+  return Boolean(b) && (b.pressed || b.value > 0.5);
+};
+const padOn = (a) => PAD[a].some(padDown);
+const padPressed = (a) => PAD[a].some((i) => padDown(i) && !padWas[i]);
+const padRemember = () => (padWas = gp ? gp.buttons.map((b) => b.pressed || b.value > 0.5) : []);
+const deadzone = (v, d = 0.18) => (Math.abs(v) < d ? 0 : (v - Math.sign(v) * d) / (1 - d));
+// Each frame of play: the sticks, and the buttons that act once.
+function padTick() {
+  Object.assign(padIn, { fw: 0, st: 0, turn: 0, look: 0 });
+  if (!readPad() || wiz.on) return;
+  const [lx = 0, ly = 0, rx = 0, ry = 0] = gp.axes;
+  const lm = Math.hypot(lx, ly), k = lm < 0.18 ? 0 : (lm - 0.18) / (1 - 0.18) / lm;
+  Object.assign(padIn, { fw: -ly * k + (padOn("forward") ? 1 : 0) - (padOn("back") ? 1 : 0), st: lx * k, turn: deadzone(rx), look: deadzone(ry) });
+  if (padPressed("pause")) pause();
+  else if (padPressed("sound")) toggleSound();
+  else if (padPressed("arm1")) swap(0);
+  else if (padPressed("arm2")) swap(1);
+  else if (padPressed("swap")) swap();
+  padRemember();
+}
+// Off the playing screen the game's loop is still, so the controller has a light loop of its own,
+// while one is plugged in: start, go on, save, and load, while the game is on screen.
+function padMenu() {
+  padLoop = 0;
+  if (G.state === "playing" || !gpAny) return;
+  // While the wizard is open it reads the buttons itself.
+  if (readPad() && !wiz.on) {
+    if (cvSeen) {
+      if (padPressed("act")) act();
+      else if (padPressed("save") && (G.state === "paused" || G.state === "cleared")) saveGame();
+      else if (padPressed("load") && saved && G.state !== "cleared") loadGame();
+    }
+    padRemember();
+  }
+  if (G.state !== "playing") padLoop = requestAnimationFrame(padMenu);
+}
+const padWake = () => {
+  if (gpAny && !padLoop && G.state !== "playing") padLoop = requestAnimationFrame(padMenu);
+};
+// A shake in the hands when the bugs get you, on a controller that can.
+function padRumble(strong, ms) {
+  try {
+    gp?.vibrationActuator?.playEffect?.("dual-rumble", { duration: ms, strongMagnitude: Math.min(1, strong), weakMagnitude: Math.min(1, strong * 0.6) })?.catch?.(() => {});
+  } catch {}
+}
+function padStatus() {
+  const here = readPad();
+  gpAny = Boolean(here);
+  gpStandard = !here || here.mapping === "standard";
+  const name = here ? here.id.replace(/\s*\(.*\)\s*$/, "").trim() || "a controller" : "";
+  $("#padStatus").textContent = here
+    ? `Connected: ${name}. The left stick walks and steps aside, the right stick turns and looks up and down; the buttons are below, and the wizard sets them one by one.`
+    : "No controller yet. Plug one in (an Xbox controller works, by USB or Bluetooth) and press any button on it.";
+  $("#padWizard").disabled = !here;
+  $("#padHere").hidden = !here;
+  renderPad();
+  describeKeys();
+  padWake();
+  // (Before the first level is built there's nothing to draw yet.)
+  if (P && G.state !== "playing") render();
+}
+addEventListener("gamepadconnected", () => {
+  padStatus();
+  note("CONTROLLER CONNECTED.");
+  said.textContent = `A controller is connected. ${padList("act")} starts; its buttons can be set under Keys.`;
+});
+addEventListener("gamepaddisconnected", () => padStatus());
+// The buttons table, and the wizard that sets them: it asks for each action in turn, and takes the
+// next button pressed. A button another action uses swaps over, as keys do.
+function renderPad() {
+  const tb = $("#padTable tbody");
+  tb.textContent = "";
+  for (const a of PAD_ORDER) tb.appendChild(h("tr", { class: wiz.on && PAD_ORDER[wiz.i] === a ? "me" : "" }, [h("td", { text: PAD_WHAT[a] }), h("td", { class: "k", text: padList(a) })]));
+  $("#padReset").disabled = JSON.stringify(PAD) === JSON.stringify(PAD_DEFAULTS);
+}
+function storePad() {
+  try {
+    localStorage.setItem(PAD_STORE, JSON.stringify(PAD));
+  } catch {}
+}
+function bindPad(action, i) {
+  const group = (a) => PAD_MENU.has(a) === PAD_MENU.has(action);
+  const old = PAD[action].filter((b) => b !== i);
+  for (const a of PAD_ORDER) {
+    if (a === action || !group(a) || !PAD[a].includes(i)) continue;
+    const rest = PAD[a].filter((b) => b !== i);
+    PAD[a] = rest.length ? rest : old.length ? old : PAD_DEFAULTS[a];
+  }
+  PAD[action] = [i];
+}
+const wiz = { on: false, i: 0, before: null, raf: 0 };
+function wizardAsk() {
+  const a = PAD_ORDER[wiz.i];
+  $("#padAsk").textContent = `${wiz.i + 1} of ${PAD_ORDER.length}: press the button for ${PAD_WHAT[a]}. It's ${padList(a)} now; Skip keeps it.`;
+  renderPad();
+}
+function wizardPoll() {
+  wiz.raf = 0;
+  if (!wiz.on) return;
+  if (readPad()) {
+    const i = gp.buttons.findIndex((b, k) => (b.pressed || b.value > 0.5) && !padWas[k]);
+    padRemember();
+    if (i >= 0) {
+      bindPad(PAD_ORDER[wiz.i], i);
+      return wizardNext();
+    }
+  }
+  wiz.raf = requestAnimationFrame(wizardPoll);
+}
+function wizardNext() {
+  wiz.i++;
+  if (wiz.i >= PAD_ORDER.length) return wizardEnd(true);
+  wizardAsk();
+  wiz.raf = requestAnimationFrame(wizardPoll);
+}
+function wizardEnd(done) {
+  wiz.on = false;
+  cancelAnimationFrame(wiz.raf);
+  if (!done) PAD = wiz.before;
+  storePad();
+  $("#padStep").hidden = true;
+  renderPad();
+  describeKeys();
+  $("#padMsg").textContent = done ? "Your controller is set up." : "Nothing changed.";
+  $("#padWizard").focus();
+  if (G.state !== "playing") render();
+}
+$("#padWizard").addEventListener("click", () => {
+  if (!readPad() || wiz.on) return;
+  if (G.state === "playing") pause();
+  Object.assign(wiz, { on: true, i: 0, before: structuredClone(PAD) });
+  $("#padStep").hidden = false;
+  $("#padMsg").textContent = "";
+  padRemember();
+  wizardAsk();
+  wiz.raf = requestAnimationFrame(wizardPoll);
+});
+$("#padSkip").addEventListener("click", () => wiz.on && wizardNext());
+$("#padCancel").addEventListener("click", () => wiz.on && wizardEnd(false));
+$("#padReset").addEventListener("click", () => {
+  PAD = structuredClone(PAD_DEFAULTS);
+  storePad();
+  renderPad();
+  describeKeys();
+  $("#padMsg").textContent = "The controller's buttons are back to how they started.";
+  if (G.state !== "playing") render();
+});
 // What the mouse's up and down do: "look" up and down, or "walk" forward and back (V switches).
 let mouseY = "look";
 try {
@@ -4591,11 +4803,13 @@ function controls(dt) {
   // The mouse up and down: look, or walk (as fast as the mouse moves, like the old games).
   const mouseWalk = mouseY === "walk" ? Math.max(-1, Math.min(1, -mouseDY * 0.09)) : 0;
   if (mouseY === "look") P.pitch = Math.max(-PITCH, Math.min(PITCH, P.pitch - mouseDY * 0.3));
-  else P.pitch *= Math.max(0, 1 - dt * 8);
-  const fw = Math.max(-1, Math.min(1, (on("forward") ? 1 : 0) - (on("back") ? 1 : 0) + touch.move + mouseWalk));
-  const st = (on("right") ? 1 : 0) - (on("left") ? 1 : 0);
-  P.a += ((on("turnRight") ? 1 : 0) - (on("turnLeft") ? 1 : 0)) * 2.6 * dt + touch.turn * 2.2 * dt + mouseDX * 0.0024;
-  const run = on("run") ? 1.6 : 1, dx = Math.cos(P.a), dy = Math.sin(P.a);
+  else if (!padIn.look) P.pitch *= Math.max(0, 1 - dt * 8);
+  // The controller's right stick looks up and down too, whatever the mouse does.
+  P.pitch = Math.max(-PITCH, Math.min(PITCH, P.pitch - padIn.look * 110 * dt));
+  const fw = Math.max(-1, Math.min(1, (on("forward") ? 1 : 0) - (on("back") ? 1 : 0) + touch.move + mouseWalk + padIn.fw));
+  const st = Math.max(-1, Math.min(1, (on("right") ? 1 : 0) - (on("left") ? 1 : 0) + padIn.st));
+  P.a += ((on("turnRight") ? 1 : 0) - (on("turnLeft") ? 1 : 0)) * 2.6 * dt + touch.turn * 2.2 * dt + mouseDX * 0.0024 + padIn.turn * 2.8 * dt;
+  const run = on("run") || padOn("run") ? 1.6 : 1, dx = Math.cos(P.a), dy = Math.sin(P.a);
   let mx = dx * fw - dy * st, my = dy * fw + dx * st;
   const m = Math.hypot(mx, my);
   if (m > 1) [mx, my] = [mx / m, my / m];
@@ -4607,7 +4821,7 @@ function controls(dt) {
   if (wet && step !== P.step) SFX.wade();
   P.step = step;
   P.bobAmp += ((reduced ? 0 : Math.min(1, m)) - P.bobAmp) * Math.min(1, dt * 8);
-  if ((mouseFire || touch.fire || on("fire")) && P.fireT <= 0 && P.swapT >= 0.3) (P.arm ? zap : shoot)();
+  if ((mouseFire || touch.fire || on("fire") || padOn("fire")) && P.fireT <= 0 && P.swapT >= 0.3) (P.arm ? zap : shoot)();
 }
 // Switch weapons: to the one numbered, or else the other one. The one in hand dips out of sight first.
 function swap(to = 1 - P.want) {
@@ -4727,6 +4941,7 @@ function hurtBoss(e) {
 function hurt(n) {
   if (P.hp <= 0) return;
   P.hp -= n;
+  padRumble(0.35 + n / 30, 140);
   P.hurtT = Math.min(0.6, Math.max(P.hurtT, 0) + n / 30);
   SFX.ouch();
   if (P.hp <= 0) {
@@ -5075,6 +5290,7 @@ function update(dt) {
   P.shotT += dt;
   P.swapT += dt;
   if (P.swapT >= 0.15) P.arm = P.want;
+  if (G.state === "playing") padTick();
   if (G.state === "playing" && P.hp > 0) {
     P.time += dt;
     controls(dt);
@@ -5215,6 +5431,7 @@ function setState(s, speak) {
   cv.setAttribute("aria-label", LABEL[s]());
   if (speak) said.textContent = speak;
   saveUI();
+  padWake();
 }
 let raf = 0, last = 0;
 function loop(now) {
@@ -5304,6 +5521,7 @@ for (const b of document.querySelectorAll("#mouseY button")) {
 setMouseY(mouseY, false);
 renderKeys();
 describeKeys();
+padStatus();
 // Keys held while playing (moving, turning, shooting, running) go in the keys set; the rest act once.
 const HELD = ["forward", "back", "left", "right", "turnLeft", "turnRight", "fire", "run"];
 cv.addEventListener("keydown", (e) => {
@@ -5383,7 +5601,10 @@ document.addEventListener("mousemove", (e) => {
   mouseDY += e.movementY;
 });
 document.addEventListener("visibilitychange", () => document.hidden && pause());
-new IntersectionObserver(([e]) => e.isIntersecting || pause()).observe(cv);
+new IntersectionObserver(([e]) => {
+  cvSeen = e.isIntersecting;
+  if (!cvSeen) pause();
+}).observe(cv);
 // On a touch screen: a stick to move and turn, and a fire button.
 if (matchMedia("(pointer: coarse)").matches) pad.hidden = false;
 let stickId = null;
