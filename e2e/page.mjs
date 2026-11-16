@@ -579,6 +579,64 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   check(!errors.some((e) => e.startsWith("game phone:")), "no script errors in the game on a phone");
   await touch.close();
 }
+// Storm Cellar saves your progress: paused, S saves where you are; after a reload the title offers
+// to go on, C puts you back in the same spot, a save from the top of the drain starts level 2, a
+// broken save is ignored, and Delete forgets it.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1340, height: 900 } });
+  const sv = await ctx.newPage();
+  watch(sv, "game save");
+  const KEY = "github-leaderboard.cellar";
+  const state = () => sv.getAttribute("#game", "data-state");
+  const stored = () => sv.evaluate((k) => JSON.parse(localStorage.getItem(k)), KEY);
+  const atTitle = async () => {
+    await sv.reload();
+    await sv.waitForFunction(() => document.querySelector("#game").dataset.state === "title", null, { timeout: 8000 });
+  };
+  await sv.goto(url);
+  await sv.waitForFunction(() => document.querySelector("#game").dataset.state === "title", null, { timeout: 8000 });
+  check((await sv.locator("#gameLoad").isHidden()) && (await sv.locator("#gameSave").isHidden()), "with no save, the game offers no Continue or Save");
+  await sv.focus("#game");
+  await sv.keyboard.press("Enter");
+  await sv.waitForTimeout(250);
+  check(await sv.locator("#gameSave").isVisible(), "playing, Save progress is offered");
+  await sv.keyboard.down("ArrowUp");
+  await sv.waitForTimeout(600);
+  await sv.keyboard.up("ArrowUp");
+  await sv.keyboard.press("Escape");
+  await sv.keyboard.press("KeyS");
+  await sv.waitForTimeout(150);
+  const first = await stored();
+  check(first?.level === 0 && first.p?.hp === 100 && first.p.y < 21 && first.items.length > 0 && first.foes.length > 0, "paused, S saves where you are, what you carry, and the bugs and pickups");
+  check((await sv.locator("#gameSaid").textContent()).startsWith("Progress saved: level 1"), "and says so");
+  await atTitle();
+  check((await sv.locator("#gameLoad").innerText()).startsWith("Continue: level 1, the cellar") && /C to go on from your save/.test(await sv.getAttribute("#game", "aria-label")), "after a reload, the title offers to go on from the save");
+  await sv.focus("#game");
+  await sv.keyboard.press("KeyC");
+  await sv.waitForTimeout(200);
+  await sv.keyboard.press("Escape");
+  await sv.keyboard.press("KeyS");
+  await sv.waitForTimeout(150);
+  const again = await stored();
+  check(
+    (await state()) === "paused" && again.p.x === first.p.x && again.p.y === first.p.y && again.p.hp === first.p.hp && again.items.length === first.items.length && again.p.time >= first.p.time,
+    "C puts you back in the same spot, with the clock going on",
+  );
+  await sv.evaluate((k) => localStorage.setItem(k, JSON.stringify({ v: 1, at: Date.now(), level: 1, fresh: true, carry: 55, run: { kills: 9, total: 12, commits: 5, totalC: 5, time: 200 } })), KEY);
+  await atTitle();
+  await sv.click("#gameLoad");
+  await sv.waitForTimeout(200);
+  check(/playing level 2, the storm drain/.test(await sv.getAttribute("#game", "aria-label")), "a save from the top of the drain starts level 2");
+  await sv.evaluate((k) => localStorage.setItem(k, "{not a save"), KEY);
+  await atTitle();
+  check(await sv.locator("#gameLoad").isHidden(), "a broken save is ignored");
+  await sv.evaluate((k) => localStorage.setItem(k, JSON.stringify({ v: 1, at: Date.now(), level: 1, fresh: true, carry: 40, run: null })), KEY);
+  await atTitle();
+  await sv.click("#gameForget");
+  check((await sv.evaluate((k) => localStorage.getItem(k), KEY)) === null && (await sv.locator("#gameLoad").isHidden()), "Delete save forgets it");
+  check(!errors.some((e) => e.startsWith("game save:")), "no script errors saving and loading the game");
+  await ctx.close();
+}
 // Every county, on a map: its shapes load when it comes near (from a file:// page too), a state
 // zooms in, a county there sets the leaderboard, the keyboard moves and speaks, the colours follow
 // the theme, a phone never scrolls sideways, and reduced motion jumps straight there.
