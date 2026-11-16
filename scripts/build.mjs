@@ -6,8 +6,11 @@
 //   SCOPE=LA,MS,AR   only some states (default: all)
 //   HISTORY=<file>   the daily history to show (default: data/history.json, if there is one)
 //   OUT=<file>       where to write the page (default: site/leaderboard.html); the badges go in
-//                    badge/ beside it
+//                    badge/ beside it, and version.txt, the build's time, which an open page checks
+//                    to see if there is a newer one
+//   BADGES=0         no badges (for test builds)
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { gzipSync } from "node:zlib";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { BADGE_LABEL, badgeMessage, badgeSvg, ranksOf } from "../src/badge.mjs";
@@ -113,8 +116,17 @@ const counties = Object.fromEntries(
   }),
 );
 
-// Compact people: [login, name, state, total, commits, private, prs, reviews, issues, repos, followers, county, fair, location]
-const P = people.map((p) => [p.login, p.name, p.state, p.total, p.commits, p.private, p.prs, p.reviews, p.issues, p.repos, p.followers, p.county, p.fair ? 1 : 0, (p.location ?? "").trim()]);
+// People, by column, which is smaller than one array a person: each field a list, the state as its
+// place in states. The page turns them back into rows: [login, name, state, total, commits, private,
+// prs, reviews, issues, repos, followers, county, fair, location].
+const stateAt = Object.fromEntries(STATES.map(([ab], i) => [ab, i]));
+const P = { login: [], name: [], state: [], total: [], commits: [], private: [], prs: [], reviews: [], issues: [], repos: [], followers: [], county: [], fair: [], location: [] };
+for (const p of people) {
+  for (const k of ["login", "name", "total", "commits", "private", "prs", "reviews", "issues", "repos", "followers", "county"]) P[k].push(p[k]);
+  P.state.push(stateAt[p.state]);
+  P.fair.push(p.fair ? 1 : 0);
+  P.location.push((p.location ?? "").trim());
+}
 const me = people.find((p) => p.login === VIEWER) ?? null;
 // The daily refresh's time, from the workflow.
 const cron = readFileSync(new URL("../.github/workflows/refresh.yml", import.meta.url), "utf8").match(/cron:\s*"(\d+) (\d+) \* \* \*"/);
@@ -128,17 +140,23 @@ data.home = JSON.parse(readFileSync(new URL("../package.json", import.meta.url),
 
 const out = process.env.OUT ? pathToFileURL(resolve(process.env.OUT)) : new URL("../site/leaderboard.html", import.meta.url);
 const tpl = readFileSync(new URL("../web/template.html", import.meta.url), "utf8");
-writeFileSync(out, tpl.replace("/*__DATA__*/null", () => JSON.stringify(data).replace(/</g, String.fromCharCode(92) + "x3c")));
+const page = tpl.replace("/*__DATA__*/null", () => JSON.stringify(data).replace(/</g, String.fromCharCode(92) + "x3c"));
+writeFileSync(out, page);
+writeFileSync(new URL("version.txt", out), `${data.generated}
+`);
+const kb = (n) => `${Math.round(n / 1024)} KB`;
+console.log(`leaderboard.html: ${kb(Buffer.byteLength(page))}, ${kb(gzipSync(page).length)} gzipped`);
 
 // A badge for each person's profile README (src/badge.mjs), written fresh, so nobody who has left
 // keeps one.
 const badges = new URL("badge/", out);
 rmSync(badges, { recursive: true, force: true });
-mkdirSync(badges, { recursive: true });
+const BADGES = process.env.BADGES !== "0";
+if (BADGES) mkdirSync(badges, { recursive: true });
 const ranks = ranksOf(people);
-for (const p of people) {
+for (const p of BADGES ? people : []) {
   const kind = hasCounties(p.state) ? countyKind(p.state)[0] : "county";
   writeFileSync(new URL(`${p.login.toLowerCase()}.svg`, badges), badgeSvg(BADGE_LABEL, badgeMessage(ranks.get(p.login), BY_AB[p.state].name, p.county, kind)));
 }
-console.log(`placed ${people.length} of ${Object.keys(users).length} users in a state (${fair.length} in the per-state sample); leaderboard.html and ${people.length} badges written`);
+console.log(`placed ${people.length} of ${Object.keys(users).length} users in a state (${fair.length} in the per-state sample); leaderboard.html and ${BADGES ? people.length : "no"} badges written`);
 if (me) console.log(`you: ${me.state}, ${me.total} contributions`);

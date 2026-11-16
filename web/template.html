@@ -495,6 +495,11 @@ lightSystem.addEventListener("change", () => {
 });
 
 // ---------------------------------------------------------------- the data
+// The build stores people by column, which is smaller; the page works with one array a person.
+D.P = D.P.login.map((login, i) => {
+  const c = D.P;
+  return [login, c.name[i], D.states[c.state[i]].ab, c.total[i], c.commits[i], c.private[i], c.prs[i], c.reviews[i], c.issues[i], c.repos[i], c.followers[i], c.county[i], c.fair[i], c.location[i]];
+});
 // P rows: [login, name, state, total, commits, private, prs, reviews, issues, repos, followers, parish]
 // parish is the county (a parish in Louisiana), for the states with county lists, else "".
 const F = { login: 0, name: 1, state: 2, total: 3, commits: 4, private: 5, prs: 6, reviews: 7, issues: 8, repos: 9, followers: 10, parish: 11, fair: 12, location: 13 };
@@ -574,12 +579,13 @@ function renderFresh() {
 renderFresh();
 setInterval(renderFresh, 60000);
 // A stale copy (a browser's ten-minute cache, a tab left open overnight) updates itself: ask the
-// server for the newest page, past every cache, and reload onto it if it was built later.
+// server when the newest page was built (version.txt, written with it), past every cache, and
+// reload onto it if that was later.
 async function checkForUpdate() {
   if (location.protocol === "file:") return;
   try {
-    const r = await fetch(`${location.pathname}?_=${Date.now()}`, { cache: "no-store" });
-    const newest = (await r.text()).match(/"generated":"([^"]+)"/)?.[1];
+    const r = await fetch(`version.txt?_=${Date.now()}`, { cache: "no-store" });
+    const newest = r.ok ? (await r.text()).trim() : "";
     if (newest && newest > D.generated) {
       const u = new URL(location.href);
       u.searchParams.set("v", newest.replace(/\D/g, "").slice(0, 14));

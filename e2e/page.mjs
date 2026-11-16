@@ -318,7 +318,7 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
       writeFileSync(history, JSON.stringify({ dates: days.map((d) => d[0]), people: each(() => 80), total: each((d) => d[1]) }));
     }
     const out = join(dir, `${name}.html`);
-    execFileSync(process.execPath, [fileURLToPath(new URL("../scripts/build.mjs", import.meta.url))], { env: { ...process.env, HISTORY: history, OUT: out }, stdio: ["ignore", "ignore", "inherit"] });
+    execFileSync(process.execPath, [fileURLToPath(new URL("../scripts/build.mjs", import.meta.url))], { env: { ...process.env, HISTORY: history, OUT: out, BADGES: "0" }, stdio: ["ignore", "ignore", "inherit"] });
     return pathToFileURL(out).href;
   };
   // Without waiting for what is not there: a missing element is a failed check, not a timeout.
