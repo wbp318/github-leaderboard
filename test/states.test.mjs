@@ -2,6 +2,7 @@
 // (null for "not in a US state"), then change src/states.mjs until `npm test` passes.
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { ONLY_STATES, onlyTownsRe } from "../src/counties.mjs";
 import { place, stateOf } from "../src/states.mjs";
 
 const CASES = [
@@ -238,6 +239,12 @@ const CASES = [
   ["Washington D.C.", null],
   ["Remote", null],
   ["", null],
+  // A town alone places someone only in a state with an ONLY list; anywhere else it is no state.
+  ["Earth", null],
+  ["Springfield", null],
+  ["Austin", null],
+  ["Berlin", null],
+  ["Portland", null],
 ];
 
 for (const [location, want] of CASES) {
@@ -251,4 +258,12 @@ test("place says which rule placed a location", () => {
   assert.deepEqual(place("Austin, Texas"), { state: "TX", rule: "name" });
   assert.deepEqual(place("New Orleans"), { state: "LA", rule: "city" });
   assert.deepEqual(place("Hattiesburg"), { state: "MS", rule: "city" });
+});
+
+// Only these states have names that place someone on their own (rule 4), in this order. A state
+// with counties but no such names must never claim anyone that way: an empty list would build a
+// pattern that matches every location.
+test("only LA, MS, AL, AR, and TN place a town alone", () => {
+  assert.deepEqual(ONLY_STATES, ["LA", "MS", "AL", "AR", "TN"]);
+  for (const ab of ["TX", "NY", "CA", "XX"]) assert.equal(onlyTownsRe(ab), null);
 });

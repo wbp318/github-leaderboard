@@ -3,7 +3,11 @@
 // per state, how many were placed by each rule; what the guards turned away; and, for the
 // two-letter codes other places share, every city that was accepted, for a human to read.
 //   node scripts/audit.mjs   (or: npm run audit)
+//   node scripts/audit.mjs --placements   instead, one line per person found: login, state, the
+//                                         rule that placed them, and their county. Save it before
+//                                         and after a change to the rules, then diff the two.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { countyOf, hasCounties } from "../src/counties.mjs";
 import { NAMES, place, stateCodeAtEnd } from "../src/states.mjs";
 
 const file = (n) => new URL(`../data/${n}`, import.meta.url);
@@ -13,6 +17,19 @@ if (!existsSync(file("profiles.json"))) {
 }
 const profiles = JSON.parse(readFileSync(file("profiles.json"), "utf8"));
 const users = existsSync(file("users.json")) ? JSON.parse(readFileSync(file("users.json"), "utf8")) : {};
+
+if (process.argv.includes("--placements")) {
+  const lines = [];
+  for (const [login, p] of Object.entries(profiles)) {
+    const loc = p?.location?.trim();
+    const r = loc ? place(loc) : null;
+    if (!r) continue;
+    const county = hasCounties(r.state) ? (countyOf(r.state, loc) ?? "-") : "-";
+    lines.push(`${login}\t${r.state}\t${r.rule}\t${county}`);
+  }
+  process.stdout.write(`${lines.sort().join("\n")}\n`);
+  process.exit(0);
+}
 
 // Codes that other countries, states, or provinces also write after a city.
 const SHARED = ["AL", "AR", "AZ", "CA", "CO", "CT", "DE", "FL", "GA", "ID", "IL", "IN", "KY", "LA", "MA", "MD", "ME", "MI", "MN", "MO", "MS", "MT", "NC", "NE", "NH", "OR", "PA", "RI", "SC", "SD", "TN", "UT", "VA", "VT", "WA"];

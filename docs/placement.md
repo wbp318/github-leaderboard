@@ -87,7 +87,7 @@ Or [open an issue](https://github.com/wbp318/github-leaderboard/issues/new/choos
 
 ## Not on the leaderboard?
 
-Each state looks up only its 80 likeliest-busiest people (and the five states with parishes or counties everyone active, up to 500), so most people are not on it. On the page, typing a login that is not there offers **Add me**, a one-click [issue](https://github.com/wbp318/github-leaderboard/issues/new?template=add-me.yml): the bot places whoever opens it with these same rules and replies with their ranks, or with why it could not place them.
+Each state looks up the people found there who pushed in the last year, up to 1,000, and GitHub's search finds only about 800 people a state, so most people are not on it. On the page, typing a login that is not there offers **Add me**, a one-click [issue](https://github.com/wbp318/github-leaderboard/issues/new?template=add-me.yml): the bot places whoever opens it with these same rules and replies with their ranks, or with why it could not place them.
 
 ## Other people who are left off
 

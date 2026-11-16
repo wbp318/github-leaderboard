@@ -6,7 +6,7 @@
 // date (UTC), so a second record for the same day replaces the first. null means no record.
 import { existsSync, readFileSync } from "node:fs";
 import { isBot, optedOut } from "./exclude.mjs";
-import { markSample, refreshedAt } from "./sample.mjs";
+import { current, markSample, refreshedAt } from "./sample.mjs";
 import { NAMES, stateOf } from "./states.mjs";
 
 export const FIELDS = ["people", "total"];
@@ -24,7 +24,7 @@ export function recordOf(users, profiles, perState = 80) {
   const out = optedOut();
   const people = [];
   for (const [login, u] of Object.entries(users)) {
-    if (!u || out.has(login.toLowerCase()) || isBot(login)) continue;
+    if (!current(u, at) || out.has(login.toLowerCase()) || isBot(login)) continue;
     const state = stateOf(u.location);
     if (state) people.push({ login, state, total: u.total });
   }

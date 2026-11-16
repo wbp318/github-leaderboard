@@ -1,11 +1,11 @@
 // Collects GitHub users who list a US state in their profile location, and their contributions
 // over the last year. Resumable: progress is saved under data/ and skipped on the next run, and
-// rerunning refreshes only what has gone stale (contributions daily, searches and profiles weekly).
+// rerunning refreshes only what has gone stale (contributions daily or weekly, searches and profiles weekly).
 //   GH_TOKEN=$(gh auth token) node scripts/collect.mjs   (or: npm run collect)
 // Phase 1 searches users by state (full name, then "City, ST"); phase 2 reads each user's
 // contribution totals through the GraphQL API in small batches.
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { COUNTY_STATES, hasCounties } from "../src/counties.mjs";
+import { due, loginHash, tiers } from "../src/schedule.mjs";
 import { stateOf } from "../src/states.mjs";
 
 const TOKEN = process.env.GH_TOKEN;
@@ -28,7 +28,7 @@ const DAY = 24 * HOUR;
 const CONTRIB_MAX = Number(process.env.CONTRIB_MAX_HOURS ?? 20) * HOUR;
 const PROFILE_MAX = Number(process.env.PROFILE_MAX_DAYS ?? 7) * DAY;
 const SEARCH_MAX = Number(process.env.SEARCH_MAX_DAYS ?? 7) * DAY;
-const spread = (login) => ([...login].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 7) * DAY;
+const spread = (login) => (loginHash(login) % 7) * DAY;
 const stale = (v, max, login = "") => !v?.at || Date.now() - v.at > max + (login ? spread(login) : 0);
 const save = (n, v) => writeFileSync(file(n), JSON.stringify(v));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -238,32 +238,17 @@ async function profiles(all) {
   return prof;
 }
 
-// Who gets the expensive contribution lookup: per state, the K likeliest to be most active among
-// people who pushed in the last year; in a state with a county list (src/counties.mjs), everyone
-// active, up to ALL_ACTIVE, for the county breakdown.
+// Who gets the expensive contribution lookup (src/schedule.mjs): per state, the PER_STATE (80)
+// likeliest to be most active among people who pushed in the last year, every run; the rest of the
+// active, up to ALL_ACTIVE a state, once a week, for the county views. At most NEW_MAX people never
+// looked up are added a run, and after COLLECT_MINUTES no more weekly lookups start (the daily ones
+// always finish), so a run stays well inside the workflow's time limit.
 const K = Number(process.env.PER_STATE ?? 80);
-const ALL_ACTIVE = 500;
+const ALL_ACTIVE = Number(process.env.ALL_ACTIVE ?? 1000);
+const NEW_MAX = Number(process.env.NEW_MAX ?? 3000);
+const DEADLINE = Date.now() + Number(process.env.COLLECT_MINUTES ?? 210) * 60000;
 // Every state, or only some: SCOPE=LA,MS,AR.
 const SCOPE = process.env.SCOPE && process.env.SCOPE !== "all" ? new Set(process.env.SCOPE.split(",")) : null;
-function select(prof, extra) {
-  const yearAgo = Date.now() - 365 * 86400000;
-  const byState = {};
-  for (const [login, p] of Object.entries(prof)) {
-    if (!p) continue;
-    const st = stateOf(p.location);
-    if (!st || (SCOPE && !SCOPE.has(st))) continue;
-    const active = p.pushed && Date.parse(p.pushed) >= yearAgo;
-    if (!active) continue;
-    const score = 2 * p.repos + p.followers / 5;
-    (byState[st] ??= []).push([login, score]);
-  }
-  const chosen = new Set(extra);
-  for (const [st, list] of Object.entries(byState)) {
-    list.sort((a, b) => b[1] - a[1]);
-    for (const [login] of list.slice(0, hasCounties(st) ? ALL_ACTIVE : K)) chosen.add(login);
-  }
-  return [...chosen];
-}
 
 // Phase 2b: contributions, paced to GitHub's secondary limit on GraphQL compute time.
 async function phase2(cands, extra) {
@@ -277,12 +262,23 @@ async function phase2(cands, extra) {
     ]),
   ];
   const prof = await profiles(everyone);
-  const chosen = select(prof, extra);
-  const todo = chosen.filter((l) => !users[l] || stale(users[l], CONTRIB_MAX));
-  log(`${chosen.length} chosen for contributions (${K} a state; all active in ${COUNTY_STATES.join(", ")}), ${todo.length} to fetch`);
+  const tier = tiers(prof, extra, { perState: K, allActive: ALL_ACTIVE, scope: SCOPE });
+  const todays = due(tier, users, { contribMax: CONTRIB_MAX, newMax: NEW_MAX });
+  log(
+    `${tier.daily.length} looked up daily (${todays.daily.length} due), ${tier.weekly.length} weekly ` +
+      `(${todays.weekly.length} due, ${todays.fresh.length} new, ${todays.later} new left for later runs)`,
+  );
+  // Weekly lookups are marked, so the page can tell them apart until it shows every county.
+  const weekly = new Set(tier.weekly);
   const SIZE = 8;
   const batches = [];
-  for (let i = 0; i < todo.length; i += SIZE) batches.push(todo.slice(i, i + SIZE));
+  const chunk = (list, daily) => {
+    for (let i = 0; i < list.length; i += SIZE) batches.push(Object.assign(list.slice(i, i + SIZE), { daily }));
+  };
+  chunk(todays.daily, true);
+  chunk([...todays.weekly, ...todays.fresh], false);
+  const todo = batches.flat();
+  let late = 0;
   let done = 0;
   let sinceSave = 0;
   let width = 2; // workers allowed at once; drops on a 403 and recovers slowly
@@ -298,6 +294,7 @@ async function phase2(cands, extra) {
       for (const [i, l] of batch.entries()) {
         const u = d[`u${i}`];
         users[l] = u?.contributionsCollection ? pick(u) : await heavy(l);
+        if (users[l] && weekly.has(l)) users[l].tier = "w";
       }
       if (++calm >= 40 && width < 3) {
         width++;
@@ -307,11 +304,18 @@ async function phase2(cands, extra) {
       for (const l of batch) await one([l]);
     } else {
       users[batch[0]] = await heavy(batch[0]);
+      if (users[batch[0]] && weekly.has(batch[0])) users[batch[0]].tier = "w";
     }
   };
   await new Promise((resolve) => {
     const pump = () => {
       if (!batches.length && running === 0) return resolve();
+      if (Date.now() > DEADLINE && batches.length && !batches[0].daily) {
+        late = batches.reduce((a, b) => a + b.length, 0);
+        log(`out of time: ${late} weekly lookups left for the next run`);
+        batches.length = 0;
+        if (running === 0) return resolve();
+      }
       while (running < width && batches.length) {
         const b = batches.shift();
         running++;
@@ -329,8 +333,19 @@ async function phase2(cands, extra) {
     };
     pump();
   });
+  // Forget people no longer looked up at all, once their numbers are two months old.
+  let forgot = 0;
+  if (!SCOPE) {
+    const kept = new Set([...tier.daily, ...tier.weekly]);
+    for (const [l, u] of Object.entries(users)) {
+      if (!kept.has(l) && (!u?.at || Date.now() - u.at > 60 * DAY)) {
+        delete users[l];
+        forgot++;
+      }
+    }
+  }
   save("users.json", users);
-  log(`phase 2 done: ${Object.keys(users).length} users`);
+  log(`phase 2 done: ${Object.keys(users).length} users${forgot ? `, ${forgot} no longer looked up forgotten` : ""}${late ? `, ${late} left for the next run` : ""}`);
 }
 
 // Louisiana, deeper: people who give only a city, for the parish breakdown.

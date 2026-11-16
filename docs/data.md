@@ -33,14 +33,14 @@ Cheap facts about everyone found, used to place them and to pick whose contribut
 
 ### users.json
 
-A year of contributions for the people looked up: in each state, the 80 most likely to be busiest among those who pushed in the last year, scored by public repositories and followers; and in the states with county lists (Louisiana, Mississippi, Alabama, Arkansas, and Tennessee), everyone active, up to 500 a state ([who is looked up](#who-is-looked-up)).
+A year of contributions for the people looked up: in each state, everyone who pushed in the last year, up to 1,000, the 80 most likely to be busiest (scored by public repositories and followers) every day and the rest every week ([who is looked up](#who-is-looked-up)).
 
 ```json
 {
   "someone": {
     "name": "Their Name", "location": "Maine", "followers": 262,
     "total": 41018, "commits": 5499, "prs": 479, "reviews": 1060, "issues": 0, "repos": 11, "private": 33969,
-    "at": 1794516199109
+    "at": 1794516199109, "tier": "w"
   }
 }
 ```
@@ -48,7 +48,8 @@ A year of contributions for the people looked up: in each state, the 80 most lik
 - `total`: the number on their contribution calendar for the last 12 months.
 - `commits`, `prs`, `reviews`, `issues`, `repos`: public contributions of each kind (`repos` is repositories created).
 - `private`: contributions to private repositories, counted only if they show them on their profile. For the busiest accounts GitHub cannot count this field in one query, so it is the calendar total minus the public kinds, which is how the calendar adds up.
-- Refreshed every day.
+- `tier`: `"w"` for someone looked up weekly. Until every state has counties, the page shows them only in the states that do, and when they are in the sample states are compared on.
+- `at`: when they were last looked up. The page and the history leave out anyone not looked up in the 21 days before the newest lookup; the collector forgets people it no longer looks up once their numbers are 60 days old.
 
 ### Who added themselves
 
@@ -85,7 +86,10 @@ One record a day of what the page showed for each state, for the sparklines in t
 | Setting | Default | What it does |
 |---|---|---|
 | `SCOPE` | every state | Only some states, such as `LA,MS,AR` |
-| `PER_STATE` | 80 | People a state whose contributions are looked up, and used to compare states |
+| `PER_STATE` | 80 | People a state whose contributions are looked up every day, and used to compare states |
+| `ALL_ACTIVE` | 1,000 | People a state looked up in all, the rest of them once a week |
+| `NEW_MAX` | 3,000 | People never looked up before who are added in one run |
+| `COLLECT_MINUTES` | 210 | After this long no more weekly lookups start; the daily ones always finish |
 | `VIEWER` | wbp318 | Always looked up |
 | `CONTRIB_MAX_HOURS` | 20 (12 in the daily run) | When contributions count as stale |
 | `PROFILE_MAX_DAYS` | 7 | When profiles count as stale |
@@ -93,18 +97,11 @@ One record a day of what the page showed for each state, for the sparklines in t
 
 ### Who is looked up
 
-States are compared on the same sample everywhere: the 80 people in each who pushed code in the last year and score highest on public repositories and followers. A county view needs more than that, so in each state with a county list ([src/counties.mjs](../src/counties.mjs)) everyone who pushed in the last year is looked up, the likeliest-busiest first, up to 500 (`ALL_ACTIVE` in the collector). Those extra people count only in their own state's view and its counties, never when states are compared.
+States are compared on the same sample everywhere: the 80 people in each who pushed code in the last year and score highest on public repositories and followers. They are looked up every day. A county view needs more than that, so everyone else who pushed in the last year is looked up too, the likeliest-busiest first, up to 1,000 a state (`ALL_ACTIVE`), once a week ([src/schedule.mjs](../src/schedule.mjs)). Each of them has a weekday, worked out from their login, so about a seventh come up each day; anyone whose day was missed is made up the next run. Those extra people count only in their own state's view and its counties, never when states are compared.
 
-| State | Active people found | Looked up |
-|---|---:|---:|
-| Louisiana | about 750 | 500 |
-| Mississippi | about 210 | all of them |
-| Alabama | about 345 | all of them |
-| Arkansas | about 360 | all of them |
-| Tennessee | about 425 | all of them |
-| Every other state | | 80 |
+People never looked up before wait for a run with room: at most 3,000 are added a run (`NEW_MAX`), so when the weekly tier grew in November 2026 from the five county states to every state, about 15,000 new people took five daily runs to fill in.
 
-The budget, as of November 2026: about 4,550 people are looked up each day, 8 to a query, so about 570 contribution queries at about a point each. The seventh of the profiles refreshed each day takes about 100 more queries at about two points each. So a daily run spends roughly 800 points, against the 1,000 an hour the workflow's token gets. Looking up everyone active in Mississippi, not only its 80, added about 130 people and 17 queries a day, about 2% more. Alabama, Arkansas, and Tennessee, added in November 2026, brought about 890 more people and 110 queries a day, so a daily run now spends roughly 900 points. Past 1,000 the collector waits for the next hour, so a bigger day takes longer rather than failing. A new state with a county list adds its active people past 80, up to 420 more; count them before adding it.
+The budget, as of November 2026: about 20,900 people who pushed in the last year are placed in a state. About 4,000 are looked up every day and about 2,400 more on each weekday, 8 to a query, so about 810 contribution queries at about a point each, and the seventh of the profiles refreshed each day adds about 70 queries at about two points each. GitHub also limits the compute time a run can use, which holds the collector to about 65 people a minute, so a daily run takes about 100 minutes, and 115 on the day the searches are refreshed. Past 1,000 points the collector waits for the next hour, and after 210 minutes (`COLLECT_MINUTES`) it starts no more weekly lookups and leaves them for the next run, so a slow day finishes well inside the workflow's 300 minutes rather than failing.
 
 ## Building something new
 

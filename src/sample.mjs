@@ -6,6 +6,12 @@
 // When the data was last fetched: the newest lookup in users.json, in milliseconds (0 if none).
 export const refreshedAt = (users) => Math.max(0, ...Object.values(users).map((u) => u?.at ?? 0));
 
+// Numbers older than this, counted back from the refresh, are left out of the page and the history.
+// Weekly lookups are at most 8 days apart, so only someone the collector stopped looking up gets here.
+export const MAX_AGE_DAYS = 21;
+/** Whether a users.json entry is recent enough to show. */
+export const current = (u, refreshed) => !!u && (!u.at || refreshed - u.at <= MAX_AGE_DAYS * 86400000);
+
 // Sets p.fair on everyone in people ({ login, state }) who is in their state's sample. now is the
 // time the year is counted back from: the data's refresh time, so the sample depends only on the data.
 export function markSample(people, profiles, perState, now) {
