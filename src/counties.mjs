@@ -34,19 +34,23 @@ const BY = Object.fromEntries(
       names: s.COUNTIES,
       counties: longestFirst(s.COUNTIES).map((c) => [new RegExp(`\\b${saint(c)}\\s+${suffix(s.KIND)}`, "i"), c]),
       places: longestFirst(Object.keys(s.PLACES)).map((name) => [new RegExp(`\\b${saint(name)}\\b`, "i"), s.PLACES[name]]),
-      only: new RegExp(`\\b(?:${s.ONLY.map(saint).join("|")})\\b`, "i"),
+      // An empty list must match nothing: as a pattern, "\b(?:)\b" would match any location at all.
+      only: s.ONLY.length ? new RegExp(`\\b(?:${s.ONLY.map(saint).join("|")})\\b`, "i") : null,
     },
   ]),
 );
 
 /** The states with county lists, by two-letter code. */
 export const COUNTY_STATES = STATES.map((s) => s.STATE);
+/** The states with place names that mean them alone, in the order those are tried. A state is
+ * added here only with care: its names can move people from "no state" into it. */
+export const ONLY_STATES = STATES.filter((s) => s.ONLY.length).map((s) => s.STATE);
 export const hasCounties = (state) => Object.hasOwn(BY, state);
 /** Every county's name, or none for a state without a list. */
 export const countiesOf = (state) => BY[state]?.names ?? [];
 /** What a state calls its counties, one and many: ["parish", "parishes"]. */
 export const countyKind = (state) => BY[state]?.kind ?? null;
-/** Place names that mean this state and nowhere else, as one pattern. */
+/** Place names that mean this state and nowhere else, as one pattern, or null for none. */
 export const onlyTownsRe = (state) => BY[state]?.only ?? null;
 
 /** The county for a location already placed in the state, or null when it names only the state. */

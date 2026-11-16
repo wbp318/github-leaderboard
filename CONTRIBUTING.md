@@ -49,7 +49,7 @@ Louisiana, Mississippi, Alabama, Arkansas, and Tennessee go down to the county. 
 1. Copy [src/counties/ms.mjs](src/counties/ms.mjs) to `src/counties/` with your state's code, such as `al.mjs`, and fill it in: the code, what the state calls its counties, every county, the towns, cities, and universities in each (a city in two counties goes in its principal one), and `ONLY`, the few names that mean your state and nowhere else. Leave a name out of `ONLY` if any other town, in the US or abroad, shares it.
 2. Add it to `STATES` in [src/counties.mjs](src/counties.mjs): one line. The placement rules, the collector, the build, and the page take it from there: a tornado and a table of its counties, leaderboards for each, and county ranks in Find yourself.
 3. Add locations and their counties to [test/counties.test.mjs](test/counties.test.mjs), and towns from `ONLY` to [test/states.test.mjs](test/states.test.mjs), then run `npm test`.
-4. Everyone active in a state with counties is looked up every day, up to 500. Count your state's active people and check the [budget](docs/data.md#who-is-looked-up) first.
+4. Everyone active in every state is already looked up, the busiest 80 every day and the rest every week, up to 1,000 (see the [budget](docs/data.md#who-is-looked-up)), so a new county list costs no more lookups.
 5. Name your state where README.md and the top of web/template.html list the states with counties.
 
 ## Someone is in the wrong place

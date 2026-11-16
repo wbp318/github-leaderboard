@@ -14,7 +14,7 @@ import { BADGE_LABEL, badgeMessage, badgeSvg, ranksOf } from "../src/badge.mjs";
 import { COUNTY_STATES, countiesOf, countyKind, countyOf, hasCounties } from "../src/counties.mjs";
 import { isBot, optedOut } from "../src/exclude.mjs";
 import { stateOf } from "../src/states.mjs";
-import { markSample, refreshedAt } from "../src/sample.mjs";
+import { current, markSample, refreshedAt } from "../src/sample.mjs";
 import { lastYear, readHistory } from "../src/history.mjs";
 
 const VIEWER = process.env.VIEWER ?? "wbp318";
@@ -59,19 +59,22 @@ const STATES = [
 const BY_AB = Object.fromEntries(STATES.map(([ab, name, region, division]) => [ab, { ab, name, region, division }]));
 
 // ---------------------------------------------------------------- place everyone
-const people = [];
+// When the data was last fetched (the newest lookup). The sample's year counts back from it, so the
+// page and the daily history (scripts/history.mjs) pick the same people.
+const refreshed = refreshedAt(users) || Date.now();
+const placed = [];
 for (const [login, u] of Object.entries(users)) {
-  if (!u || OPT_OUT.has(login.toLowerCase()) || isBot(login)) continue;
+  if (!current(u, refreshed) || OPT_OUT.has(login.toLowerCase()) || isBot(login)) continue;
   const ab = stateOf(u.location);
   if (!ab || (SCOPE && !SCOPE.has(ab))) continue;
   const s = BY_AB[ab];
   const county = hasCounties(ab) ? (countyOf(ab, u.location) ?? "") : "";
-  people.push({ login, ...u, state: ab, region: s.region, division: s.division, county });
+  placed.push({ login, ...u, state: ab, region: s.region, division: s.division, county });
 }
-// When the data was last fetched (the newest lookup). The sample's year counts back from it, so the
-// page and the daily history (scripts/history.mjs) pick the same people.
-const refreshed = refreshedAt(users) || Date.now();
-markSample(people, profiles, PER_STATE, refreshed);
+markSample(placed, profiles, PER_STATE, refreshed);
+// The collector looks up everyone active once a week, for county views (src/schedule.mjs). Until
+// every state has counties, people looked up only weekly are shown only in states that do.
+const people = placed.filter((p) => !(p.tier === "w" && !hasCounties(p.state) && !p.fair));
 const fair = people.filter((p) => p.fair);
 const CATS = ["total", "commits", "private", "prs", "reviews", "issues", "repos", "followers"];
 const sum = (list, k) => list.reduce((a, p) => a + p[k], 0);

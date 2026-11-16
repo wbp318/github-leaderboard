@@ -17,7 +17,7 @@
 //      (src/counties.mjs): "New Orleans" is Louisiana, "Hattiesburg" Mississippi, and "Chattanooga" Tennessee.
 //
 // test/states.test.mjs holds the cases; scripts/audit.mjs lists what each rule placed.
-import { COUNTY_STATES, onlyTownsRe } from "./counties.mjs";
+import { ONLY_STATES, onlyTownsRe } from "./counties.mjs";
 
 export const NAMES = [
   ["AL", "Alabama"], ["AK", "Alaska"], ["AZ", "Arizona"], ["AR", "Arkansas"], ["CA", "California"],
@@ -227,7 +227,7 @@ export function place(location) {
   if (best) return { state: best.ab, rule: "name" };
 
   if (TOWN_ELSEWHERE.test(f) || OTHER_SCRIPT.test(loc)) return null;
-  for (const ab of COUNTY_STATES) if (onlyTownsRe(ab).test(loc)) return { state: ab, rule: "city" };
+  for (const ab of ONLY_STATES) if (onlyTownsRe(ab).test(loc)) return { state: ab, rule: "city" };
   return null;
 }
 
