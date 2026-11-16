@@ -207,6 +207,11 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
 .pad .fire { width: 104px; height: 104px; border-radius: 50%; border: 3px solid #7a1f1f; background: radial-gradient(circle at 40% 35%, #e66767, #9e2626);
   color: #fff; font: 700 16px system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: 0.08em; touch-action: none; cursor: pointer; }
 .pad .fire:active { background: radial-gradient(circle at 40% 35%, #ff8a8a, #c33b3b); }
+/* Swap weapons, once there's a second one to swap to. */
+.pad .swap { width: 64px; height: 64px; border-radius: 50%; border: 2px solid #2a5a7a; background: radial-gradient(circle at 40% 35%, #4a8fc0, #1d4a6e);
+  color: #fff; font: 700 12px system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: 0.06em; touch-action: none; cursor: pointer; }
+.pad .swap[hidden] { display: none; }
+.pad .swap:active { background: radial-gradient(circle at 40% 35%, #6fb4e6, #2b6a98); }
 #gameKeys { margin: 8px 2px 0; max-width: 880px; }
 </style>
 <script>
@@ -235,15 +240,16 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
 </header>
 <section id="cellar" aria-labelledby="cellarTitle">
   <h2 id="cellarTitle">Storm Cellar</h2>
-  <p class="lede">The tornado shook the bugs loose. A little first-person shooter in the old blocky style, drawn and coded for this page: clear out the cellar, find the five commits, and get to the exit.</p>
+  <p class="lede">The tornado shook the bugs loose. A little first-person shooter in the old blocky style, drawn and coded for this page: clear out the cellar, find the five commits, and get to the exit. Then go down the storm drain under it, where something big is waiting by the way out.</p>
   <div class="arcade">
     <canvas id="game" width="320" height="200" tabindex="0" role="application" data-state="title" aria-roledescription="game" aria-label="Storm Cellar, a first-person shooter. Press Enter to play." aria-describedby="gameKeys"></canvas>
     <div class="pad" id="pad" hidden>
       <div class="stick" id="stick" aria-hidden="true"><i></i></div>
+      <button type="button" class="swap" id="swap" aria-label="Switch weapon" hidden>SWAP</button>
       <button type="button" class="fire" id="fire" aria-label="Shoot">FIRE</button>
     </div>
   </div>
-  <p class="note" id="gameKeys">Click the game or press Enter to play. W A S D or the arrow keys move, the mouse or the left and right arrows turn, click or Space shoots, Shift runs, M turns the sound off and on, and Esc pauses. On a phone, drag the left pad to move and turn and hold Fire.</p>
+  <p class="note" id="gameKeys">Click the game or press Enter to play. W A S D or the arrow keys move, the mouse or the left and right arrows turn, click or Space shoots, 1 and 2, Q, or the mouse wheel switch weapons, Shift runs, M turns the sound off and on, and Esc pauses. On a phone, drag the left pad to move and turn, hold Fire, and tap Swap or the gun at the bottom left to switch weapons.</p>
   <p class="sr" id="gameSaid" role="status" aria-live="polite"></p>
 </section>
 <form class="findme" id="findme" autocomplete="off">
@@ -2095,9 +2101,136 @@ const MUD = tex((x, y, i) => {
   if (N32[i] > 0.64 && rnd() < 0.6) return rgb(62 * k, 98 * k, 42 * k);
   return rgb(88 * k, 72 * k, 50 * k);
 });
-// The rack texture blinks, so it is swapped in place; the others are fixed.
-const TEX = [BRICK, PLANK, STONE, RACKS[0], DOORT, EXITT, JAMB, TILE, GRATE, BEAMS, LIGHTS, MUD];
-const T_RACK = 3, T_DOOR = 4, T_JAMB = 6, SKYT = 255;
+// Down the storm drain everything is cold and wet: poured concrete, corrugated pipe, the pumps, the
+// bars over the outfall, a floodgate for a door, flood water underfoot, and grates up to the street.
+// They have their own random numbers, so the cellar's textures stay as they were.
+const r2 = rng(2);
+const CONC = tex((x, y, i) => {
+  if (y === 31 || y === 63) return rgb(44, 50, 52);
+  const hx = x & 31, hy = y & 31;
+  if ((hx === 15 || hx === 16) && (hy === 14 || hy === 15)) return rgb(18, 20, 22);
+  let k = (0.66 + N8[i] * 0.3 + N32[i] * 0.2 + (r2() - 0.5) * 0.12) * (0.8 + GRAIN[i] * 0.34);
+  if (y === 0 || y === 32) k *= 1.14;
+  // Rust bleeds down from each tie hole.
+  if ((hx === 15 || hx === 16) && hy > 15 && hy < 27 && r2() < 1 - (hy - 15) / 12) return rgb(120 * k, 70 * k, 40 * k);
+  // A line of silt where the water stood, and slime below it.
+  if (y >= 50 && y <= 52) return rgb(52 * k, 50 * k, 36 * k);
+  if (y > 52) return rgb(64 * k, 82 * k, 62 * k);
+  return rgb(112 * k, 118 * k, 116 * k);
+});
+const PIPE = tex((x, y, i) => {
+  const rib = Math.sin(((x + 0.5) / 8) * TAU), k = (0.8 + rib * 0.24) * (0.82 + N16[i] * 0.26 + (r2() - 0.5) * 0.08);
+  if ((y === 3 || y === 35) && (x & 7) === 2) return rgb(178, 184, 186);
+  if (POOLS[i] + y / 120 > 0.78) return rgb(132 * k, 78 * k, 44 * k);
+  return rgb(104 * k, 114 * k, 112 * k);
+});
+// The pump room's panels: a red valve wheel, two gauges, and a green lamp that says it's running.
+const PUMP = tex((x, y, i) => {
+  if (x < 2 || x > 61) return rgb(30, 36, 40);
+  if (y < 2 || y > 61) return rgb(26, 30, 34);
+  const wx = x + 0.5 - 32, wy = y + 0.5 - 40, wr = Math.hypot(wx, wy);
+  if (wr > 11.5 && wr < 15) {
+    const l = 1.15 - (wy / wr) * 0.35;
+    return rgb(196 * l, 40 * l, 34 * l);
+  }
+  if (wr < 3) return rgb(150, 150, 156);
+  if (wr < 12 && (Math.abs(wx) < 1.3 || Math.abs(wy) < 1.3)) return rgb(150, 30, 26);
+  for (const gx of [14, 50]) {
+    const dx = x + 0.5 - gx, dy = y + 0.5 - 14, r = Math.hypot(dx, dy);
+    if (r >= 7.5) continue;
+    if (r > 6) return rgb(176, 140, 60);
+    if (Math.abs(dx * 0.8 + dy * 0.6) < 0.7 && dx > -1 && dy < 1) return rgb(200, 30, 30);
+    return rgb(214, 214, 200);
+  }
+  if (x >= 30 && x <= 33 && y >= 12 && y <= 15) return rgb(90, 255, 130, 1);
+  if ((x === 5 || x === 58) && (y === 5 || y === 58)) return rgb(150, 160, 168);
+  const k = 0.8 + N16[i] * 0.22 + (r2() - 0.5) * 0.06;
+  return rgb(62 * k, 80 * k, 86 * k);
+});
+// The outfall's bars, rusty, with the dark river behind them.
+const BARS = tex((x, y, i) => {
+  if (y < 4 || y > 59) {
+    const k = 0.8 + N16[i] * 0.3;
+    return y === 3 || y === 60 ? rgb(40, 28, 22) : rgb(112 * k, 72 * k, 46 * k);
+  }
+  const bx = x & 15;
+  if (bx < 5) {
+    const k = 0.4 + 0.85 * Math.max(0, Math.cos(((bx + 0.5 - 2) / 3) * 1.4));
+    return rgb(124 * k, 80 * k, 52 * k);
+  }
+  const k = 0.5 + N16[i] * 0.5;
+  return y > 36 && Math.sin(y * 0.9 + N8[i] * 8) > 0.92 ? rgb(60, 96, 100) : rgb(8 * k, 20 * k, 24 * k);
+});
+// A floodgate for a door: painted steel braced with an X, rivets, rust, and a warning band at the foot.
+const GATE = tex((x, y, i) => {
+  if (x === 0 || x === 63) return rgb(20, 26, 26);
+  if (y >= 50 && y <= 57) return ((x + y) >> 2) & 1 ? rgb(214, 162, 10) : rgb(28, 28, 30);
+  if (y === 49 || y === 58) return rgb(18, 20, 22);
+  if ((y === 3 || y === 46 || y === 61) && (x & 7) === 4) return rgb(176, 184, 186);
+  let k = 0.8 + N16[i] * 0.22 + (r2() - 0.5) * 0.06;
+  if (y < 49) {
+    const d = Math.min(Math.abs(x - y * 1.3), Math.abs(63 - x - y * 1.3));
+    if (d < 3) k *= 1.22;
+    else if (d < 4) k *= 0.6;
+  }
+  return POOLS[i] > 0.74 ? rgb(118 * k, 70 * k, 42 * k) : rgb(58 * k, 96 * k, 88 * k);
+});
+// The way out: a ladder up the wall to the street, under a sign that stays red while the way is held.
+function hatch(c) {
+  const t = CONC.slice(), bg = rgb((c & 255) * 0.18, ((c >> 8) & 255) * 0.18, ((c >> 16) & 255) * 0.18);
+  for (let y = 4; y <= 16; y++) for (let x = 10; x <= 53; x++) t[y * TS + x] = x === 10 || x === 53 || y === 4 || y === 16 ? rgb(150, 150, 158) : bg;
+  textTo(t, TS, TS, "EXIT", 21, 7, c);
+  for (let y = 20; y < 64; y++)
+    for (const x of [22, 40]) {
+      t[y * TS + x] = rgb(170, 176, 180);
+      t[y * TS + x + 1] = rgb(80, 86, 92);
+    }
+  for (let y = 24; y < 63; y += 7)
+    for (let x = 24; x < 40; x++) {
+      t[y * TS + x] = rgb(160, 166, 170);
+      t[(y + 1) * TS + x] = rgb(60, 64, 70);
+    }
+  return t;
+}
+const HATCH_SHUT = hatch(rgb(255, 64, 44, 1)), HATCH_OPEN = hatch(rgb(90, 255, 120, 1));
+// Flood water: three frames of ripples that move, swapped in like the racks' lights.
+const WATERS = [0, 1, 2].map((f) =>
+  tex((x, y, i) => {
+    const w = Math.sin((y / TS) * TAU * 3 + (x / TS) * TAU + N16[i] * 5 + (f * TAU) / 3), k = 0.75 + N8[i] * 0.4;
+    if (w > 0.9) return rgb(84 * k, 132 * k, 124 * k);
+    if (w > 0.6) return rgb(44 * k, 82 * k, 80 * k);
+    return rgb(24 * k, 50 * k, 52 * k);
+  }),
+);
+// Wet concrete underfoot, with puddles.
+const SLAB = tex((x, y, i) => {
+  if ((x & 31) === 0 || (y & 31) === 0) return rgb(36, 40, 40);
+  const k = 0.68 + N8[i] * 0.3 + N32[i] * 0.22 + (r2() - 0.5) * 0.12;
+  return POOLS[i] < 0.26 ? rgb(40 * k, 52 * k, 56 * k) : rgb(92 * k, 98 * k, 94 * k);
+});
+// The drain's ceiling, with a pipe along it.
+const VAULT = tex((x, y, i) => {
+  if (y >= 24 && y <= 39) {
+    const k = 0.35 + 0.85 * Math.max(0, Math.cos(((y + 0.5 - 32) / 8) * 1.3 + 0.3));
+    return (x & 15) === 0 ? rgb(40, 44, 46) : rgb(96 * k, 104 * k, 100 * k);
+  }
+  if ((x & 31) === 0 || (y & 31) === 0) return rgb(30, 32, 34);
+  const k = 0.7 + N16[i] * 0.3 + (r2() - 0.5) * 0.08;
+  return rgb(70 * k, 74 * k, 74 * k);
+});
+// A street grate seen from below: bars, and the grey light of the storm between them.
+const STREET = tex((x, y, i) => {
+  if (x < 8 || x > 55 || y < 8 || y > 55) {
+    const k = 0.7 + N16[i] * 0.3;
+    return x === 7 || x === 56 || y === 7 || y === 56 ? rgb(30, 32, 34) : rgb(76 * k, 80 * k, 80 * k);
+  }
+  if ((x - 8) % 8 < 3) return rgb(36, 40, 44);
+  const k = 0.85 + N16[i] * 0.25;
+  return rgb(150 * k, 166 * k, 172 * k, 1);
+});
+// The racks and the water move, so they are swapped in place; the hatch's sign turns green.
+const TEX = [BRICK, PLANK, STONE, RACKS[0], DOORT, EXITT, JAMB, TILE, GRATE, BEAMS, LIGHTS, MUD, CONC, PIPE, PUMP, BARS, GATE, HATCH_SHUT, WATERS[0], SLAB, VAULT, STREET];
+const T_RACK = 3, T_DOOR = 4, T_JAMB = 6, T_CONC = 12, T_PIPE = 13, T_PUMP = 14, T_BARS = 15, T_GATE = 16, T_HATCH = 17, T_WATER = 18, T_SLAB = 19, T_VAULT = 20, T_STREET = 21, SKYT = 255;
 // The sky over the yard: a dark lid of cloud, the green light of tornado weather, and two funnels.
 const SW = 1024, SH = 112, SKY_OFF = 22;
 const SKY = new Uint32Array(SW * SH);
@@ -2132,7 +2265,9 @@ const SKY = new Uint32Array(SW * SH);
 
 // ---------------------------------------------------------------- sprites
 const OUT = rgb(14, 8, 18), LEG = rgb(44, 30, 34);
-function beetle(phase, bite, flat) {
+// A beetle, or with roach set, the drain's roach: one chestnut shell, a pale-rimmed shield over its
+// head, and long feelers.
+function beetle(phase, bite, flat, roach) {
   const s = spr(48, 40), Y = (y) => (flat ? 40 - (40 - y) * 0.5 : y);
   for (const m of [1, -1]) {
     const X = (x) => 24 + (x - 24) * m, f = phase ^ (m < 0) ? 2 : 0;
@@ -2150,37 +2285,40 @@ function beetle(phase, bite, flat) {
       leg(14, 27, 7, 25 - f, 4, 37);
     }
   }
-  const spots = [[16, 14], [19, 23], [31, 15], [29, 24], [35, 20], [13, 20]];
+  const spots = roach ? [] : [[16, 14], [19, 23], [31, 15], [29, 24], [35, 20], [13, 20]];
   oval(s, 24, Y(19), 15, flat ? 6 : 12, (nx, ny, x, y) => {
-    if (x === 24) return rgb(30, 18, 36);
+    if (x === 24) return roach ? rgb(48, 22, 10) : rgb(30, 18, 36);
     const left = x < 24;
     let l = 0.98 - ny * 0.38 - Math.abs(nx) * 0.22;
     if ((nx - (left ? -0.45 : 0.45)) ** 2 + (ny + 0.5) ** 2 < 0.05) l += 0.5;
     for (const [sx, sy] of spots) if ((x - sx) ** 2 + (y - Y(sy)) ** 2 < 2.5) l *= 0.62;
+    if (roach) return rgb(152 * l, 76 * l, 30 * l);
     return left ? rgb(214 * l, 80 * l, 80 * l) : rgb(60 * l, 124 * l, 214 * l);
   });
   const hy = Y(30);
   oval(s, 24, hy, 9, flat ? 3.5 : 6.5, (nx, ny) => {
     const l = 0.9 - ny * 0.3 + (ny < -0.4 && Math.abs(nx) < 0.5 ? 0.3 : 0);
+    if (roach) return Math.hypot(nx, ny) > 0.7 ? rgb(214 * l, 170 * l, 110 * l) : rgb(96 * l, 54 * l, 26 * l);
     return rgb(58 * l, 44 * l, 70 * l);
   });
   if (!flat) {
     const eye = bite ? rgb(255, 70, 40, 1) : rgb(255, 214, 70, 1), jaw = rgb(112, 76, 46), o = bite ? 4 : 1;
+    const [ax, ay, bx, by] = roach ? [8, 6, 1, 0] : [10, 10, 6, 3];
     for (const ex of [19, 27]) for (const [a, b] of [[0, -1], [1, -1], [0, 0], [1, 0]]) dot(s, ex + a, hy + b, eye);
     seg(s, 21, hy + 4, 20 - o, hy + 8, jaw, 2);
     seg(s, 26, hy + 4, 27 + o, hy + 8, jaw, 2);
-    seg(s, 20, hy - 4, 10, 10, LEG);
-    seg(s, 10, 10, 6, 3, LEG);
-    seg(s, 28, hy - 4, 38, 10, LEG);
-    seg(s, 38, 10, 42, 3, LEG);
+    seg(s, 20, hy - 4, ax, ay, LEG);
+    seg(s, ax, ay, bx, by, LEG);
+    seg(s, 28, hy - 4, 48 - ax, ay, LEG);
+    seg(s, 48 - ax, ay, 48 - bx, by, LEG);
   }
   return outline(s, OUT);
 }
-function splat() {
+function splat(roach) {
   const s = spr(48, 40);
   oval(s, 24, 36, 21, 4, (nx, ny) => mul(rgb(96, 178, 64), 0.8 - ny * 0.3 + (rnd() - 0.5) * 0.2));
-  oval(s, 15, 34, 6, 3, (nx, ny) => rgb(200 * (0.9 - ny * 0.3), 76, 76));
-  oval(s, 33, 35, 6, 3, (nx, ny) => rgb(60, 120, 210 * (0.9 - ny * 0.3)));
+  oval(s, 15, 34, 6, 3, (nx, ny) => (roach ? rgb(152 * (0.9 - ny * 0.3), 76, 30) : rgb(200 * (0.9 - ny * 0.3), 76, 76)));
+  oval(s, 33, 35, 6, 3, (nx, ny) => (roach ? rgb(152 * (0.9 - ny * 0.3), 76, 30) : rgb(60, 120, 210 * (0.9 - ny * 0.3))));
   oval(s, 24, 33, 4, 2.5, rgb(58, 44, 70));
   for (const [x0, y0, x1, y1] of [[6, 33, 2, 37], [40, 34, 45, 38], [10, 38, 4, 39], [36, 38, 42, 39]]) seg(s, x0, y0, x1, y1, LEG);
   return outline(s, OUT);
@@ -2349,11 +2487,136 @@ const FLASH = (() => {
     }
   return s;
 })();
+// What's down the drain: roaches, made after everything above so the cellar's pictures stay as they were.
+const ROACH = { walk: [beetle(0, false, false, true), beetle(1, false, false, true)], bite: beetle(0, true, false, true), down: [beetle(0, false, true, true), splat(true)] };
+ROACH.pain = tint(ROACH.walk[0], rgb(255, 255, 255), 0.55);
+// The Heisenbug, which guards the way out of the drain: a storm bug as wide as the tunnel, its shell a
+// spiral of the tornado's red and blue with lightning in the cracks, four eyes, and hooked jaws.
+const BOLTC = rgb(190, 236, 255, 1);
+function heisenbug(phase, spit) {
+  const s = spr(128, 64);
+  for (const m of [1, -1]) {
+    const X = (x) => 64 + (x - 64) * m;
+    for (const [n, [ax, ay, kx, ky, fx, fy]] of [[30, 30, 12, 18, 4, 62], [36, 40, 18, 34, 14, 63], [44, 46, 26, 46, 24, 63]].entries()) {
+      const up = (n + phase + (m < 0 ? 1 : 0)) & 1 ? 4 : 0;
+      seg(s, X(ax), ay, X(kx), ky - up, LEG, 4);
+      seg(s, X(kx), ky - up, X(fx), fy - up, LEG, 3);
+      seg(s, X(kx), ky - up, X(kx - 4), ky - up - 6, rgb(96, 68, 74), 2);
+    }
+  }
+  oval(s, 64, 28, 46, 24, (nx, ny) => {
+    const r = Math.hypot(nx, ny), arm = Math.sin(Math.atan2(ny, nx) * 2 - r * 7);
+    let l = 1.06 - ny * 0.42 - r * r * 0.4;
+    if ((nx + 0.38) ** 2 + (ny + 0.56) ** 2 < 0.02) l += 0.7;
+    return arm > 0 ? rgb(214 * l, 74 * l, 74 * l) : rgb(52 * l, 118 * l, 220 * l);
+  });
+  for (const pts of [[[38, 14], [45, 19], [41, 25], [49, 31]], [[90, 12], [83, 18], [88, 23], [80, 31]], [[62, 6], [67, 12], [61, 18], [65, 22]]])
+    for (let j = 1; j < pts.length; j++) seg(s, ...pts[j - 1], ...pts[j], BOLTC);
+  oval(s, 64, 48, 20, 12, (nx, ny) => mul(rgb(70, 52, 84), 0.95 - ny * 0.35 + (ny < -0.5 && Math.abs(nx) < 0.5 ? 0.3 : 0)));
+  const eye = spit ? rgb(255, 96, 50, 1) : rgb(255, 214, 70, 1), jaw = rgb(206, 176, 124), o = spit ? 4 : 0;
+  for (const [ex, ey, er] of [[56, 45, 3], [72, 45, 3], [48, 50, 2], [80, 50, 2]]) oval(s, ex, ey, er, er * 0.8, eye);
+  for (const m of [1, -1]) {
+    const X = (x) => 64 + (x - 64) * m;
+    seg(s, X(55), 54, X(46 - o), 58, jaw, 3);
+    seg(s, X(46 - o), 58, X(52 - o), 62, jaw, 2);
+  }
+  if (spit) oval(s, 64, 57, 6, 4, BOLTC);
+  return outline(s, OUT);
+}
+function bigSplat() {
+  const s = spr(128, 64);
+  oval(s, 64, 58, 60, 6, (nx, ny) => mul(rgb(96, 178, 64), 0.8 - ny * 0.3 + (rnd() - 0.5) * 0.2));
+  for (const [x0, y0, x1, y1] of [[20, 56, 8, 42], [30, 58, 22, 45], [108, 56, 120, 42], [98, 58, 106, 45]]) seg(s, x0, y0, x1, y1, LEG, 3);
+  for (const [x, y, w, c] of [[30, 55, 10, RED], [50, 57, 14, BLUE], [80, 56, 12, RED], [100, 57, 9, BLUE], [66, 52, 8, RED]]) oval(s, x, y, w, 3.5, (nx, ny) => mul(c, 0.95 - ny * 0.35));
+  oval(s, 64, 54, 12, 5, rgb(70, 52, 84));
+  return outline(s, OUT);
+}
+const BOSS = { walk: [heisenbug(0, false), heisenbug(1, false)], spit: heisenbug(0, true), down: bigSplat() };
+BOSS.pain = tint(BOSS.walk[0], rgb(255, 255, 255), 0.55);
+// What it spits: balls of storm, slow enough to step aside from.
+const ORB = [0, 1].map((k) => {
+  const s = spr(16, 16);
+  oval(s, 8, 8, 7, 7, (nx, ny) => {
+    const r = Math.hypot(nx, ny);
+    return r < 0.34 + k * 0.14 ? rgb(250, 250, 255, 1) : r < 0.7 ? rgb(150, 200, 255, 1) : rgb(110, 90, 230, 1);
+  });
+  for (let j = 0; j < 5; j++) dot(s, 8 + Math.cos(j * 1.26 + k * 0.6) * 7.4, 8 + Math.sin(j * 1.26 + k * 0.6) * 7.4, BOLTC);
+  return s;
+});
+const ZAP = puffs(rgb(130, 190, 255, 1), rgb(245, 250, 255, 1)), BURST = puffs(rgb(150, 130, 255, 1), rgb(240, 240, 255, 1));
+// The lightning rod: a copper rod off the courthouse roof, wound with wire and wired to a car battery,
+// with a glass bulb on the end where the lightning comes out.
+function rod(lit) {
+  const s = spr(96, 64);
+  for (let y = 40; y < 64; y++)
+    for (let x = 20; x < 76; x++) {
+      let k = 0.9 + (N16[(y & 63) * TS + (x & 63)] - 0.5) * 0.3;
+      if (y === 40) k = 1.5;
+      if (x === 75) k *= 0.6;
+      s.px[y * 96 + x] = y >= 49 && y <= 55 ? rgb(232 * k, 176 * k, 20 * k) : rgb(38 * k, 40 * k, 46 * k);
+    }
+  for (const [x, c] of [[26, rgb(214, 48, 40)], [65, rgb(120, 124, 132)]]) for (let y = 35; y < 40; y++) for (let a = 0; a < 5; a++) s.px[y * 96 + x + a] = c;
+  seg(s, 28, 35, 42, 25, rgb(190, 40, 34), 2);
+  seg(s, 67, 35, 54, 25, rgb(30, 30, 34), 2);
+  for (let y = 16; y < 42; y++) {
+    const hw = 4 + ((y - 16) / 26) * 5;
+    for (let x = Math.round(48 - hw); x < Math.round(48 + hw); x++) {
+      const k = 0.45 + 0.85 * Math.max(0, Math.cos(((x + 0.5 - 48) / hw + 0.35) * 1.4));
+      s.px[y * 96 + x] = y > 19 && y < 39 && y & 1 ? rgb(236 * k, 156 * k, 84 * k) : rgb(176 * k, 96 * k, 48 * k);
+    }
+  }
+  oval(s, 48, 9, 9, 9, (nx, ny) => {
+    const r = Math.hypot(nx, ny);
+    if (lit) return r < 0.55 ? rgb(255, 255, 255, 1) : rgb(170, 215, 255, 1);
+    return r > 0.8 ? rgb(130, 166, 200) : (nx - 0.3) ** 2 + (ny + 0.4) ** 2 < 0.04 ? rgb(230, 240, 255) : rgb(60, 96, 140);
+  });
+  if (!lit) for (const [x0, y0, x1, y1] of [[43, 13, 45, 5], [45, 5, 48, 12], [48, 12, 51, 5], [51, 5, 53, 13]]) seg(s, x0, y0, x1, y1, rgb(150, 210, 255, 1));
+  const glove = (nx, ny) => mul(rgb(74, 60, 50), 1 - ny * 0.3 - Math.abs(nx) * 0.15);
+  for (const side of [-1, 1]) for (let j = 0; j < 3; j++) oval(s, 48 + side * 28, 45 + j * 6, 4.5, 3.3, glove);
+  oval(s, 48, 66, 30, 6, glove);
+  return outline(s, rgb(10, 10, 14));
+}
+const ROD = [rod(false), rod(true)];
+// The rod lying on the floor, waiting to be picked up.
+const RODITEM = (() => {
+  const s = spr(36, 16);
+  for (let y = 5; y < 16; y++) for (let x = 1; x < 12; x++) dot(s, x, y, y === 5 ? rgb(90, 94, 100) : y >= 9 && y <= 11 ? rgb(232, 176, 20) : rgb(36, 38, 44));
+  for (let x = 12; x < 30; x++) for (let y = 9; y < 13; y++) dot(s, x, y, mul(x & 1 && x < 27 ? rgb(236, 156, 84) : rgb(176, 96, 48), y === 9 ? 1.25 : y === 12 ? 0.6 : 1));
+  oval(s, 31.5, 10.5, 3.5, 3.5, rgb(170, 215, 255, 1));
+  return outline(s, OUT);
+})();
+const BATTERY = (() => {
+  const s = spr(20, 18);
+  for (let y = 4; y < 18; y++)
+    for (let x = 1; x < 19; x++) {
+      let k = 0.9 + (rnd() - 0.5) * 0.1;
+      if (y === 4) k = 1.6;
+      if (x === 18 || y === 17) k *= 0.7;
+      dot(s, x, y, y >= 8 && y <= 14 ? rgb(232 * k, 176 * k, 20 * k) : rgb(40 * k, 42 * k, 48 * k));
+    }
+  for (let y = 1; y < 4; y++) for (const [x, c] of [[4, rgb(214, 48, 40)], [14, rgb(140, 144, 150)]]) dot(s, x, y, c), dot(s, x + 1, y, c);
+  textTo(s.px, 20, 18, "+", 2, 8, rgb(30, 22, 6));
+  textTo(s.px, 20, 18, "-", 12, 8, rgb(30, 22, 6));
+  return outline(s, OUT);
+})();
+// A work light hung from the ceiling on its wire: a bulb in a cage.
+const BULB = (() => {
+  const s = spr(12, 44);
+  for (let y = 0; y < 32; y++) dot(s, 6, y, rgb(28, 28, 32));
+  oval(s, 6, 33, 3, 2, rgb(70, 72, 80));
+  oval(s, 6, 38.5, 4.5, 5, (nx, ny) => (Math.hypot(nx, ny) < 0.55 ? rgb(255, 250, 220, 1) : rgb(255, 210, 120, 1)));
+  for (const x of [2, 10]) seg(s, x, 35, x, 43, rgb(46, 46, 52));
+  seg(s, 2, 39, 10, 39, rgb(46, 46, 52));
+  seg(s, 3, 43, 9, 43, rgb(46, 46, 52));
+  return s;
+})();
 
-// ---------------------------------------------------------------- the cellar
-// # brick, P planks, S stone, T server racks, D door, X the exit. On the floor: p you, b beetle,
-// m moth, a ammo, h coffee, c commit, u barrel, o lamp.
-const LEVEL = [
+// ---------------------------------------------------------------- the levels
+// 1, the cellar: # brick, P planks, S stone, T server racks. 2, the storm drain under it: C concrete,
+// O corrugated pipe, V the pumps, R bars over the outfall. Both: D a door, X the exit. On the floor:
+// p you, b beetle, m moth, r roach, B the Heisenbug, a ammo, h coffee, c commit, e a battery,
+// w the lightning rod, u barrel, o a light.
+const CELLAR = [
   "SSSSSSSSSSSSSSSSSSSSSSS#####",
   "SSSSSSh.....b.......m.S#####",
   "SSSSSS..b..........S..S....#",
@@ -2379,64 +2642,165 @@ const LEVEL = [
   "P......uP###################",
   "PPPPPPPPP###################",
 ];
-const MW = LEVEL[0].length, MH = LEVEL.length;
-const WALLS = { "#": 1, P: 2, S: 3, T: 4, D: 5, X: 6 }, DOOR = 5, EXIT = 6, WALL_TEX = [0, 0, 1, 2, T_RACK, T_DOOR, 5];
-const floorT = new Uint8Array(MW * MH).fill(7), ceilT = new Uint8Array(MW * MH).fill(9), zone = new Uint8Array(MW * MH);
-const light0 = new Float32Array(MW * MH).fill(0.7), lit = new Float32Array(MW * MH), flow = new Int16Array(MW * MH);
-// x0, y0, x1, y1, light, floor, ceiling, and zone: 1 is open to the sky, 2 has a flickering light.
-for (const [x0, y0, x1, y1, l, f, c, z] of [
-  [6, 1, 21, 7, 1.15, 11, SKYT, 1],
-  [23, 2, 26, 6, 1, 7, 10, 0],
-  [1, 9, 12, 15, 0.74, 7, 9, 0],
-  [14, 12, 20, 20, 0.62, 8, 10, 2],
-  [17, 8, 17, 10, 0.6, 8, 10, 0],
-  [1, 17, 7, 22, 0.82, 7, 9, 0],
-])
-  for (let y = y0; y <= y1; y++)
-    for (let x = x0; x <= x1; x++) {
-      const i = y * MW + x;
-      [light0[i], floorT[i], ceilT[i], zone[i]] = [l, f, c, z];
-    }
-for (let y = 0; y < MH; y++)
-  for (let x = 0; x < MW; x++) {
-    if (LEVEL[y][x] !== "o") continue;
-    for (let j = 0; j < MW * MH; j++) {
-      const d = Math.hypot((j % MW) - x, ((j / MW) | 0) - y);
-      if (d < 2.6) light0[j] += 0.4 * (1 - d / 2.6);
-    }
-  }
+// Under the cellar: a long drain with a culvert down to it, the pump room, the outfall, the overflow
+// room, and the cistern at the far end, where the Heisenbug holds the ladder up to the street.
+const DRAIN = [
+  "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+  "CCCCCCCCCCCCVVVVVVVVVVVCCRRRRRRRRRRCCCCCCCCC",
+  "CCCCCCCCCCCCVc...w...eVCCC.......cCCCCCCCCCC",
+  "CCCCCCCCCCCCV...o...r.VCCC.m..r...CCCCCCCCCC",
+  "CCCCCCCCCCCCV..V...V..VCCC...o....CCCCCCCCCC",
+  "CCCCCCCCCCCCV.r.......VCCC.....m..CCCCCCCCCC",
+  "CCCCCCCCCCCCVh.......aVCCCe.......CCCCCCCCCC",
+  "CCCCCCCCCCCCCCCCCDCCCCCCCCCCCDCCCCCCCCCCCCCC",
+  "CCu.....a.................e...........hCCCCC",
+  "CC....o....m.C.................C...m...CCCCC",
+  "CC............b........................CCCCC",
+  "CC.........................b...........CCCCC",
+  "CC....................m.C..o.....r.....CCCCC",
+  "CC.................b...................CCCCC",
+  "CO.......OCCCCCC.CCCCCCCCCCCCCCCCCCC.CCCCCCC",
+  "CO...m..cOCCCCCCDCCCCCCCCCCCCCCCCCCCDCCCCCCC",
+  "CO.b.....O.e...........uCCCCC.............CC",
+  "CO.......O........b..m..CCCCC.eo.......oa.CC",
+  "CO...o...O..o...........CCCCC.............CC",
+  "CO.......D....r.........COOOC...C.....C...CC",
+  "CO.......O...........o..D.r.D.............CC",
+  "CO.....b.O..b.......r...COOOC.............CC",
+  "COh......Ou............uCCCCC.............CC",
+  "CO.......Oc......h....a.CCCCC......B......XC",
+  "CCCCCDCCCCCCCCCCCCCCCCCCCCCCC.............CC",
+  "CC.......CCCCCCCCCCCCCCCCCCCC.............CC",
+  "CC...o.a.CCCCCCCCCCCCCCCCCCCC...C.....C...CC",
+  "CC.......CCCCCCCCCCCCCCCCCCCC.............CC",
+  "CC...p...CCCCCCCCCCCCCCCCCCCC.ho.......oc.CC",
+  "CC.......CCCCCCCCCCCCCCCCCCCC.............CC",
+  "CCu.....uCCCCCCCCCCCCCCCCCCCCCCRRRRRRRRRCCCC",
+  "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+];
+// Each level's walls (the texture for each kind), its floor, ceiling, and light, and its rooms:
+// x0, y0, x1, y1, light, floor, ceiling, and zone. Zone 1 is open to the sky, or under a street grate,
+// so the lightning gets in; zone 2 has a flickering light.
+const LEVELS = [
+  {
+    name: "the cellar",
+    rows: CELLAR,
+    walls: { "#": 1, P: 2, S: 3, T: 4, D: 5, X: 6 },
+    tex: [0, 0, 1, 2, T_RACK, T_DOOR, 5],
+    door: T_DOOR,
+    floor: 7,
+    ceil: 9,
+    light: 0.7,
+    rooms: [
+      [6, 1, 21, 7, 1.15, 11, SKYT, 1],
+      [23, 2, 26, 6, 1, 7, 10, 0],
+      [1, 9, 12, 15, 0.74, 7, 9, 0],
+      [14, 12, 20, 20, 0.62, 8, 10, 2],
+      [17, 8, 17, 10, 0.6, 8, 10, 0],
+      [1, 17, 7, 22, 0.82, 7, 9, 0],
+    ],
+    thunder: 1,
+  },
+  {
+    name: "the storm drain",
+    rows: DRAIN,
+    walls: { C: 1, O: 2, V: 3, R: 4, D: 5, X: 6 },
+    tex: [0, T_CONC, T_PIPE, T_PUMP, T_BARS, T_GATE, T_HATCH],
+    door: T_GATE,
+    floor: T_SLAB,
+    ceil: T_VAULT,
+    light: 0.5,
+    rooms: [
+      [2, 25, 8, 30, 0.8, T_SLAB, T_VAULT, 0],
+      [5, 28, 5, 28, 1.2, T_SLAB, T_STREET, 1],
+      [2, 14, 8, 23, 0.55, T_SLAB, T_VAULT, 0],
+      [4, 12, 6, 23, 0.55, T_WATER, T_VAULT, 0],
+      [2, 10, 38, 11, 0.5, T_WATER, T_VAULT, 0],
+      [9, 10, 10, 11, 1.25, T_WATER, T_STREET, 1],
+      [20, 10, 21, 11, 1.25, T_WATER, T_STREET, 1],
+      [32, 10, 33, 11, 1.25, T_WATER, T_STREET, 1],
+      [13, 2, 21, 6, 0.7, T_SLAB, T_VAULT, 2],
+      [26, 2, 33, 6, 0.55, T_WATER, T_VAULT, 0],
+      [10, 16, 23, 23, 0.55, T_SLAB, T_VAULT, 0],
+      [16, 19, 17, 20, 1.2, T_SLAB, T_STREET, 1],
+      [25, 20, 27, 20, 0.45, T_WATER, T_VAULT, 0],
+      [29, 16, 41, 29, 0.66, T_WATER, T_VAULT, 0],
+      [34, 22, 36, 24, 1.3, T_WATER, T_STREET, 1],
+    ],
+    // Down here the lights hang from the ceiling, and you can walk under them.
+    kinds: { o: { kind: "bulb", r: 0.2 } },
+    // The cistern, which the Heisenbug can blink about in.
+    arena: [29, 16, 41, 29],
+    thunder: 0.5,
+    drips: true,
+  },
+];
+const DOOR = 5, EXIT = 6;
+let L, MW = 0, MH = 0, map, floorT, ceilT, zone, light0, lit, flow;
 const cellOf = (x, y) => (y | 0) * MW + (x | 0);
+// Beetles bite; roaches are bigger, faster, and bite harder; moths spit from a distance.
 const KINDS = {
-  b: { kind: "beetle", hp: 30, r: 0.32, foe: true, solid: true },
+  b: { kind: "beetle", hp: 30, r: 0.32, foe: true, solid: true, speed: 1.9, bite: 5, more: 6 },
+  r: { kind: "roach", hp: 55, r: 0.34, foe: true, solid: true, speed: 2.6, bite: 9, more: 8 },
   m: { kind: "moth", hp: 20, r: 0.32, foe: true, solid: true, z: 0.32 },
+  B: { kind: "boss", hp: 600, r: 0.85, foe: true, solid: true, boss: true },
   a: { kind: "ammo", r: 0.3, item: true },
   h: { kind: "coffee", r: 0.3, item: true },
   c: { kind: "commit", r: 0.3, item: true },
+  e: { kind: "battery", r: 0.3, item: true },
+  w: { kind: "rod", r: 0.3, item: true },
   u: { kind: "barrel", r: 0.3, solid: true },
   o: { kind: "lamp", r: 0.22, solid: true },
 };
-let map, doors, ents, shots, fx, P, total = 0, totalC = 0;
-const G = { state: "title", t: 0, muzzle: 0, flash: 0, flashT: 9, boltT: 5, fl: 1, flick: 0, lastAlert: -9, doneT: 0, flowCell: -1 };
-function reset() {
+let doors, ents, shots, fx, P, total = 0, totalC = 0;
+// run is the cellar's tally, kept for the end; carry is the ammo you take down the drain.
+const G = { state: "title", level: 0, t: 0, muzzle: 0, flash: 0, flashT: 9, boltT: 5, fl: 1, flick: 0, lastAlert: -9, doneT: 0, flowCell: -1, boss: null, bar: 0, shake: 0, white: 0, drip: 1, run: null, carry: 40 };
+function reset(n) {
+  L = LEVELS[n];
+  const rows = L.rows;
+  MW = rows[0].length;
+  MH = rows.length;
   map = new Uint8Array(MW * MH);
+  floorT = new Uint8Array(MW * MH).fill(L.floor);
+  ceilT = new Uint8Array(MW * MH).fill(L.ceil);
+  zone = new Uint8Array(MW * MH);
+  light0 = new Float32Array(MW * MH).fill(L.light);
+  lit = new Float32Array(MW * MH);
+  flow = new Int16Array(MW * MH);
+  for (const [x0, y0, x1, y1, l, f, c, z] of L.rooms)
+    for (let y = y0; y <= y1; y++)
+      for (let x = x0; x <= x1; x++) {
+        const i = y * MW + x;
+        [light0[i], floorT[i], ceilT[i], zone[i]] = [l, f, c, z];
+      }
+  for (let y = 0; y < MH; y++)
+    for (let x = 0; x < MW; x++) {
+      if (rows[y][x] !== "o") continue;
+      for (let j = 0; j < MW * MH; j++) {
+        const d = Math.hypot((j % MW) - x, ((j / MW) | 0) - y);
+        if (d < 2.6) light0[j] += 0.4 * (1 - d / 2.6);
+      }
+    }
   doors = new Map();
   ents = [];
   shots = [];
   fx = [];
-  P = { x: 4.5, y: 21.5, a: -Math.PI / 2, hp: 100, ammo: 40, kills: 0, commits: 0, bob: 0, bobAmp: 0, eye: 0.5, fireT: 0, shotT: 9, hurtT: 0, gotT: 0, msg: "", msgT: 0, time: 0, deadT: 0 };
-  const wall = (ch) => !!WALLS[ch] && ch !== "D";
+  P = { x: 4.5, y: 21.5, a: -Math.PI / 2, hp: 100, ammo: 40, cells: 0, arm: 0, want: 0, has: [true, false], swapT: 9, step: 0, bolt: null, kills: 0, commits: 0, bob: 0, bobAmp: 0, eye: 0.5, fireT: 0, shotT: 9, hurtT: 0, gotT: 0, msg: "", msgT: 0, time: 0, deadT: 0 };
+  const wall = (ch) => !!L.walls[ch] && ch !== "D";
   for (let y = 0; y < MH; y++)
     for (let x = 0; x < MW; x++) {
-      const ch = LEVEL[y][x], i = y * MW + x;
-      if (WALLS[ch]) {
-        map[i] = WALLS[ch];
-        if (ch === "D") doors.set(i, { x, y, open: 0, hold: 0, want: 0, vertical: wall(LEVEL[y - 1][x]) && wall(LEVEL[y + 1][x]) });
+      const ch = rows[y][x], i = y * MW + x, kind = L.kinds?.[ch] ?? KINDS[ch];
+      if (L.walls[ch]) {
+        map[i] = L.walls[ch];
+        if (ch === "D") doors.set(i, { x, y, open: 0, hold: 0, want: 0, vertical: wall(rows[y - 1][x]) && wall(rows[y + 1][x]) });
       } else if (ch === "p") [P.x, P.y] = [x + 0.5, y + 0.5];
-      else if (KINDS[ch]) ents.push({ ...KINDS[ch], x: x + 0.5, y: y + 0.5, st: "idle", t: 0, cd: 0, anim: rnd() * 3, look: rnd() * 0.3, seed: rnd() * TAU, stuck: 0, sx: 0, sy: 0 });
+      else if (kind) ents.push({ ...kind, max: kind.hp, x: x + 0.5, y: y + 0.5, st: "idle", t: 0, cd: 0, anim: rnd() * 3, look: rnd() * 0.3, seed: rnd() * TAU, stuck: 0, sx: 0, sy: 0, hitT: 0, blinks: 0 });
     }
   total = ents.filter((e) => e.foe).length;
   totalC = ents.filter((e) => e.kind === "commit").length;
-  G.flowCell = -1;
+  Object.assign(G, { flowCell: -1, boss: null, bar: 0, shake: 0, white: 0, muzzle: 0 });
+  TEX[T_HATCH] = HATCH_SHUT;
+  swapBtn.hidden = true;
 }
 
 // ---------------------------------------------------------------- sound, made on the spot
@@ -2510,6 +2874,23 @@ const SFX = {
   thunder: (d, v) => hiss(260, 35, 2.6, 0.9 * v, d),
   win: () => [392, 523, 659, 784, 1047].forEach((f, i) => tone("square", f, f, 0.18, 0.12, i * 0.12)),
   dead: () => (tone("sawtooth", 230, 36, 1.1, 0.32), hiss(800, 60, 1, 0.3)),
+  // The drain's: the rod's crackle, the roaches' chitter, the Heisenbug, water, and the last fanfare.
+  zap: () => (hiss(5200, 1800, 0.12, 0.55, 0, 4, "bandpass"), tone("sawtooth", 1400, 160, 0.14, 0.12), hiss(9000, 3000, 0.05, 0.3, 0.05, 2, "highpass")),
+  swap: () => (tone("square", 300, 260, 0.05, 0.12), tone("square", 520, 480, 0.04, 0.1, 0.07)),
+  rod: () => (tone("sine", 180, 1400, 0.5, 0.2), hiss(6000, 2000, 0.4, 0.2, 0.1, 3, "bandpass")),
+  chitter: () => [0, 1, 2].forEach((i) => tone("square", 1500, 1100, 0.03, 0.08, i * 0.05)),
+  roar: () => (tone("sawtooth", 110, 46, 1.2, 0.32), hiss(700, 90, 1.2, 0.5, 0, 1.2), tone("square", 70, 40, 1, 0.12)),
+  charge: () => tone("sine", 160, 620, 0.5, 0.14),
+  belch: () => (tone("sine", 300, 70, 0.3, 0.32), hiss(1400, 200, 0.3, 0.35, 0, 1.5, "bandpass")),
+  stomp: () => (tone("sine", 90, 30, 0.35, 0.5), hiss(400, 60, 0.4, 0.5)),
+  growl: () => tone("sawtooth", 120, 80, 0.18, 0.18),
+  blink: () => (tone("sine", 1200, 200, 0.3, 0.16), tone("sine", 200, 1200, 0.3, 0.16, 0.3)),
+  shriek: () => (tone("sawtooth", 900, 140, 1.4, 0.2), tone("square", 640, 90, 1.5, 0.12, 0.1)),
+  boom: () => (tone("sine", 120, 22, 2.2, 0.9), hiss(3000, 40, 2.6, 1, 0, 0.7), tone("sawtooth", 260, 30, 1.6, 0.3), hiss(1800, 300, 0.6, 0.6, 0.3, 2, "bandpass")),
+  pop: () => hiss(1400, 300, 0.12, 0.3, 0, 1.5, "bandpass"),
+  drip: (v) => tone("sine", 1700 + rnd() * 500, 700, 0.06, 0.07 * v),
+  wade: () => hiss(900, 300, 0.12, 0.12, 0, 1.2, "bandpass"),
+  fanfare: () => [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => tone("square", f, f, i === 6 ? 0.7 : 0.16, 0.12, i * 0.13)),
 };
 
 // ---------------------------------------------------------------- rays
@@ -2543,7 +2924,7 @@ function cast(ox, oy, dx, dy) {
         const t = d.vertical ? (mx + 0.5 - ox) / dx : (my + 0.5 - oy) / dy;
         const f = d.vertical ? oy + t * dy - my : ox + t * dx - mx;
         if (t > 0 && f >= d.open && f < 1) {
-          rTex = T_DOOR;
+          rTex = L.door;
           rSide = d.vertical ? 0 : 1;
           rU = f - d.open;
           return t;
@@ -2555,8 +2936,9 @@ function cast(ox, oy, dx, dy) {
     const t = side === 0 ? tx - ddx : ty - ddy;
     let u = side === 0 ? oy + t * dy : ox + t * dx;
     u -= Math.floor(u);
-    if ((side === 0 && dx > 0) || (side === 1 && dy < 0)) u = 1 - u;
-    rTex = jamb ? T_JAMB : WALL_TEX[m];
+    // Flip the faces seen looking west or south, so a wall's sign reads left to right from any side.
+    if ((side === 0 && dx < 0) || (side === 1 && dy > 0)) u = 1 - u;
+    rTex = jamb ? T_JAMB : L.tex[m];
     rSide = side;
     rU = u;
     return t;
@@ -2602,20 +2984,33 @@ function walls(dirX, dirY) {
     for (let y = y0; y < y1; y++, v += step) buf[y * W + x] = shade(tx[Math.min(63, v | 0) * TS + u], l);
   }
 }
+// How each thing looks just now: its picture, its size, how high off the floor, and whether it glows.
+// Nothing, while the Heisenbug is between places.
 function look(e) {
   switch (e.kind) {
-    case "beetle": {
-      const s = e.st === "dead" || (e.st === "dying" && e.t > 0.18) ? BEETLE.down[1] : e.st === "dying" ? BEETLE.down[0] : e.st === "pain" ? BEETLE.pain : e.st === "attack" ? BEETLE.bite : BEETLE.walk[e.st === "idle" ? 0 : ((e.anim * 6) | 0) & 1];
-      return [s, 1.25, 0, false];
+    case "beetle":
+    case "roach": {
+      const S = e.kind === "roach" ? ROACH : BEETLE;
+      const s = e.st === "dead" || (e.st === "dying" && e.t > 0.18) ? S.down[1] : e.st === "dying" ? S.down[0] : e.st === "pain" ? S.pain : e.st === "attack" ? S.bite : S.walk[e.st === "idle" ? 0 : ((e.anim * 6) | 0) & 1];
+      return [s, e.kind === "roach" ? 1.45 : 1.25, 0, false];
     }
     case "moth": {
       const s = e.st === "dead" ? MOTH.down : e.st === "dying" || e.st === "pain" ? MOTH.pain : e.st === "attack" ? MOTH.spit : MOTH.fly[((e.anim * 8) | 0) & 1];
       return [s, 1.1, e.z, false];
     }
+    case "boss": {
+      if (e.st === "dead") return [BOSS.down, 0.96, 0, false];
+      if (e.st === "blink" && ((e.t > 0.5 && e.t < 0.75) || (!reduced && ((G.t * 20) | 0) & 1))) return null;
+      const s = e.st === "dying" ? (((e.t * 14) | 0) & 1 ? BOSS.pain : BOSS.spit) : e.hitT > 0 ? BOSS.pain : e.st === "attack" && e.t > 0.2 ? BOSS.spit : BOSS.walk[e.st === "idle" ? 0 : ((e.anim * 4) | 0) & 1];
+      return [s, 0.96, 0, false];
+    }
     case "ammo": return [AMMO, 1, 0, false];
     case "coffee": return [COFFEE, 1.1, 0, false];
     case "commit": return [COMMIT, 1, 0.22 + Math.sin(G.t * 3 + e.seed) * 0.04, true];
+    case "battery": return [BATTERY, 0.9, 0, false];
+    case "rod": return [RODITEM, 1.4, 0, false];
     case "barrel": return [BARREL, 1.35, 0, false];
+    case "bulb": return [BULB, 1, 1 - BULB.h / TS, false];
     default: return [LAMP, 1, 0, false];
   }
 }
@@ -2625,9 +3020,12 @@ function sprites(dirX, dirY) {
     const sx = x - P.x, sy = y - P.y, depth = dirX * sx + dirY * sy;
     if (depth > 0.15) list.push({ x, y, s, k, z, glow, depth, side: dirX * sy - dirY * sx });
   };
-  for (const e of ents) add(e.x, e.y, ...look(e));
-  for (const s of shots) add(s.x, s.y, SPIT[((G.t * 12) | 0) & 1], 1, 0.36, true);
-  for (const f of fx) add(f.x, f.y, f.frames[Math.min(2, ((f.t / f.life) * 3) | 0)], 1, f.z, f.frames === GOO);
+  for (const e of ents) {
+    const l = look(e);
+    if (l) add(e.x, e.y, ...l);
+  }
+  for (const s of shots) add(s.x, s.y, (s.big ? ORB : SPIT)[((G.t * 12) | 0) & 1], s.big ? 1.4 : 1, s.big ? 0.3 : 0.36, true);
+  for (const f of fx) add(f.x, f.y, f.frames[Math.min(2, ((f.t / f.life) * 3) | 0)], f.k ?? 1, f.z, f.frames !== PUFF);
   list.sort((a, b) => b.depth - a.depth);
   for (const o of list) {
     const { s, depth: ty } = o, cx = PROJ * (1 + o.side / ty), sw = (PROJ * (s.w / TS) * o.k) / ty, sh = (PROJ * (s.h / TS) * o.k) / ty;
@@ -2654,11 +3052,49 @@ function blit(s, x0, y0, l) {
     }
   }
 }
-function gun() {
-  const since = P.shotT, kick = since < 0.06 ? -3 : since < 0.32 ? 7 * (1 - (since - 0.06) / 0.26) : 0;
-  const gx = Math.round(112 + Math.cos(P.bob) * 5 * P.bobAmp), gy = Math.round(VH - 58 + Math.abs(Math.sin(P.bob)) * 6 * P.bobAmp + kick);
-  blit(GUN, gx, gy, since < 0.06 ? 330 : band(Math.min(1.2, lit[cellOf(P.x, P.y)] + 0.12)));
+// What you hold, bobbing as you walk and kicking when it fires; it dips out of sight to swap.
+function gun(dirX, dirY) {
+  const since = P.shotT, rod = P.arm === 1, kick = rod ? (since < 0.05 ? 2 : 0) : since < 0.06 ? -3 : since < 0.32 ? 7 * (1 - (since - 0.06) / 0.26) : 0;
+  const dip = P.swapT < 0.3 ? (1 - Math.abs(P.swapT - 0.15) / 0.15) * 64 : 0;
+  const gx = Math.round(112 + Math.cos(P.bob) * 5 * P.bobAmp), gy = Math.round(VH - 58 + Math.abs(Math.sin(P.bob)) * 6 * P.bobAmp + kick + dip);
+  const l = band(Math.min(1.2, lit[cellOf(P.x, P.y)] + 0.12));
+  if (rod) {
+    const hot = since < 0.07;
+    if (hot && P.bolt && !dip) arc(gx + 48, gy + 9, dirX, dirY);
+    blit(ROD[hot ? 1 : 0], gx, gy, hot ? 330 : l);
+    // Now and then it crackles across the bulb on its own.
+    if (!hot && !reduced && rnd() < 0.06) zigzag(gx + 40, gy + 4 + rnd() * 8, gx + 56, gy + 4 + rnd() * 8);
+    return;
+  }
+  blit(GUN, gx, gy, since < 0.06 ? 330 : l);
   if (since < 0.06) blit(FLASH, gx + 28, gy - 18, 256);
+}
+// The rod's lightning: a jagged line from the bulb to what it hit, then on to the bug it jumped to.
+function onScreen(x, y, z, dirX, dirY) {
+  const sx = x - P.x, sy = y - P.y, d = dirX * sx + dirY * sy;
+  return d < 0.15 ? null : [PROJ * (1 + (dirX * sy - dirY * sx) / d), HALF + ((P.eye - z) * PROJ) / d];
+}
+function zigzag(x0, y0, x1, y1) {
+  const len = Math.hypot(x1 - x0, y1 - y0) || 1, n = Math.max(3, Math.round(len / 9)), px = -(y1 - y0) / len, py = (x1 - x0) / len;
+  let ax = x0, ay = y0;
+  for (let i = 1; i <= n; i++) {
+    const j = i < n ? (rnd() - 0.5) * 10 : 0, bx = x0 + ((x1 - x0) * i) / n + px * j, by = y0 + ((y1 - y0) * i) / n + py * j;
+    const m = Math.ceil(Math.max(Math.abs(bx - ax), Math.abs(by - ay))) || 1;
+    for (let k = 0; k <= m; k++) {
+      const x = Math.round(ax + ((bx - ax) * k) / m), y = Math.round(ay + ((by - ay) * k) / m);
+      if (x < 0 || x >= W - 1 || y < 0 || y >= VH - 1) continue;
+      buf[y * W + x] = 0xffffffff;
+      buf[y * W + x + 1] = buf[(y + 1) * W + x] = BOLTC | 0xff000000;
+    }
+    [ax, ay] = [bx, by];
+  }
+}
+function arc(x0, y0, dirX, dirY) {
+  const b = P.bolt, to = onScreen(b.x, b.y, b.z, dirX, dirY);
+  if (!to) return;
+  zigzag(x0, y0, to[0], to[1]);
+  const on = b.next && onScreen(b.next.x, b.next.y, (b.next.z ?? 0) + 0.35, dirX, dirY);
+  if (on) zigzag(to[0], to[1], on[0], on[1]);
 }
 function wash(c, t, y1 = VH) {
   const r = c & 255, g = (c >> 8) & 255, b = (c >> 16) & 255, k = Math.round(t * 256);
@@ -2701,8 +3137,11 @@ function storm(cx, cy) {
 function hud() {
   buf.set(BAR, VH * W);
   const num = (s, cx, c) => sayC(s, cx, VH + 4, c, 2, 1), label = (s, cx) => sayC(s, cx, VH + 22, MUTED, 1, 0);
-  num(String(P.ammo), 30, P.ammo ? GOLD : RED);
-  label("AMMO", 30);
+  const n = P.arm ? P.cells : P.ammo;
+  num(String(n), 26, n ? GOLD : RED);
+  label(P.arm ? "CHARGE" : "AMMO", 26);
+  // The weapons you carry, by number, the one in hand in gold. A tap here swaps them.
+  for (let i = 0; i < 2; i++) say(String(i + 1), 51, VH + 5 + i * 11, P.want === i ? GOLD : P.has[i] ? MUTED : rgb(40, 52, 88), 1, 0);
   num(`${Math.max(0, Math.ceil(P.hp))}%`, 95, P.hp > 25 ? GOLD : RED);
   label("HEALTH", 95);
   storm(160, VH + 16);
@@ -2711,25 +3150,40 @@ function hud() {
   num(`${P.commits}/${totalC}`, 289, GOLD);
   label("COMMITS", 289);
 }
+// The Heisenbug's health, across the top while it's up, with a pale trail where it just lost some.
+function bossBar() {
+  const b = G.boss, x0 = 80, w = 160, y0 = 13, f = Math.max(0, b.hp) / b.max;
+  sayC("THE HEISENBUG", 160, 3, INK, 1, 1);
+  for (let y = y0; y < y0 + 6; y++)
+    for (let x = x0 - 1; x <= x0 + w; x++) {
+      const at = (x - x0) / w;
+      buf[y * W + x] = y === y0 || y === y0 + 5 || x === x0 - 1 || x === x0 + w ? DARK : at < f ? (y === y0 + 1 ? rgb(255, 170, 150) : RED) : at < G.bar ? INK : rgb(60, 22, 28);
+    }
+}
 const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 function render() {
   TEX[T_RACK] = RACKS[((G.t * 2.5) | 0) % 3];
+  TEX[T_WATER] = WATERS[((G.t * 3) | 0) % 3];
   for (let i = 0; i < lit.length; i++) lit[i] = light0[i] * (zone[i] === 2 ? G.fl : 1) + (zone[i] === 1 ? G.flash * 0.9 : 0) + G.muzzle;
-  const dirX = Math.cos(P.a), dirY = Math.sin(P.a);
+  // A big enough blow shakes the view.
+  const a = P.a + (G.shake > 0 && !reduced ? (rnd() - 0.5) * G.shake * 0.08 : 0), dirX = Math.cos(a), dirY = Math.sin(a);
   for (let x = 0; x < W; x++) {
-    let v = (((P.a + colAng[x]) / TAU) * SW) % SW;
+    let v = (((a + colAng[x]) / TAU) * SW) % SW;
     if (v < 0) v += SW;
     skyX[x] = v | 0;
   }
   flats(dirX, dirY);
   walls(dirX, dirY);
   sprites(dirX, dirY);
-  if (G.state !== "title" && P.hp > 0) gun();
+  if (G.state !== "title" && P.hp > 0) gun(dirX, dirY);
   if (P.hurtT > 0) wash(rgb(200, 0, 0), Math.min(0.55, P.hurtT));
   if (P.gotT > 0) wash(rgb(255, 210, 60), Math.min(0.28, P.gotT));
+  if (G.white > 0) wash(rgb(255, 255, 255), Math.min(reduced ? 0.3 : 0.85, G.white));
   if (G.state === "dead") wash(rgb(130, 0, 0), 0.38);
   hud();
-  if (G.state === "playing" && P.msgT > 0) say(P.msg, 4, 4, GOLD, 1, 1);
+  const up = G.boss && G.boss.st !== "dead" && G.state !== "title";
+  if (up) bossBar();
+  if (G.state === "playing" && P.msgT > 0) say(P.msg, 4, up ? 24 : 4, GOLD, 1, 1);
   if (G.state === "title") {
     wash(rgb(0, 0, 0), 0.45);
     say("STORM", 160 - textW("STORM", 5) / 2, 12, logo, 5, 3);
@@ -2744,15 +3198,22 @@ function render() {
     sayC("CLICK OR PRESS ENTER TO GO ON", 160, 92, INK);
   } else if (G.state === "dead") {
     sayC("YOU GOT BUGGED", 160, 46, logo, 3, 2);
-    if (P.deadT > 0.9) sayC("CLICK OR PRESS ENTER TO TRY AGAIN", 160, 88, INK);
-  } else if (G.state === "done") {
-    const t = G.doneT, row = (k, v, y) => (say(k, 64, y, INK, 2, 1), say(v, 256 - textW(v, 2), y, GOLD, 2, 1));
+    if (P.deadT > 0.9) sayC(G.level ? "CLICK OR PRESS ENTER TO TRY THE DRAIN AGAIN" : "CLICK OR PRESS ENTER TO TRY AGAIN", 160, 88, INK);
+  } else if (G.state === "cleared" || G.state === "won") {
+    // The tally, counting up: the cellar's after level 1, both levels' at the end.
+    const t = G.doneT, won = G.state === "won", r = won ? G.run : { kills: 0, total: 0, commits: 0, totalC: 0, time: 0 };
+    const row = (k, v, y) => (say(k, 64, y, INK, 2, 1), say(v, 256 - textW(v, 2), y, GOLD, 2, 1));
+    const count = (n, at) => Math.min(n, Math.floor(((t - at) / 0.5) * n));
     wash(rgb(0, 0, 0), 0.6);
-    sayC("CELLAR CLEARED", 160, 16, logo, 3, 2);
-    row("BUGS", `${Math.min(Math.round((P.kills / total) * 100), Math.floor(t * 100))}%`, 56);
-    if (t > 0.6) row("COMMITS", `${Math.min(Math.round((P.commits / totalC) * 100), Math.floor((t - 0.6) * 100))}%`, 78);
-    if (t > 1.2) row("TIME", clock(P.time), 100);
-    if (t > 1.6) sayC("CLICK OR PRESS ENTER TO PLAY AGAIN", 160, 134, GOLD);
+    sayC(won ? "ALL CLEAR" : "CELLAR CLEARED", 160, 14, logo, 3, 2);
+    sayC(won ? "BOTH LEVELS" : "LEVEL 1 OF 2", 160, 42, MUTED, 1, 0);
+    row("BUGS", `${count(r.kills + P.kills, 0)}/${r.total + total}`, 56);
+    if (t > 0.6) row("COMMITS", `${count(r.commits + P.commits, 0.6)}/${r.totalC + totalC}`, 78);
+    if (t > 1.2) row("TIME", clock(r.time + P.time), 100);
+    if (t > 1.6) {
+      sayC(won ? "THE HEISENBUG IS SQUASHED. THE STORM HAS PASSED." : "NEXT: THE STORM DRAIN UNDER THE CELLAR", 160, 124, INK);
+      sayC(won ? "CLICK OR PRESS ENTER FOR THE TITLE" : "CLICK OR PRESS ENTER TO GO DOWN", 160, 140, GOLD);
+    }
   }
   ctx.putImageData(img, 0, 0);
 }
@@ -2765,8 +3226,13 @@ function note(s) {
   P.msg = s;
   P.msgT = 2.6;
 }
+function blocked(x, y, r) {
+  if (wallAt(x - r, y - r) || wallAt(x + r, y - r) || wallAt(x - r, y + r) || wallAt(x + r, y + r)) return true;
+  // Something as wide as the Heisenbug could straddle a pillar between its corners: try the middles too.
+  return r > 0.5 && (wallAt(x, y - r) || wallAt(x, y + r) || wallAt(x - r, y) || wallAt(x + r, y));
+}
 function fits(o, x, y, r, me) {
-  if (wallAt(x - r, y - r) || wallAt(x + r, y - r) || wallAt(x - r, y + r) || wallAt(x + r, y + r)) return false;
+  if (blocked(x, y, r)) return false;
   // Something in the way, unless the move takes you away from it (so nothing ever sticks).
   const clear = (ox, oy, or) => {
     const d2 = (ox - x) ** 2 + (oy - y) ** 2;
@@ -2782,7 +3248,13 @@ function walk(o, dx, dy, r, me) {
   else if (me) bump(o.x, o.y + dy, r);
 }
 function bump(x, y, r) {
-  for (const [a, b] of [[-r, -r], [r, -r], [-r, r], [r, r]]) if (map[cellOf(x + a, y + b)] === EXIT) return finish();
+  for (const [a, b] of [[-r, -r], [r, -r], [-r, r], [r, r]]) if (map[cellOf(x + a, y + b)] === EXIT) return out();
+}
+// The drain's way out stays shut while the Heisenbug lives.
+function out() {
+  const keeper = ents.find((e) => e.boss);
+  if (!keeper || keeper.st === "dead") return finish();
+  if (P.msgT < 1) note("THE HATCH WON'T BUDGE WHILE THE HEISENBUG LIVES.");
 }
 function controls(dt) {
   const fw = Math.max(-1, Math.min(1, (held("KeyW", "ArrowUp") ? 1 : 0) - (held("KeyS", "ArrowDown") ? 1 : 0) + touch.move));
@@ -2792,11 +3264,28 @@ function controls(dt) {
   let mx = dx * fw - dy * st, my = dy * fw + dx * st;
   const m = Math.hypot(mx, my);
   if (m > 1) [mx, my] = [mx / m, my / m];
-  walk(P, mx * 3.4 * run * dt, my * 3.4 * run * dt, 0.24, true);
+  // Wading through flood water is slower, and splashes at every step.
+  const wet = floorT[cellOf(P.x, P.y)] === T_WATER, v = 3.4 * run * (wet ? 0.82 : 1) * dt;
+  walk(P, mx * v, my * v, 0.24, true);
   P.bob += dt * 9 * Math.min(1, m) * Math.sqrt(run);
+  const step = Math.floor(P.bob / Math.PI);
+  if (wet && step !== P.step) SFX.wade();
+  P.step = step;
   P.bobAmp += ((reduced ? 0 : Math.min(1, m)) - P.bobAmp) * Math.min(1, dt * 8);
-  if ((mouseFire || touch.fire || held("Space", "KeyF")) && P.fireT <= 0) shoot();
+  if ((mouseFire || touch.fire || held("Space", "KeyF")) && P.fireT <= 0 && P.swapT >= 0.3) (P.arm ? zap : shoot)();
 }
+// Switch weapons: to the one numbered, or else the other one. The one in hand dips out of sight first.
+function swap(to = 1 - P.want) {
+  if (G.state !== "playing" || P.hp <= 0 || to === P.want || P.swapT < 0.3) return;
+  if (!P.has[to]) {
+    if (P.msgT < 1) note("NOTHING IN THAT SLOT YET.");
+    return;
+  }
+  P.want = to;
+  P.swapT = 0;
+  SFX.swap();
+}
+const alive = (e) => e.foe && e.st !== "dying" && e.st !== "dead" && e.st !== "blink";
 function shoot() {
   if (P.ammo <= 0) {
     P.fireT = 0.3;
@@ -2816,7 +3305,7 @@ function shoot() {
     const a = P.a + (rnd() - 0.5) * 0.11, dx = Math.cos(a), dy = Math.sin(a), wt = cast(P.x, P.y, dx, dy);
     let best = null, bt = wt;
     for (const e of ents) {
-      if (!e.foe || e.st === "dying" || e.st === "dead") continue;
+      if (!alive(e)) continue;
       const vx = e.x - P.x, vy = e.y - P.y, along = vx * dx + vy * dy;
       if (along > 0 && along < bt && Math.abs(vx * dy - vy * dx) < e.r + 0.04) [best, bt] = [e, along];
     }
@@ -2825,9 +3314,50 @@ function shoot() {
   }
   for (const [e, n] of hits) hurtBug(e, n);
 }
+// The lightning rod: a quick bolt, dead straight, that jumps on to the nearest bug it can reach.
+function zap() {
+  if (P.cells <= 0) {
+    P.fireT = 0.3;
+    SFX.empty();
+    if (P.msgT < 1) note("NO CHARGE. FIND A BATTERY.");
+    return;
+  }
+  P.cells--;
+  P.fireT = 0.16;
+  P.shotT = 0;
+  G.muzzle = 0.2;
+  SFX.zap();
+  // It's quieter than the double barrel: only the bugs close by hear it.
+  for (const e of ents) if (e.foe && e.st === "idle" && flow[cellOf(e.x, e.y)] >= 0 && flow[cellOf(e.x, e.y)] <= 5) wake(e);
+  const dx = Math.cos(P.a), dy = Math.sin(P.a);
+  let best = null, bt = Math.min(cast(P.x, P.y, dx, dy), 18);
+  for (const e of ents) {
+    if (!alive(e)) continue;
+    const vx = e.x - P.x, vy = e.y - P.y, along = vx * dx + vy * dy;
+    if (along > 0 && along < bt && Math.abs(vx * dy - vy * dx) < e.r + 0.08) [best, bt] = [e, along];
+  }
+  if (!best) {
+    P.bolt = { x: P.x + dx * (bt - 0.06), y: P.y + dy * (bt - 0.06), z: 0.5, next: null };
+    if (bt < 18) fx.push({ x: P.bolt.x, y: P.bolt.y, z: 0.3, t: 0, life: 0.2, frames: ZAP });
+    return;
+  }
+  let next = null, nd = 3.5;
+  for (const e of ents) {
+    if (e === best || !alive(e)) continue;
+    const d = Math.hypot(e.x - best.x, e.y - best.y);
+    if (d > 0.01 && d < nd && cast(best.x, best.y, (e.x - best.x) / d, (e.y - best.y) / d) >= d - 0.1) [next, nd] = [e, d];
+  }
+  P.bolt = { x: best.x, y: best.y, z: (best.z ?? 0) + 0.35, next };
+  for (const [e, n] of [[best, 8 + rnd() * 5], [next, 4 + rnd() * 4]]) {
+    if (!e) continue;
+    fx.push({ x: e.x + (P.x - e.x) * 0.1, y: e.y + (P.y - e.y) * 0.1, z: (e.z ?? 0) + (e.boss ? 0.4 : 0.2), t: 0, life: 0.2, frames: ZAP });
+    hurtBug(e, n);
+  }
+}
 function hurtBug(e, n) {
   e.hp -= n;
-  fx.push({ x: e.x + (P.x - e.x) * 0.1, y: e.y + (P.y - e.y) * 0.1, z: (e.z ?? 0) + 0.2, t: 0, life: 0.3, frames: GOO });
+  fx.push({ x: e.x + (P.x - e.x) * 0.1, y: e.y + (P.y - e.y) * 0.1, z: (e.z ?? 0) + (e.boss ? 0.45 : 0.2), t: 0, life: 0.3, frames: GOO });
+  if (e.boss) return hurtBoss(e);
   if (e.hp <= 0) {
     to(e, "dying");
     P.kills++;
@@ -2838,6 +3368,27 @@ function hurtBug(e, n) {
     SFX.squeal();
   } else if (e.st === "idle") wake(e);
 }
+// The Heisenbug doesn't flinch. Two thirds and one third of the way down, it blinks somewhere else
+// in its room; at the end it thrashes, bursts, and goes off like a thunderclap.
+function hurtBoss(e) {
+  e.hitT = 0.08;
+  if (e.hp <= 0) {
+    // The storm it spat goes with it, so the blow that kills it ends the fight.
+    to(e, "dying");
+    e.pop = 0;
+    shots = shots.filter((s) => !s.big);
+    P.kills++;
+    SFX.shriek();
+    return;
+  }
+  if (rnd() < 0.25) SFX.growl();
+  if (e.st === "idle") wake(e);
+  if (e.hp < e.max * (1 - (e.blinks + 1) / 3)) {
+    e.blinks++;
+    to(e, "blink");
+    SFX.blink();
+  }
+}
 function hurt(n) {
   if (P.hp <= 0) return;
   P.hp -= n;
@@ -2846,7 +3397,7 @@ function hurt(n) {
   if (P.hp <= 0) {
     P.hp = 0;
     P.deadT = 0;
-    setState("dead", "The bugs got you. Press Enter to try again.");
+    setState("dead", G.level ? "The bugs got you. Press Enter to try the storm drain again." : "The bugs got you. Press Enter to try again.");
     SFX.dead();
   }
 }
@@ -2858,12 +3409,120 @@ function to(e, st) {
 function wake(e) {
   to(e, "chase");
   e.cd = 0.3 + rnd() * 0.4;
+  if (e.boss) {
+    // A roar, its name and health across the top, and a word to a screen reader.
+    G.boss = e;
+    G.bar = 1;
+    e.cd = 1.2;
+    SFX.roar();
+    note("THE HEISENBUG! IT HOLDS THE WAY OUT.");
+    said.textContent = "The Heisenbug wakes. It guards the way out: squash it, then take the ladder.";
+    return;
+  }
   if (G.t - G.lastAlert > 0.7) {
     G.lastAlert = G.t;
-    (e.kind === "moth" ? SFX.flutter : SFX.alert)();
+    (e.kind === "moth" ? SFX.flutter : e.kind === "roach" ? SFX.chitter : SFX.alert)();
+  }
+}
+// The Heisenbug: slow, but it spits fans of storm you have to step between, stamps when you get
+// close, and blinks away when it's badly hurt. Below half its health it spits more, and faster.
+function boss(e, dt) {
+  e.t += dt;
+  e.anim += dt;
+  e.cd -= dt;
+  e.hitT -= dt;
+  if (e.st === "dead") return;
+  if (e.st === "dying") {
+    G.shake = Math.max(G.shake, 1);
+    if ((e.pop -= dt) <= 0 && e.t < 1.6) {
+      e.pop = 0.1;
+      const a = rnd() * TAU, r = rnd() * 0.8;
+      fx.push({ x: e.x + Math.cos(a) * r, y: e.y + Math.sin(a) * r, z: 0.1 + rnd() * 0.6, t: 0, life: 0.35, frames: rnd() < 0.5 ? GOO : BURST, k: 2.2 });
+      SFX.pop();
+    }
+    if (e.t > 1.7) {
+      // The end: a white flash, a boom, and the hatch's sign turns green.
+      e.st = "dead";
+      G.white = 1;
+      G.shake = 1.4;
+      TEX[T_HATCH] = HATCH_OPEN;
+      SFX.boom();
+      note("THE HEISENBUG IS SQUASHED. THE HATCH IS OPEN.");
+      said.textContent = "The Heisenbug is squashed, and the hatch is open: take the ladder out.";
+    }
+    return;
+  }
+  const dx = P.x - e.x, dy = P.y - e.y, dist = Math.hypot(dx, dy) || 0.01;
+  if ((e.look -= dt) <= 0) {
+    e.look = 0.2 + rnd() * 0.15;
+    e.sees = dist < 16 && cast(e.x, e.y, dx / dist, dy / dist) >= dist - 0.1;
+  }
+  if (e.st === "idle") {
+    if (e.sees && P.hp > 0) wake(e);
+    return;
+  }
+  if (P.hp <= 0) return;
+  if (e.st === "blink") {
+    if (e.t > 0.6 && !e.hit) {
+      e.hit = true;
+      hop(e);
+    }
+    if (e.t > 1) {
+      to(e, "chase");
+      e.cd = 0.5;
+    }
+    return;
+  }
+  const angry = e.hp < e.max / 2;
+  if (e.st === "attack") {
+    if (!e.hit && e.t > 0.55) {
+      // A fan of storm, with gaps to step into; angry, it shifts the gaps half a step at random.
+      e.hit = true;
+      const n = angry ? 5 : 3, gap = angry ? 0.2 : 0.26, v = angry ? 4.2 : 3.5, a0 = Math.atan2(dy, dx) + (angry && rnd() < 0.5 ? gap / 2 : 0);
+      for (let i = 0; i < n; i++) {
+        const a = a0 + (i - (n - 1) / 2) * gap;
+        shots.push({ x: e.x + Math.cos(a) * 0.9, y: e.y + Math.sin(a) * 0.9, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, big: true });
+      }
+      SFX.belch();
+    }
+    if (e.t > 0.9) {
+      to(e, "chase");
+      e.cd = (angry ? 1.1 : 1.8) + rnd() * 0.8;
+    }
+    return;
+  }
+  if (e.st === "stomp") {
+    if (!e.hit && e.t > 0.3) {
+      e.hit = true;
+      G.shake = Math.max(G.shake, 0.5);
+      SFX.stomp();
+      if (dist < 2) hurt(14 + rnd() * 10);
+    }
+    if (e.t > 0.7) {
+      to(e, "chase");
+      e.cd = 0.6;
+    }
+    return;
+  }
+  if (dist < 1.7 && e.cd <= 0) to(e, "stomp");
+  else if (e.sees && e.cd <= 0) {
+    to(e, "attack");
+    SFX.charge();
+  } else steer(e, dt, angry ? 1.5 : 1.1, dist, dx, dy, false);
+}
+// Somewhere else in its room, well away from where it was and from you, with space to stand.
+function hop(e) {
+  const [x0, y0, x1, y1] = L.arena;
+  for (let n = 0; n < 80; n++) {
+    const x = x0 + 1 + rnd() * (x1 - x0 - 1), y = y0 + 1 + rnd() * (y1 - y0 - 1);
+    if (Math.hypot(x - e.x, y - e.y) < 3 || Math.hypot(x - P.x, y - P.y) < 4.5 || blocked(x, y, e.r)) continue;
+    if (ents.some((o) => o !== e && o.solid && o.st !== "dying" && o.st !== "dead" && Math.hypot(o.x - x, o.y - y) < o.r + e.r)) continue;
+    [e.x, e.y] = [x, y];
+    return;
   }
 }
 function think(e, dt) {
+  if (e.boss) return boss(e, dt);
   e.t += dt;
   e.anim += dt;
   e.cd -= dt;
@@ -2888,13 +3547,13 @@ function think(e, dt) {
     if (e.t > 0.28) to(e, "chase");
     return;
   }
-  if (e.kind === "beetle") {
+  if (e.kind === "beetle" || e.kind === "roach") {
     if (e.st === "attack") {
       if (!e.hit && e.t > 0.22) {
         e.hit = true;
         if (dist < 1.15) {
           SFX.bite();
-          hurt(5 + rnd() * 6);
+          hurt(e.bite + rnd() * e.more);
         }
       }
       if (e.t > 0.5) {
@@ -2902,7 +3561,7 @@ function think(e, dt) {
         e.cd = 0.45;
       }
     } else if (dist < 0.85 && e.cd <= 0) to(e, "attack");
-    else steer(e, dt, 1.9, dist, dx, dy, false);
+    else steer(e, dt, e.speed, dist, dx, dy, false);
     return;
   }
   if (e.st === "attack") {
@@ -2986,11 +3645,13 @@ function tick(dt) {
     s.t += dt;
     s.x += s.vx * dt;
     s.y += s.vy * dt;
-    const hitMe = P.hp > 0 && Math.hypot(P.x - s.x, P.y - s.y) < 0.36;
+    // The Heisenbug's storm is bigger than a moth's spit, and hits harder.
+    const hitMe = P.hp > 0 && Math.hypot(P.x - s.x, P.y - s.y) < (s.big ? 0.48 : 0.36);
     if (hitMe || wallAt(s.x, s.y) || s.t > 5) {
-      if (hitMe) hurt(7 + rnd() * 6);
-      else SFX.splash();
-      fx.push({ x: s.x - s.vx * dt, y: s.y - s.vy * dt, z: 0.3, t: 0, life: 0.3, frames: GOO });
+      if (hitMe) hurt(s.big ? 10 + rnd() * 7 : 7 + rnd() * 6);
+      else if (!s.big) SFX.splash();
+      else if (Math.hypot(P.x - s.x, P.y - s.y) < 8) SFX.pop();
+      fx.push({ x: s.x - s.vx * dt, y: s.y - s.vy * dt, z: 0.3, t: 0, life: 0.3, frames: s.big ? BURST : GOO, k: s.big ? 1.6 : 1 });
       shots.splice(i, 1);
     }
   }
@@ -3010,6 +3671,20 @@ function pickups() {
       P.hp = Math.min(100, P.hp + 25);
       note("A HOT COFFEE. +25 HEALTH.");
       SFX.item();
+    } else if (e.kind === "battery") {
+      if (P.cells >= 99) continue;
+      P.cells = Math.min(99, P.cells + 20);
+      note(P.has[1] ? "A CAR BATTERY. +20 CHARGE." : "A CAR BATTERY. SOMETHING MUST RUN ON THESE.");
+      SFX.item();
+    } else if (e.kind === "rod") {
+      // The new weapon: picked up, charged, and in hand.
+      P.has[1] = true;
+      P.cells = Math.min(99, P.cells + 40);
+      swapBtn.hidden = false;
+      note(pad.hidden ? "THE LIGHTNING ROD! 1 AND 2 SWITCH WEAPONS." : "THE LIGHTNING ROD! TAP SWAP TO SWITCH.");
+      said.textContent = "You found the lightning rod. 1 and 2, Q, or the mouse wheel switch weapons; on a phone, Swap.";
+      SFX.rod();
+      swap(1);
     } else {
       P.commits++;
       note(`FOUND A COMMIT. ${P.commits} OF ${totalC}.`);
@@ -3019,7 +3694,8 @@ function pickups() {
     ents.splice(i, 1);
   }
 }
-// The server room's tubes flicker; every so often lightning lights the yard, and thunder follows.
+// The server room's tubes and the pump room's lights flicker; every so often lightning lights the
+// yard, or the street grates over the drain, and thunder follows. Down the drain, water drips.
 function weather(dt) {
   if ((G.flick -= dt) <= 0) {
     G.flick = 0.06 + rnd() * 0.12;
@@ -3028,26 +3704,42 @@ function weather(dt) {
   if ((G.boltT -= dt) <= 0) {
     G.boltT = 6 + rnd() * 8;
     G.flashT = 0;
-    SFX.thunder(0.3 + rnd() * 0.9, ceilT[cellOf(P.x, P.y)] === SKYT ? 0.9 : 0.4);
+    SFX.thunder(0.3 + rnd() * 0.9, (zone[cellOf(P.x, P.y)] === 1 ? 0.9 : 0.4) * L.thunder);
   }
   const t = (G.flashT += dt);
   G.flash = reduced ? 0 : t < 0.07 ? 1 : t < 0.15 ? 0 : t < 0.27 ? 0.7 : 0;
+  if (L.drips && (G.drip -= dt) <= 0) {
+    G.drip = 0.5 + rnd() * 2;
+    SFX.drip(0.4 + rnd() * 0.6);
+  }
 }
+// Out of a level: after the cellar, its tally and on down the drain; after the drain, both levels' tally.
 function finish() {
   if (G.state !== "playing") return;
   G.doneT = 0;
   keys.clear();
-  SFX.win();
-  setState("done", `Cellar cleared in ${clock(P.time)}: ${P.kills} of ${total} bugs and ${P.commits} of ${totalC} commits. Press Enter to play again.`);
+  mouseFire = touch.fire = false;
+  if (G.level === 0) {
+    G.run = { kills: P.kills, total, commits: P.commits, totalC, time: P.time };
+    G.carry = Math.max(24, P.ammo);
+    SFX.win();
+    setState("cleared", `Cellar cleared in ${clock(P.time)}: ${P.kills} of ${total} bugs and ${P.commits} of ${totalC} commits. Press Enter to go down the storm drain, level 2.`);
+  } else {
+    const r = G.run;
+    SFX.fanfare();
+    setState("won", `All clear: the Heisenbug is squashed. Both levels in ${clock(r.time + P.time)}: ${r.kills + P.kills} of ${r.total + total} bugs and ${r.commits + P.commits} of ${r.totalC + totalC} commits. Press Enter for the title.`);
+  }
   if (document.pointerLockElement === cv) document.exitPointerLock();
 }
 function update(dt) {
   G.t += dt;
-  if (G.state === "done") {
+  if (G.state === "cleared" || G.state === "won") {
     G.doneT += dt;
     return;
   }
   P.shotT += dt;
+  P.swapT += dt;
+  if (P.swapT >= 0.15) P.arm = P.want;
   if (G.state === "playing" && P.hp > 0) {
     P.time += dt;
     controls(dt);
@@ -3056,7 +3748,7 @@ function update(dt) {
   if (G.state === "dead") {
     P.deadT += dt;
     P.eye = Math.max(0.1, 0.5 - P.deadT * 0.7);
-  } else P.eye = 0.5 + Math.sin(P.bob * 2) * 0.014 * P.bobAmp;
+  } else P.eye = 0.5 + Math.sin(P.bob * 2) * 0.014 * P.bobAmp + (G.shake > 0 && !reduced ? (rnd() - 0.5) * G.shake * 0.04 : 0);
   if (cellOf(P.x, P.y) !== G.flowCell) {
     G.flowCell = cellOf(P.x, P.y);
     flowField();
@@ -3071,21 +3763,26 @@ function update(dt) {
   P.gotT -= dt;
   P.msgT -= dt;
   G.muzzle = Math.max(0, G.muzzle - dt * 5);
+  G.shake = Math.max(0, G.shake - dt * 0.9);
+  G.white = Math.max(0, G.white - dt * 1.6);
+  if (G.boss) G.bar += (Math.max(0, G.boss.hp) / G.boss.max - G.bar) * Math.min(1, dt * 2.5);
 }
 
 // ---------------------------------------------------------------- the loop, and what starts and stops it
 const said = document.getElementById("gameSaid");
+// The canvas's data-state is title, playing, paused, dead, cleared (level 1 done), or won (both done).
 const LABEL = {
-  title: "Storm Cellar, a first-person shooter. Press Enter to play.",
-  playing: "Storm Cellar, playing. Escape pauses.",
-  paused: "Storm Cellar, paused. Press Enter to go on.",
-  dead: "Storm Cellar: the bugs got you. Press Enter to try again.",
-  done: "Storm Cellar, cleared. Press Enter to play again.",
+  title: () => "Storm Cellar, a first-person shooter. Press Enter to play.",
+  playing: () => `Storm Cellar, playing level ${G.level + 1}, ${L.name}. Escape pauses.`,
+  paused: () => "Storm Cellar, paused. Press Enter to go on.",
+  dead: () => `Storm Cellar: the bugs got you. Press Enter to try ${G.level ? "the storm drain again" : "again"}.`,
+  cleared: () => "Storm Cellar: the cellar is cleared. Press Enter to go down the storm drain, level 2.",
+  won: () => "Storm Cellar: all clear, both levels done. Press Enter for the title.",
 };
 function setState(s, speak) {
   G.state = s;
   cv.dataset.state = s;
-  cv.setAttribute("aria-label", LABEL[s]);
+  cv.setAttribute("aria-label", LABEL[s]());
   if (speak) said.textContent = speak;
 }
 let raf = 0, last = 0;
@@ -3095,17 +3792,25 @@ function loop(now) {
   last = now;
   update(dt);
   render();
-  if (G.state === "playing" || (G.state === "dead" && P.deadT < 1.2) || (G.state === "done" && G.doneT < 2)) raf = requestAnimationFrame(loop);
+  if (G.state === "playing" || (G.state === "dead" && P.deadT < 1.2) || ((G.state === "cleared" || G.state === "won") && G.doneT < 2)) raf = requestAnimationFrame(loop);
 }
 function kick() {
   if (raf) return;
   last = performance.now();
   raf = requestAnimationFrame(loop);
 }
-function start() {
-  reset();
-  setState("playing", "Playing. Clear the cellar and find the exit.");
-  note("SQUASH THE BUGS. FIND THE EXIT.");
+// A level from the start. The drain starts you with the ammo you brought down from the cellar.
+function start(n) {
+  G.level = n;
+  reset(n);
+  if (n) {
+    P.ammo = G.carry;
+    setState("playing", "Level 2, the storm drain. Find five more commits, and the way out at the far end.");
+    note("THE STORM DRAIN. FIVE MORE COMMITS DOWN HERE.");
+  } else {
+    setState("playing", "Playing. Clear the cellar and find the exit.");
+    note("SQUASH THE BUGS. FIND THE EXIT.");
+  }
   kick();
 }
 function act() {
@@ -3113,7 +3818,18 @@ function act() {
   if (G.state === "paused") {
     setState("playing", "Playing.");
     kick();
-  } else if (G.state === "title" || (G.state === "dead" && P.deadT > 0.9) || (G.state === "done" && G.doneT > 1.6)) start();
+  } else if (G.state === "title") start(0);
+  else if (G.state === "dead" && P.deadT > 0.9) start(G.level);
+  else if (G.state === "cleared" && G.doneT > 1.6) start(1);
+  else if (G.state === "won" && G.doneT > 1.6) title("Back at the title. Press Enter to play again.");
+}
+// The title: the yard, the storm, and the bugs waiting. Drawn once; nothing moves until you play.
+function title(speak) {
+  G.level = 0;
+  reset(0);
+  [P.x, P.y, P.a] = [6.8, 6.5, -0.3];
+  setState("title", speak);
+  render();
 }
 function pause() {
   if (G.state !== "playing") return;
@@ -3137,6 +3853,8 @@ function toggleSound() {
   note(sound ? "SOUND ON." : "SOUND OFF.");
 }
 const GAME_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space", "ShiftLeft", "ShiftRight", "KeyF"]);
+// 1 and 2 pick a weapon; Q swaps to the other one.
+const ARM_KEYS = { Digit1: 0, Numpad1: 0, Digit2: 1, Numpad2: 1, KeyQ: undefined };
 cv.addEventListener("keydown", (e) => {
   if (e.altKey || e.metaKey || e.ctrlKey) return;
   if (G.state !== "playing") {
@@ -3150,13 +3868,30 @@ cv.addEventListener("keydown", (e) => {
     e.preventDefault();
     pause();
   } else if (e.code === "KeyM") toggleSound();
-  else if (GAME_KEYS.has(e.code)) {
+  else if (e.code in ARM_KEYS) {
+    e.preventDefault();
+    if (!e.repeat) swap(ARM_KEYS[e.code]);
+  } else if (GAME_KEYS.has(e.code)) {
     e.preventDefault();
     keys.add(e.code);
   }
 });
 cv.addEventListener("keyup", (e) => keys.delete(e.code));
-const pad = document.getElementById("pad"), stick = document.getElementById("stick"), knob = stick.firstElementChild, fire = document.getElementById("fire");
+// The mouse wheel swaps weapons while you play, and scrolls the page as usual when you don't.
+let wheel = 0;
+cv.addEventListener(
+  "wheel",
+  (e) => {
+    if (G.state !== "playing") return;
+    e.preventDefault();
+    wheel += e.deltaY;
+    if (Math.abs(wheel) < 40) return;
+    wheel = 0;
+    swap();
+  },
+  { passive: false },
+);
+const pad = document.getElementById("pad"), stick = document.getElementById("stick"), knob = stick.firstElementChild, fire = document.getElementById("fire"), swapBtn = document.getElementById("swap");
 cv.addEventListener("blur", (e) => {
   keys.clear();
   if (!locked && !pad.contains(e.relatedTarget)) pause();
@@ -3167,6 +3902,9 @@ cv.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   cv.focus({ preventScroll: true });
   if (G.state === "playing") {
+    // A tap on the weapon panel, at the bottom left, swaps weapons.
+    const r = cv.getBoundingClientRect(), x = ((e.clientX - r.left) / r.width) * W, y = ((e.clientY - r.top) / r.height) * H;
+    if (!locked && x < SEPS[0] && y >= VH) return swap();
     if (e.pointerType === "mouse" && !locked) lock();
     mouseFire = true;
     return;
@@ -3220,11 +3958,14 @@ fire.addEventListener("pointerdown", (e) => {
 });
 for (const ev of ["pointerup", "pointercancel", "pointerleave"]) fire.addEventListener(ev, () => (touch.fire = false));
 fire.addEventListener("click", () => G.state !== "playing" && act());
+// Swap, once there is a second weapon. A click from the keyboard has no pointer behind it.
+swapBtn.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  swap();
+});
+swapBtn.addEventListener("click", (e) => e.detail === 0 && swap());
 
-// The title: the yard, the storm, and the bugs waiting. Drawn once; nothing moves until you play.
-reset();
-[P.x, P.y, P.a] = [6.8, 6.5, -0.3];
-render();
+title();
 });
 </script>
 </body>
