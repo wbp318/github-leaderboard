@@ -60,13 +60,23 @@ Anything else, including "Remote", "Earth", "Georgia" next to Tbilisi, and two p
 
 ## Counties
 
-Louisiana goes down to the parish, and Mississippi, Alabama, Arkansas, and Tennessee to the county, for people already placed in the state. [src/counties.mjs](../src/counties.mjs) reads the location:
+Every state goes down to the county (Louisiana's are parishes, and Alaska's boroughs), for people already placed in the state. [src/counties.mjs](../src/counties.mjs) reads the location and gives the county's 5-digit FIPS code. The lists run only for people already in the state, so a town that shares its name with one in another state (Monroe, Jackson, Columbus) is safe there.
+
+Louisiana, Mississippi, Alabama, Arkansas, and Tennessee read each state's hand-written file in [src/counties/](../src/counties/):
 
 1. **A county named in full wins**: "East Carroll Parish", "Jackson County", "Jackson Co.". So "Jackson County, MS" is on the coast, not in the city of Jackson.
 2. **Otherwise the longest town, city, or university named**: "West Hattiesburg" is Lamar County and "Hattiesburg" Forrest; "University of Mississippi Medical Center" is Hinds and "University of Mississippi" Lafayette.
 3. **Otherwise none**: people who wrote only the state are under "Parish not given" or "County not given".
 
-A city in more than one county is in its principal one: Jackson is Hinds, Hattiesburg is Forrest. The lists run only for people already in the state, so a town that shares its name with one in another state (Monroe, Jackson, Columbus) is safe there. Each state's file lists its counties, its towns and universities, and its `ONLY` names; [CONTRIBUTING.md](../CONTRIBUTING.md#add-your-states-counties) says how to add a state.
+A city in more than one county is in its principal one there: Jackson is Hinds, Hattiesburg is Forrest. Each file lists its counties, its towns and universities, and its `ONLY` names.
+
+The other 45 states read Census place names ([src/counties/us.json](../src/counties/us.json), made by [scripts/make-counties.mjs](../scripts/make-counties.mjs)) and a short list of fixes ([src/counties/aliases.mjs](../src/counties/aliases.mjs)):
+
+1. **A county named in full wins**: "Travis County", "Baltimore City", "Kenai Peninsula Borough".
+2. **Otherwise the place named nearest the state.** The location is split at commas, slashes, and the like, the state, a ZIP code, and USA are dropped, and the one or two pieces left at the end are looked up whole, nearest first: "Austin, TX" is Travis County and "Brooklyn, NY" Kings County. Only whole pieces count, so "Delaware, OH" is Delaware County and "Remote, OR" is none. A region across counties, like "Bay Area", is none too.
+3. **Otherwise none.**
+
+The places are every city, town, village, and census-designated place, and the towns and townships of New England, New York, New Jersey, Pennsylvania, Michigan, Minnesota, and Wisconsin. A place in several counties is in the one where most of its people live: Kansas City, Missouri is Jackson County. A name shared by places in different counties is kept only for a city that dwarfs the rest, and a town named like another county is left out unless it has 50,000 people: "Henderson, TX" (in Rusk County, not Henderson County) is none, and "Lincoln, NE" is Lancaster County. [CONTRIBUTING.md](../CONTRIBUTING.md#fix-your-states-counties) says how to fix a county.
 
 ## Checking the rules
 
@@ -81,7 +91,7 @@ Read the audit in both directions: a US town in "turned away" means a rule is to
 2. Change [src/states.mjs](../src/states.mjs) until `npm test` passes. Usually that means adding a city to the `ELSEWHERE` list for its code, or a US town to `TOWNS_LIKE_ABROAD`, `ACCENTED_TOWNS`, `DELAWARE`, or `IDAHO`.
 3. Run `npm run audit` and check nothing else moved.
 
-A wrong parish or county is fixed the same way, in [test/counties.test.mjs](../test/counties.test.mjs) and the state's file in `src/counties/`.
+A wrong parish or county is fixed the same way, in [test/counties.test.mjs](../test/counties.test.mjs) and [src/counties/aliases.mjs](../src/counties/aliases.mjs), or the state's own file in `src/counties/` for Louisiana, Mississippi, Alabama, Arkansas, and Tennessee.
 
 Or [open an issue](https://github.com/wbp318/github-leaderboard/issues/new/choose) with the exact location text.
 

@@ -179,8 +179,7 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   const rows = parse(all.text.replace(/^\ufeff/, ""));
   const people = Number((await sheet.locator("#count").innerText()).replace(/\D/g, ""));
   check(all.text.startsWith("\ufeff"), "Download CSV starts with a byte-order mark, so Excel reads UTF-8");
-  const countyColumn = await sheet.evaluate(() => cap(KINDS.join(" or ")));
-  check(rows[0]?.join(",") === `Rank,Login,Name,Location,State,${countyColumn},Total contributions,Public commits,Private contributions,Pull requests,Code reviews,Issues,New repositories,Followers`, "the CSV has rank, login, name, location, state, parish, and every category");
+  check(rows[0]?.join(",") === `Rank,Login,Name,Location,State,County,Total contributions,Public commits,Private contributions,Pull requests,Code reviews,Issues,New repositories,Followers`, "the CSV has rank, login, name, location, state, county, and every category");
   check(/^[^\n]*\r\n/.test(all.text), "its rows end in CRLF");
   check(people > 100 && rows.length - 1 === people, `it has every row, not only the 100 shown (${rows.length - 1} of ${people})`);
   check(/^github-leaderboard-[a-z0-9-]+-total-\d{4}-\d{2}-\d{2}\.csv$/.test(all.name), `its file name says what is in it (${all.name})`);
@@ -318,7 +317,7 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
       writeFileSync(history, JSON.stringify({ dates: days.map((d) => d[0]), people: each(() => 80), total: each((d) => d[1]) }));
     }
     const out = join(dir, `${name}.html`);
-    execFileSync(process.execPath, [fileURLToPath(new URL("../scripts/build.mjs", import.meta.url))], { env: { ...process.env, HISTORY: history, OUT: out }, stdio: ["ignore", "ignore", "inherit"] });
+    execFileSync(process.execPath, [fileURLToPath(new URL("../scripts/build.mjs", import.meta.url))], { env: { ...process.env, HISTORY: history, OUT: out, BADGES: "0" }, stdio: ["ignore", "ignore", "inherit"] });
     return pathToFileURL(out).href;
   };
   // Without waiting for what is not there: a missing element is a failed check, not a timeout.
@@ -391,13 +390,15 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   await counties.goto(`${url}#parish:LA`);
   await counties.waitForTimeout(500);
   check((await counties.locator("#view").inputValue()) === "parish:LA" && (await viewName(counties)) === "Louisiana, by parish", "a link to #parish:LA still opens Louisiana, by parish");
-  const msButton = counties.locator("#countyState button", { hasText: "Mississippi" });
-  if (await msButton.count()) await msButton.click();
+  await counties.selectOption("#countyState", "MS");
   check((await text("#countyTitle")) === "Mississippi, county by county", "the county table switches to Mississippi");
-  check((await counties.locator("#parishTable tbody tr").count()) === 83 && (await text("#parishTable th")).startsWith("County"), "and lists its 82 counties and County not given");
-  const county = await counties.locator('#scope optgroup[label="Mississippi counties"] option').first().getAttribute("value").catch(() => null);
-  if (county) await counties.selectOption("#scope", county);
-  check(Boolean(county) && /^[1-9]/.test(await counties.locator("#count").innerText()), `a leaderboard can be filtered to a Mississippi county (${county})`);
+  const msRows = await counties.evaluate(() => D.counties.MS.rows.filter((r) => r.fips || r.people).length);
+  check(msRows > 1 && (await counties.locator("#parishTable tbody tr").count()) === msRows && (await text("#parishTable th")).startsWith("County"), `and lists its ${msRows - 1} counties with someone counted, and County not given`);
+  check(/^\d+ of Mississippi's 82 counties have someone counted/.test(await text("#countyLede")), "and says how many of its 82 counties have someone counted");
+  await counties.selectOption("#scope", "state:MS");
+  const county = await counties.locator("#scopeCounty option").nth(1).getAttribute("value").catch(() => null);
+  if (county) await counties.selectOption("#scopeCounty", county);
+  check(Boolean(county) && /^[1-9]/.test(await counties.locator("#count").innerText()), `choosing Mississippi offers its counties, and a leaderboard for one (${county})`);
   const mississippian = await counties.evaluate(() => D.P.find((p) => p[2] === "MS" && p[11])?.[0]);
   await counties.goto("about:blank");
   await counties.goto(`${url}?me=${encodeURIComponent(mississippian)}`);
@@ -418,14 +419,15 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   await mix.waitForTimeout(400);
   await mix.selectOption("#view", view);
   await mix.waitForTimeout(700);
-  check(/, by county\. \d+ count(y|ies)\.$/.test(await mix.locator("#said").textContent()), `opening ${view}, a screen reader hears how many counties (${await mix.locator("#said").textContent()})`);
-  const scope = await mix.evaluate((v) => [...document.querySelectorAll("#scope option")].map((o) => o.value).find((s) => s.startsWith(`${v}:`) && !s.endsWith(":-")), view);
-  await mix.selectOption("#scope", scope);
+  check(/, by (county|parish|borough)\. \d+ (count(y|ies)|parish(es)?|borough(s)?) with someone counted(: the 24 busiest, and the other \d+ together)?\.$/.test(await mix.locator("#said").textContent()), `opening ${view}, a screen reader hears how many counties (${await mix.locator("#said").textContent()})`);
+  await mix.selectOption("#scope", `state:${view.split(":")[1]}`);
+  const scope = await mix.evaluate(() => [...document.querySelectorAll("#scopeCounty option")].map((o) => o.value).find((s) => s && !s.endsWith(":-")));
+  await mix.selectOption("#scopeCounty", scope);
   await mix.waitForTimeout(300);
   const [file] = await Promise.all([mix.waitForEvent("download", { timeout: 5000 }), mix.click("#csv")]).catch(() => [null]);
   const name = file?.suggestedFilename() ?? "";
   const [, ab, county] = scope.split(":");
-  const want = await mix.evaluate(([c, s]) => `${c} county ${STATE[s].name}`.toLowerCase().replace(/[^a-z0-9]+/g, "-"), [county, ab]);
+  const want = await mix.evaluate(([c, s]) => `${countyLabel(c)} ${STATE[s].name}`.toLowerCase().replace(/[^a-z0-9]+/g, "-"), [county, ab]);
   check(name.includes(`-${want}-`), `a county's CSV is named for it (${name})`);
   check(!errors.some((e) => e.startsWith("mix:")), "no script errors with counties and the other features together");
   await mix.close();
@@ -446,7 +448,7 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   check(await sh.locator("#shareOpen").isHidden(), "Share my ranks is hidden until you find yourself");
   const people = await sh.evaluate(() => {
     const county = D.P.find((p) => COUNTIES[p[2]] && p[11]);
-    const plain = D.P.find((p) => !COUNTIES[p[2]]);
+    const plain = D.P.find((p) => !p[11]);
     return [county?.[0], plain?.[0]].filter(Boolean);
   });
   for (const who of people) {
@@ -576,6 +578,76 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   check((await t.locator("#game").getAttribute("data-state")) === "playing", "and tapping the weapon on the status bar keeps it playing");
   check(!errors.some((e) => e.startsWith("game phone:")), "no script errors in the game on a phone");
   await touch.close();
+}
+// Every county, on a map: its shapes load when it comes near (from a file:// page too), a state
+// zooms in, a county there sets the leaderboard, the keyboard moves and speaks, the colours follow
+// the theme, a phone never scrolls sideways, and reduced motion jumps straight there.
+{
+  const cm = await browser.newPage({ viewport: { width: 1340, height: 900 } });
+  watch(cm, "county map");
+  await cm.goto(url);
+  await cm.waitForTimeout(400);
+  check(!(await cm.evaluate(() => document.querySelectorAll("#cmSvg path.c").length)), "the county map waits until it comes near");
+  await cm.locator("#counties").scrollIntoViewIfNeeded();
+  const ready = await cm.waitForFunction(() => document.querySelector("#cmBox").classList.contains("ready"), null, { timeout: 10000 }).then(() => true, () => false);
+  const paths = await cm.evaluate(() => document.querySelectorAll("#cmSvg path.c").length);
+  check(ready && paths === 3141, `then draws every county in the 50 states (${paths})`);
+  const lit = () => cm.evaluate(() => [...document.querySelectorAll("#cmSvg path.c")].filter((p) => p.getAttribute("fill") !== THEME.tileEmpty).length);
+  const counted = await cm.evaluate(() => CROW.size);
+  check(counted > 100 && (await lit()) === counted, `and colours the ${counted} with someone counted`);
+  // A state: from the list, then a county in it with someone counted.
+  await cm.selectOption("#cmState", "MS");
+  await cm.waitForTimeout(500);
+  const box = (await cm.getAttribute("#cmSvg", "viewBox")).split(" ").map(Number);
+  check((await cm.locator("#cmTitle").innerText()) === "Mississippi, county by county" && box[2] < 2000, "choosing Mississippi zooms in on it");
+  check(!(await cm.locator("#cmAll").isHidden()), "and offers a way back to all states");
+  const hinds = await cm.evaluate(() => [...CROW.values()].filter((r) => r.fips.startsWith("28") && r.people > 0).sort((a, b) => b.people - a.people)[0]?.fips);
+  const i = await cm.evaluate((f) => CM.byId.get(f).el.dataset.i, hinds);
+  await cm.locator(`#cmSvg path.c[data-i="${i}"]`).click({ force: true });
+  await cm.waitForTimeout(300);
+  check((await cm.locator("#scopeCounty").inputValue()).endsWith(`:${hinds}`) && /^[1-9]/.test(await cm.locator("#count").innerText()), `clicking a county (${hinds}) sets the leaderboard to it`);
+  check((await cm.locator("#cmPick a").innerText()).startsWith("Leaderboard: "), "and links down to it");
+  // The keyboard: one stop; arrows move and speak; Escape zooms out.
+  await cm.focus("#cmBox");
+  await cm.keyboard.press("ArrowLeft");
+  await cm.waitForTimeout(450);
+  check(/, Mississippi/.test(await cm.locator("#cmSaid").textContent()), `the arrow keys move between counties and say where (${await cm.locator("#cmSaid").textContent()})`);
+  await cm.keyboard.press("Escape");
+  await cm.waitForTimeout(600);
+  check((await cm.locator("#cmState").inputValue()) === "" && (await cm.getAttribute("#cmSvg", "viewBox")) === "0 0 7800 4880", "Escape zooms back out to all states");
+  await cm.waitForTimeout(400);
+  check((await cm.locator("#cmSaid").textContent()).startsWith("Mississippi."), "and stays on the state it came from");
+  await cm.keyboard.press("Enter");
+  await cm.waitForTimeout(600);
+  check((await cm.locator("#cmState").inputValue()) === "MS", "Enter zooms back in");
+  // The theme recolours it.
+  const before = await cm.evaluate((f) => CM.byId.get(f).el.getAttribute("fill"), hinds);
+  const other = await cm.evaluate(() => (document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
+  await cm.click(`#theme button[value="${other}"]`);
+  await cm.waitForTimeout(200);
+  check(before !== (await cm.evaluate((f) => CM.byId.get(f).el.getAttribute("fill"), hinds)), `switching to the ${other} theme recolours the map`);
+  check(!errors.some((e) => e.startsWith("county map:")), "no script errors in the county map");
+  await cm.close();
+  // A phone, with reduced motion: no sideways scroll, and a zoom lands at once.
+  const still = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce", hasTouch: true, isMobile: true });
+  const ph = await still.newPage();
+  watch(ph, "county map phone");
+  await ph.goto(url);
+  await ph.locator("#counties").scrollIntoViewIfNeeded();
+  await ph.waitForFunction(() => document.querySelector("#cmBox").classList.contains("ready"), null, { timeout: 10000 }).catch(() => {});
+  check((await ph.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0, "on a phone the county map fits without sideways scrolling");
+  await ph.selectOption("#cmState", "RI");
+  const landed = await ph.evaluate(() => document.querySelector("#cmSvg").getAttribute("viewBox") !== "0 0 7800 4880");
+  check(landed, "with reduced motion, choosing a state (Rhode Island) zooms there at once");
+  check((await ph.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0, "and still nothing scrolls sideways");
+  check(!errors.some((e) => e.startsWith("county map phone:")), "no script errors in the county map on a phone");
+  await still.close();
+}
+// The page stays a sensible size for a phone on a slow connection.
+{
+  const { gzipSync } = await import("node:zlib");
+  const kb = Math.round(gzipSync(readFileSync(new URL("../site/leaderboard.html", import.meta.url))).length / 1024);
+  check(kb < 900, `the page is ${kb} KB gzipped, under 900`);
 }
 await browser.close();
 

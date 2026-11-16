@@ -19,7 +19,9 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 | Path | What it is |
 |---|---|
 | [src/states.mjs](src/states.mjs) | Reads a free-text profile location and decides which state it names, if any. The rules most likely to need you. |
-| [src/counties.mjs](src/counties.mjs) | The states with county lists, and which county a location names. |
+| [src/counties.mjs](src/counties.mjs) | Which county a location names, by FIPS code, in every state. |
+| [src/counties/us.json](src/counties/us.json) | Every county of the 50 states, and for 45 of them the Census place names in each. Made by [scripts/make-counties.mjs](scripts/make-counties.mjs). |
+| [src/counties/aliases.mjs](src/counties/aliases.mjs) | Hand fixes to those place names: nicknames, boroughs, universities, and regions that name no one county. |
 | [src/counties/la.mjs](src/counties/la.mjs) | Louisiana's 64 parishes and the towns and universities in each. |
 | [src/counties/ms.mjs](src/counties/ms.mjs), [al.mjs](src/counties/al.mjs), [ar.mjs](src/counties/ar.mjs), [tn.mjs](src/counties/tn.mjs) | Mississippi's, Alabama's, Arkansas's, and Tennessee's counties, and the towns and universities in each. |
 | [src/opt-out.txt](src/opt-out.txt) | People who asked to be left off. |
@@ -42,15 +44,14 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 | [.github/workflows/refresh.yml](.github/workflows/refresh.yml) | The daily refresh and the deploy to GitHub Pages. |
 | [.github/workflows/add-me.yml](.github/workflows/add-me.yml) | Answers "Add me" issues. |
 
-### Add your state's counties
+### Fix your state's counties
 
-Louisiana, Mississippi, Alabama, Arkansas, and Tennessee go down to the county. To add another state:
+Every state's counties are in [src/counties/us.json](src/counties/us.json), one county a line, by FIPS code. For 45 states it also lists the towns and cities in each county, made from Census files by [scripts/make-counties.mjs](scripts/make-counties.mjs). Louisiana, Mississippi, Alabama, Arkansas, and Tennessee have hand-written files in `src/counties/` instead. To fix where a location lands:
 
-1. Copy [src/counties/ms.mjs](src/counties/ms.mjs) to `src/counties/` with your state's code, such as `al.mjs`, and fill it in: the code, what the state calls its counties, every county, the towns, cities, and universities in each (a city in two counties goes in its principal one), and `ONLY`, the few names that mean your state and nowhere else. Leave a name out of `ONLY` if any other town, in the US or abroad, shares it.
-2. Add it to `STATES` in [src/counties.mjs](src/counties.mjs): one line. The placement rules, the collector, the build, and the page take it from there: a tornado and a table of its counties, leaderboards for each, and county ranks in Find yourself.
-3. Add locations and their counties to [test/counties.test.mjs](test/counties.test.mjs), and towns from `ONLY` to [test/states.test.mjs](test/states.test.mjs), then run `npm test`.
-4. Everyone active in every state is already looked up, the busiest 80 every day and the rest every week, up to 1,000 (see the [budget](docs/data.md#who-is-looked-up)), so a new county list costs no more lookups.
-5. Name your state where README.md and the top of web/template.html list the states with counties.
+1. Add the location and its county to [test/counties.test.mjs](test/counties.test.mjs): the FIPS code, or `""` for none.
+2. In Louisiana, Mississippi, Alabama, Arkansas, or Tennessee, fix the town in the state's file. In any other state, add the name to [src/counties/aliases.mjs](src/counties/aliases.mjs): a nickname, a neighborhood, a university, a town the Census writes another way, or a region that names no one county (`null`).
+3. Run `npm test`.
+4. To change how the names are generated, change [scripts/make-counties.mjs](scripts/make-counties.mjs) and run `node scripts/make-counties.mjs`. It downloads the Census files once, rewrites us.json, and writes a review to read: match rates by state, the commonest locations with no county, and a sample of matches.
 
 ## Someone is in the wrong place
 
@@ -60,7 +61,7 @@ Profile locations are free text, and two-letter codes are shared around the worl
 2. Change [src/states.mjs](src/states.mjs) until `npm test` passes. A foreign city that shares a code usually belongs in the `ELSEWHERE` list for that code.
 3. Run `npm run audit` and read `data/audit.md`: the "turned away" list should hold no US towns and the "accepted" lists no foreign ones.
 
-In the wrong parish or county? Add the location to [test/counties.test.mjs](test/counties.test.mjs) and fix the town in the state's file in `src/counties/`.
+In the wrong parish or county? See [Fix your state's counties](#fix-your-states-counties).
 
 Not sure how to fix it? [Open an issue](https://github.com/wbp318/github-leaderboard/issues/new/choose) with the exact location text.
 
@@ -79,7 +80,6 @@ $env:GH_TOKEN = gh auth token; npm run collect      # PowerShell
 
 Each of these is an issue with what to build, where in the code, and how to know it is done. Comment on one to claim it.
 
-- [Counties for every state](https://github.com/wbp318/github-leaderboard/issues/19)
 - [Live lookups for anyone: a Cloudflare Worker behind Find yourself](https://github.com/wbp318/github-leaderboard/issues/10)
 
 [All good first issues](https://github.com/wbp318/github-leaderboard/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). Have a different idea? [Open an issue](https://github.com/wbp318/github-leaderboard/issues/new/choose).

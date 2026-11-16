@@ -89,10 +89,11 @@ export function ranksOf(people) {
   return out;
 }
 
-/** What a person's badge says: "#12 of 80 in Texas", or "#3 in Hinds County · #12 in Mississippi". */
-export function badgeMessage(ranks, stateName, county, kind) {
+/** What a person's badge says: "#12 of 80 in Texas", or "#3 in Hinds County · #12 in Mississippi".
+ * county is the county's name in full ("Hinds County", "Richmond city"), or "" for none. */
+export function badgeMessage(ranks, stateName, county) {
   const [r, of] = ranks.state;
-  if (ranks.county && county) return `#${ranks.county[0]} in ${county} ${kind[0].toUpperCase()}${kind.slice(1)} · #${r} in ${stateName}`;
+  if (ranks.county && county) return `#${ranks.county[0]} in ${county} · #${r} in ${stateName}`;
   return `#${r} of ${of} in ${stateName}`;
 }
 

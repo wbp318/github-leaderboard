@@ -2,7 +2,7 @@
   "name": "github-leaderboard",
   "version": "1.0.0",
   "private": true,
-  "description": "A spinning tornado of a year of GitHub contributions across the United States, by state, division, region, Louisiana parish, and county in Mississippi, Alabama, Arkansas, and Tennessee.",
+  "description": "A spinning tornado of a year of GitHub contributions across the United States, by state, division, region, and county, with every county on a map.",
   "type": "module",
   "engines": {
     "node": ">=24"

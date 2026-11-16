@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GitHub Contribution Tornado</title>
-<meta name="description" content="A spinning tornado of a year of GitHub contributions across the United States: every state, division, and region; Louisiana parish by parish; Mississippi, Alabama, Arkansas, and Tennessee county by county; and leaderboards in eight categories. Open source and refreshed daily.">
+<meta name="description" content="A spinning tornado of a year of GitHub contributions across the United States: every state, division, and region; every county on a map; and leaderboards in eight categories. Open source and refreshed daily.">
 <meta property="og:title" content="GitHub Contribution Tornado">
-<meta property="og:description" content="A year of GitHub contributions across the United States, by state, division, region, Louisiana parish, and county in Mississippi, Alabama, Arkansas, and Tennessee. Refreshed daily.">
+<meta property="og:description" content="A year of GitHub contributions across the United States, by state, division, region, and county, with every county on a map. Refreshed daily.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://wbp318.github.io/github-leaderboard/">
 <meta name="theme-color" content="#0b1430">
@@ -193,6 +193,23 @@ td.loc { color: var(--muted); max-width: 240px; overflow: hidden; text-overflow:
 .stip .loc { color: var(--muted); font-size: 12px; margin: -2px 0 6px; }
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 14px; }
 #map svg { display: block; width: 100%; height: auto; }
+/* Every county: an SVG map whose shapes load when it comes near. The box holds its size until then. */
+.cm-box { position: relative; aspect-ratio: 975 / 610; border-radius: 8px; overflow: hidden; }
+.cm-box:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+#cmSvg { display: block; width: 100%; height: 100%; touch-action: pan-y; }
+#cmSvg .c { stroke: var(--panel); stroke-width: 0.5; vector-effect: non-scaling-stroke; cursor: pointer; }
+#cmSvg .c.off { opacity: 0.4; }
+#cmSvg .b { fill: none; stroke: var(--muted); stroke-width: 0.8; vector-effect: non-scaling-stroke; pointer-events: none; }
+#cmSvg .dc { fill: var(--tile-empty); pointer-events: none; }
+#cmSvg .hi, #cmSvg .you { fill: none; stroke: var(--gold); vector-effect: non-scaling-stroke; pointer-events: none; }
+#cmSvg .hi { stroke-width: 2.5; }
+#cmSvg .you { stroke-width: 1.5; stroke-dasharray: 4 3; }
+#cmWorld { transform-origin: 0 0; }
+.cm-box .wait { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--muted); font-size: 13px; }
+.cm-box.ready .wait { display: none; }
+#cmPick { margin: 6px 2px 0; }
+#cmPick a { color: var(--gold); font-weight: 600; }
+#cmKeys { margin: 6px 2px 0; }
 .note { color: var(--muted); font-size: 12.5px; }
 /* History: a sparkline for each state in the states table, and a chart beside a state's tornado. */
 #histNote { margin: 8px 2px 0; }
@@ -352,7 +369,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
 
 <section id="lists">
   <h2>Leaderboards</h2>
-  <p class="lede">Ranked by category, for the whole country, a region, a division, a state, a Louisiana parish, or a county in Mississippi, Alabama, Arkansas, or Tennessee. Your row is gold; if you are outside the top 100, your row is added at the end.</p>
+  <p class="lede">Ranked by category, for the whole country, a region, a division, a state, or one county in any state (pick a state, then its county, or click one on the county map). Your row is gold; if you are outside the top 100, your row is added at the end.</p>
   <div class="panel">
     <div class="bar">
       <span class="lbl">Category</span>
@@ -361,6 +378,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
     <div class="bar">
       <span class="lbl">Where</span>
       <select id="scope" aria-label="Where"></select>
+      <select id="scopeCounty" aria-label="County" hidden></select>
       <input type="search" id="find" placeholder="Find a login, name, or place" aria-label="Find a login, name, or place">
       <button type="button" class="btn" id="csv" title="Every row of this list, as filtered, for Excel or Google Sheets">Download CSV</button>
       <span class="lbl" id="count"></span>
@@ -396,13 +414,39 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
   </div>
 </section>
 
+<section id="counties">
+  <h2 id="cmTitle">Every county</h2>
+  <p class="lede" id="cmLede">Every county in the 50 states, coloured by the people counted there. Click a state to zoom in, then a county to see its leaderboard. GitHub's search finds about 800 people in each state, so this is a sample: a blank county means no one has been found there yet, not that no one codes there.</p>
+  <div class="panel">
+    <div class="bar">
+      <button type="button" class="btn" id="cmAll" hidden>← All states</button>
+      <select id="cmState" aria-label="Zoom to a state"></select>
+      <span class="lbl">Colour by</span>
+      <fieldset class="seg" id="cmBy" aria-label="County map colour">
+        <button type="button" data-k="total" aria-pressed="true">Contributions</button>
+        <button type="button" data-k="people" aria-pressed="false">People</button>
+        <button type="button" data-k="average" aria-pressed="false">Average</button>
+      </fieldset>
+    </div>
+    <div class="cm-box" id="cmBox" tabindex="0" role="application" aria-roledescription="map" aria-label="Map of every county" aria-describedby="cmKeys">
+      <svg id="cmSvg" viewBox="0 0 975 610" aria-hidden="true"></svg>
+      <p class="wait" id="cmWait">Drawing every county…</p>
+      <div class="stip" id="cmTip"></div>
+    </div>
+    <div class="legend" id="cmLegend"></div>
+    <p class="note" id="cmPick" hidden></p>
+    <p class="note" id="cmKeys">From the keyboard: arrow keys move between states, or between counties once zoomed in; Enter zooms in, or opens a county's leaderboard; Escape zooms out.</p>
+    <p class="sr" id="cmSaid" aria-live="polite"></p>
+  </div>
+</section>
+
 <section id="parishes">
   <h2 id="countyTitle">Louisiana, parish by parish</h2>
   <p class="lede" id="countyLede">All 64 parishes. People are placed by the town, city, university, or parish named in their GitHub location; those who wrote only "Louisiana" are under "Parish not given". Louisiana was also searched by city name, so it is covered more deeply than other states.</p>
   <div class="panel">
     <div class="bar" id="countyBar">
-      <span class="lbl">State</span>
-      <fieldset class="seg" id="countyState" aria-label="Whose counties"></fieldset>
+      <label class="lbl" for="countyState">State</label>
+      <select id="countyState"></select>
     </div>
     <div class="scroll"><table id="parishTable"></table></div>
   </div>
@@ -480,8 +524,11 @@ function setTheme(name, redraw = true) {
   readTheme();
   document.querySelector('meta[name="theme-color"]').content = THEME.sky;
   for (const b of document.querySelectorAll("#theme button")) b.setAttribute("aria-pressed", String(b.value === name));
-  // The canvas picks up THEME on its next frame; the map is drawn once, so draw it again.
-  if (redraw) renderMap();
+  // The canvas picks up THEME on its next frame; the maps are drawn once, so draw them again.
+  if (redraw) {
+    renderMap();
+    paintCountyMap();
+  }
 }
 setTheme(document.documentElement.dataset.theme, false);
 for (const b of document.querySelectorAll("#theme button")) {
@@ -495,6 +542,14 @@ lightSystem.addEventListener("change", () => {
 });
 
 // ---------------------------------------------------------------- the data
+// The build stores people by column, which is smaller; the page works with one array a person.
+D.P = D.P.login.map((login, i) => {
+  const c = D.P;
+  const ab = D.states[c.state[i]].ab;
+  // The county comes as its last 3 FIPS digits (0 for none): with the state's 2, "48453".
+  const county = c.county[i] && D.counties[ab] ? D.counties[ab].fp + String(c.county[i]).padStart(3, "0") : "";
+  return [login, c.name[i], ab, c.total[i], c.commits[i], c.private[i], c.prs[i], c.reviews[i], c.issues[i], c.repos[i], c.followers[i], county, c.fair[i], c.location[i]];
+});
 // P rows: [login, name, state, total, commits, private, prs, reviews, issues, repos, followers, parish]
 // parish is the county (a parish in Louisiana), for the states with county lists, else "".
 const F = { login: 0, name: 1, state: 2, total: 3, commits: 4, private: 5, prs: 6, reviews: 7, issues: 8, repos: 9, followers: 10, parish: 11, fair: 12, location: 13 };
@@ -515,6 +570,12 @@ const notGiven = (ab) => `${cap(COUNTIES[ab].kind)} not given`;
 const andList = (xs) => (xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")}, and ${xs.at(-1)}`);
 const DEEP = Object.keys(COUNTIES).map((ab) => STATE[ab].name);
 const KINDS = [...new Set(Object.values(COUNTIES).map((c) => c.kind))];
+// Counties are known by their 5-digit FIPS code (P rows hold it, "" for none). Each county with
+// someone counted, by code: its row in D.counties, with its name ("Travis County") and numbers.
+const CROW = new Map(Object.values(COUNTIES).flatMap((c) => c.rows.filter((r) => r.fips).map((r) => [r.fips, r])));
+const countyLabel = (fips) => CROW.get(fips)?.name ?? "";
+// A state's code from its 2-digit FIPS code: "48" is TX.
+const FP_AB = Object.fromEntries(Object.entries(COUNTIES).map(([ab, c]) => [c.fp, ab]));
 document.title = `GitHub Contribution Tornado: ${SCOPE}`;
 $("#title").textContent = `GitHub Contribution Tornado: ${SCOPE}`;
 // Whoever the visitor says they are (setMe, below); null until then.
@@ -552,9 +613,7 @@ const rankOf = (scope, cat = "total") => {
 // ---------------------------------------------------------------- header and your ranks
 {
   // "Louisiana's own view and its parishes", or for more states "...own views and their parishes and counties".
-  const kinds = [...new Set(Object.values(COUNTIES).map((c) => c.kinds))];
-  const deep = DEEP.length === 1 ? `${DEEP[0]}'s own view and its ${kinds[0]}` : `${andList(DEEP.map((n) => `${n}'s`))} own views and their ${andList(kinds)}`;
-  $("#sub").textContent = `The last 12 months of GitHub contributions for ${fmt(D.P.length)} people whose profile places them in ${D.scopeName}. States, divisions and regions are compared on the same ${D.perState} a state (${fmt(D.compared)} people), the likeliest to be busiest${DEEP.length ? `; ${deep} count everyone active there` : ""}. Private contributions count for people who show them on their profile.`;
+  $("#sub").textContent = `The last 12 months of GitHub contributions for ${fmt(D.P.length)} people whose profile places them in ${D.scopeName}. States, divisions and regions are compared on the same ${D.perState} a state (${fmt(D.compared)} people), the likeliest to be busiest${DEEP.length ? `; each state's own view and its counties count everyone active there, up to 1,000, looked up once a week` : ""}. Private contributions count for people who show them on their profile.`;
 }
 // When the data was refreshed and when it next will be, in the visitor's own time; kept current while the page is open.
 function renderFresh() {
@@ -574,12 +633,13 @@ function renderFresh() {
 renderFresh();
 setInterval(renderFresh, 60000);
 // A stale copy (a browser's ten-minute cache, a tab left open overnight) updates itself: ask the
-// server for the newest page, past every cache, and reload onto it if it was built later.
+// server when the newest page was built (version.txt, written with it), past every cache, and
+// reload onto it if that was later.
 async function checkForUpdate() {
   if (location.protocol === "file:") return;
   try {
-    const r = await fetch(`${location.pathname}?_=${Date.now()}`, { cache: "no-store" });
-    const newest = (await r.text()).match(/"generated":"([^"]+)"/)?.[1];
+    const r = await fetch(`version.txt?_=${Date.now()}`, { cache: "no-store" });
+    const newest = r.ok ? (await r.text()).trim() : "";
     if (newest && newest > D.generated) {
       const u = new URL(location.href);
       u.searchParams.set("v", newest.replace(/\D/g, "").slice(0, 14));
@@ -608,7 +668,7 @@ function myRanks() {
   const st = STATE[ME[F.state]];
   const c = COUNTIES[ME[F.state]];
   const places = [[st.name, `state:${st.ab}`], [st.division, `division:${st.division}`], [`The ${st.region}`, `region:${st.region}`], [SCOPE, "us"]];
-  if (c && ME[F.parish]) places.unshift([`${ME[F.parish]} ${cap(c.kind)}`, `${c.kind}:${ME[F.state]}:${ME[F.parish]}`]);
+  if (c && ME[F.parish]) places.unshift([countyLabel(ME[F.parish]), `${c.kind}:${ME[F.state]}:${ME[F.parish]}`]);
   return places.map(([place, scope]) => ({ place, scope, ...rankOf(scope) })).filter((r) => r.rank);
 }
 const topPct = (r) => Math.max(1, Math.ceil((r.rank / r.of) * 100));
@@ -629,6 +689,10 @@ function renderYou() {
 
 // ---------------------------------------------------------------- tornado views
 // A view gives rows: { label, sub, left, right, people (for dots), me, drill, tip }
+// A state's county view gives its busiest counties a ring each, and the rest one together (unless
+// the rest would be just one).
+const RING_COUNTIES = 24;
+const ringCut = (n) => (n > RING_COUNTIES + 1 ? RING_COUNTIES : n);
 const sumRows = (list, label, drill) => ({
   label, drill,
   left: list.commits, right: Math.max(0, list.total - list.commits),
@@ -650,7 +714,22 @@ function viewRows(view) {
     return COUNTED.filter((s) => s.region === val).map((s) => ({ ...sumRows(s, s.name, `state:${s.ab}`), me: ME && ME[F.state] === s.ab, tip: s.division }));
   }
   if (isCounties(kind, val)) {
-    return COUNTIES[val].rows.filter((p) => p.people > 0).map((p) => ({ ...sumRows(p, p.name, null), me: ME && ME[F.state] === val && (ME[F.parish] || notGiven(val)) === p.name, tip: STATE[val].name }));
+    // The busiest counties, one ring each; the rest together; and those who named none. Texas has
+    // 254 counties, too many for a ring each.
+    const c = COUNTIES[val];
+    const here = ME && ME[F.state] === val;
+    const counted = c.rows.filter((r) => r.fips && r.people > 0).sort((a, b) => b.total - a.total);
+    const cut = ringCut(counted.length);
+    const rows = counted.slice(0, cut).map((r) => ({ ...sumRows(r, r.name, null), me: here && ME[F.parish] === r.fips, tip: STATE[val].name }));
+    const rest = counted.slice(cut);
+    if (rest.length) {
+      const sum = (k) => rest.reduce((a, r) => a + r[k], 0);
+      const others = { total: sum("total"), commits: sum("commits"), people: sum("people") };
+      rows.push({ ...sumRows(others, `Other ${c.kinds} (${fmt(rest.length)})`, null), me: here && rest.some((r) => r.fips === ME[F.parish]), tip: STATE[val].name });
+    }
+    const none = c.rows.find((r) => !r.fips);
+    if (none?.people) rows.push({ ...sumRows(none, none.name, null), me: here && !ME[F.parish], tip: STATE[val].name });
+    return rows;
   }
   // One state: its 12 busiest people, plus you: where you are if you live there, and where you
   // would be if you did not.
@@ -703,7 +782,11 @@ function buildViewSelect() {
   const g3 = h("optgroup", { label: "A division, by state" });
   for (const d of D.divisions) g3.appendChild(h("option", { value: `division:${d.name}`, text: d.name }));
   sel.appendChild(g3);
-  for (const [ab, c] of Object.entries(COUNTIES)) sel.appendChild(h("option", { value: `${c.kind}:${ab}`, text: viewTitle(`${c.kind}:${ab}`) }));
+  const g4 = h("optgroup", { label: "A state, by county" });
+  for (const s of [...COUNTED].filter((s) => COUNTIES[s.ab]).sort((a, b) => a.name.localeCompare(b.name))) {
+    g4.appendChild(h("option", { value: `${COUNTIES[s.ab].kind}:${s.ab}`, text: viewTitle(`${COUNTIES[s.ab].kind}:${s.ab}`) }));
+  }
+  if (g4.children.length) sel.appendChild(g4);
   const g2 = h("optgroup", { label: "A state, by person" });
   for (const s of [...COUNTED].sort((a, b) => a.name.localeCompare(b.name))) g2.appendChild(h("option", { value: `state:${s.ab}`, text: s.name }));
   sel.appendChild(g2);
@@ -1452,7 +1535,12 @@ function renderRings() {
     const [vk, vv] = state.view.split(":");
     const [one, many] = isCounties(vk, vv) ? [COUNTIES[vv].kind, COUNTIES[vv].kinds] : ({ us: ["division", "divisions"], state: ["person", "people"] }[vk] ?? ["state", "states"]);
     const n = G.rings.length;
-    const text = `${viewTitle(state.view)}. ${fmt(n)} ${n === 1 ? one : many}.`;
+    let text = `${viewTitle(state.view)}. ${fmt(n)} ${n === 1 ? one : many}.`;
+    if (isCounties(vk, vv)) {
+      const k = COUNTIES[vv].rows.filter((r) => r.fips && r.people > 0).length;
+      const busiest = ringCut(k) < k ? `: the ${RING_COUNTIES} busiest, and the other ${fmt(k - RING_COUNTIES)} together` : "";
+      text = `${viewTitle(state.view)}. ${fmt(k)} ${k === 1 ? one : many} with someone counted${busiest}.`;
+    }
     clearTimeout(saying);
     saying = setTimeout(() => ($("#said").textContent = text), 300);
   }
@@ -1560,10 +1648,37 @@ function buildLists() {
   g("Regions", REGIONS.map((r) => [`region:${r}`, r]));
   g("Divisions", D.divisions.map((d) => [`division:${d.name}`, d.name]));
   g("States", [...COUNTED].sort((a, b) => a.name.localeCompare(b.name)).map((s) => [`state:${s.ab}`, s.name]));
-  for (const [ab, c] of Object.entries(COUNTIES)) g(`${STATE[ab].name} ${c.kinds}`, c.rows.filter((p) => p.people > 0).map((p) => [`${c.kind}:${ab}:${p.name === notGiven(ab) ? "-" : p.name}`, p.name]));
   sel.value = "us";
-  sel.addEventListener("change", renderBoard);
+  sel.addEventListener("change", () => {
+    fillScopeCounty();
+    renderBoard();
+  });
+  $("#scopeCounty").addEventListener("change", renderBoard);
   $("#find").addEventListener("input", renderBoard);
+}
+// Once a state is chosen, a second list offers its counties (each with someone counted, and those
+// who named none): too many across the country for one list.
+function fillScopeCounty() {
+  const [kind, ab] = $("#scope").value.split(":");
+  const sel = $("#scopeCounty");
+  const c = kind === "state" ? COUNTIES[ab] : null;
+  sel.hidden = !c;
+  sel.textContent = "";
+  if (!c) return;
+  sel.appendChild(h("option", { value: "", text: `All of ${STATE[ab].name}` }));
+  const rows = c.rows.filter((r) => r.people > 0).sort((a, b) => (!a.fips - !b.fips) || a.name.localeCompare(b.name));
+  for (const r of rows) sel.appendChild(h("option", { value: `${c.kind}:${ab}:${r.fips || "-"}`, text: r.name }));
+}
+// The leaderboard's scope: a county when one is chosen, else the first list's choice.
+const currentScope = () => (!$("#scopeCounty").hidden && $("#scopeCounty").value) || $("#scope").value;
+// Shows a scope's leaderboard: "us", "state:TX", or a county, "county:TX:48453" ("-" for not given).
+function setScope(scope) {
+  const [kind, ab] = scope.split(":");
+  const county = isCounties(kind, ab);
+  $("#scope").value = county ? `state:${ab}` : scope;
+  fillScopeCounty();
+  if (county) $("#scopeCounty").value = scope;
+  renderBoard();
 }
 // Everyone in a ranked list who matches the search box, each with their place in the full ranking.
 // The page shows the first 100; Download CSV takes them all.
@@ -1573,15 +1688,15 @@ function boardRows(list, q) {
   return rows.filter(([p]) => p[0].toLowerCase().includes(q) || (p[F.name] || "").toLowerCase().includes(q) || (p[F.location] || "").toLowerCase().includes(q));
 }
 function renderBoard() {
-  const scope = $("#scope").value;
+  const scope = currentScope();
   const k = F[cat];
   const list = ranked(scope, cat);
   const q = $("#find").value.trim().toLowerCase();
   const t = $("#board");
   t.textContent = "";
-  // "Parish" in Louisiana, "County" in Mississippi, both where the list can hold either.
+  // "Parish" in Louisiana, "Borough" in Alaska, "County" in the rest and where the list holds several.
   const here = COUNTIES[scope.split(":")[1]];
-  const countyHead = here ? cap(here.kind) : cap(KINDS.join(" or "));
+  const countyHead = here ? cap(here.kind) : "County";
   t.appendChild(h("thead", {}, [h("tr", {}, [h("th", { class: "num", text: "#" }), h("th", { text: "Login" }), h("th", { text: "Location" }), h("th", { text: "Name" }), h("th", { text: "State" }), h("th", { text: countyHead }), h("th", { class: "num", text: CATS.find((c) => c[0] === cat)[1] }), h("th", { class: "num", text: "Total" })])]));
   const tb = h("tbody");
   const row = (p, i) => {
@@ -1591,7 +1706,7 @@ function renderBoard() {
       h("td", { class: "loc", title: p[F.location] || "", text: p[F.location] || "" }),
       h("td", { text: p[F.name] || "" }),
       h("td", { text: STATE[p[F.state]].name }),
-      h("td", { text: COUNTIES[p[F.state]] ? p[F.parish] || "not given" : "" }),
+      h("td", { text: COUNTIES[p[F.state]] ? countyLabel(p[F.parish]) || "not given" : "" }),
       h("td", { class: "num", text: fmt(p[k]) }),
       h("td", { class: "num", text: fmt(p[F.total]) }),
     ]);
@@ -1623,16 +1738,16 @@ function csvCell(v) {
 const slug = (s) => s.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 function csvName(scope, q) {
   const [kind, val, county] = scope.split(":");
-  const place = kind === "state" ? STATE[val].name : kind === "region" ? `${val} region` : kind === "division" ? `${val} division` : isCounties(kind, val) ? (county === "-" ? `${STATE[val].name} ${notGiven(val)}` : `${county} ${kind} ${STATE[val].name}`) : D.scopeName.replace(/^the /, "");
+  const place = kind === "state" ? STATE[val].name : kind === "region" ? `${val} region` : kind === "division" ? `${val} division` : isCounties(kind, val) ? (county === "-" ? `${STATE[val].name} ${notGiven(val)}` : `${countyLabel(county)} ${STATE[val].name}`) : D.scopeName.replace(/^the /, "");
   const day = new Date(D.refreshed).toISOString().slice(0, 10);
   return `github-leaderboard-${slug(place)}-${cat}${q ? `-matching-${slug(q.slice(0, 40)) || "search"}` : ""}-${day}.csv`;
 }
 $("#csv").addEventListener("click", () => {
-  const scope = $("#scope").value;
+  const scope = currentScope();
   const q = $("#find").value.trim().toLowerCase();
-  const lines = [["Rank", "Login", "Name", "Location", "State", cap(KINDS.join(" or ")), ...CATS.map((c) => c[1])]];
+  const lines = [["Rank", "Login", "Name", "Location", "State", "County", ...CATS.map((c) => c[1])]];
   for (const [p, i] of boardRows(ranked(scope, cat), q)) {
-    lines.push([i + 1, p[F.login], p[F.name] || "", p[F.location] || "", STATE[p[F.state]].name, p[F.parish] || "", ...CATS.map((c) => p[F[c[0]]])]);
+    lines.push([i + 1, p[F.login], p[F.name] || "", p[F.location] || "", STATE[p[F.state]].name, countyLabel(p[F.parish]), ...CATS.map((c) => p[F[c[0]]])]);
   }
   const csv = `\ufeff${lines.map((r) => r.map(csvCell).join(",")).join("\r\n")}\r\n`;
   const a = h("a", { href: URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })), download: csvName(scope, q) });
@@ -1902,14 +2017,12 @@ function buildCountySwitch() {
   const abs = Object.keys(COUNTIES);
   if (!abs.length) return $("#parishes").remove();
   if (abs.length < 2) return $("#countyBar").remove();
-  for (const ab of abs) {
-    const b = h("button", { type: "button", "data-ab": ab, "aria-pressed": "false", text: STATE[ab].name });
-    b.addEventListener("click", () => {
-      countyAb = ab;
-      renderCountyTable();
-    });
-    $("#countyState").appendChild(b);
-  }
+  const sel = $("#countyState");
+  for (const s of abs.map((ab) => STATE[ab]).sort((a, b) => a.name.localeCompare(b.name))) sel.appendChild(h("option", { value: s.ab, text: s.name }));
+  sel.addEventListener("change", () => {
+    countyAb = sel.value;
+    renderCountyTable();
+  });
 }
 function renderCountyTable() {
   const abs = Object.keys(COUNTIES);
@@ -1918,9 +2031,11 @@ function renderCountyTable() {
   const c = COUNTIES[ab];
   const name = STATE[ab].name;
   $("#countyTitle").textContent = `${name}, ${c.kind} by ${c.kind}`;
-  $("#countyLede").textContent = `All ${fmt(c.rows.length - 1)} ${c.kinds}. People are placed by the town, city, university, or ${c.kind} named in their GitHub location; those who wrote only "${name}" are under "${notGiven(ab)}".${COUNTY_NOTE[ab] ? ` ${COUNTY_NOTE[ab]}` : ""}`;
-  for (const b of document.querySelectorAll("#countyState button")) b.setAttribute("aria-pressed", String(b.dataset.ab === ab));
-  const mine = ME && ME[F.state] === ab ? ME[F.parish] || notGiven(ab) : null;
+  const counted = c.rows.filter((r) => r.fips).length;
+  $("#countyLede").textContent = `${fmt(counted)} of ${name}'s ${fmt(c.n)} ${c.kinds} have someone counted. People are placed by the town, city, university, or ${c.kind} named in their GitHub location; those who wrote only "${name}" are under "${notGiven(ab)}".${COUNTY_NOTE[ab] ? ` ${COUNTY_NOTE[ab]}` : ""}`;
+  if ($("#countyState")) $("#countyState").value = ab;
+  // Your row: your county, or "not given" if you named none.
+  const mine = ME && ME[F.state] === ab ? ME[F.parish] : null;
   sortable(
     $("#parishTable"),
     [
@@ -1932,12 +2047,11 @@ function renderCountyTable() {
       { label: "Private", get: (r) => r.private, num: true, fmt },
       topCell,
     ],
-    c.rows.map((p) => ({ ...p, me: p.name === mine })),
+    c.rows.filter((p) => p.fips || p.people).map((p) => ({ ...p, me: mine !== null && p.fips === mine })),
     (r) => {
       // A county with nobody counted yet has no leaderboard to open.
       if (!r.people) return;
-      $("#scope").value = `${c.kind}:${ab}:${r.name === notGiven(ab) ? "-" : r.name}`;
-      renderBoard();
+      setScope(`${c.kind}:${ab}:${r.fips || "-"}`);
       $("#lists").scrollIntoView({ behavior: "smooth" });
     },
   );
@@ -2017,8 +2131,343 @@ for (const b of document.querySelectorAll("#mapby button")) {
   });
 }
 
+// ---------------------------------------------------------------- every county, on a map
+// The shapes (us-counties.js, from web/us-counties.json) load when the map comes near, and are
+// drawn as one SVG path a county. The map opens on the whole country; a state zooms in, and a county
+// there sets the leaderboard to it. Colours, like the tile map's, are by rank: each shade is a
+// seventh of the counties with someone counted, in the country or, zoomed in, in the state.
+/*__DECODE_GEO__*/
+const CM = { by: "total", view: "us", paths: null, cur: null, hover: null };
+const cmVal = (fips) => CROW.get(fips)?.[CM.by] ?? 0;
+const cmCounted = (fips) => (CROW.get(fips)?.people ?? 0) > 0;
+const cmWhat = { total: "contributions", people: "people", average: "average" };
+function loadCountyMap() {
+  if (CM.loading || !D.geo) return;
+  CM.loading = true;
+  const failed = () => ($("#cmWait").textContent = "The map could not load. The table below has every county with someone counted.");
+  // The script calls back with the shapes and every county's name, by FIPS code.
+  window.__countyGeo = (geo, names) => {
+    try {
+      CM.names = names ?? {};
+      buildCountyMap(geo);
+    } catch (e) {
+      failed();
+      throw e;
+    }
+  };
+  const s = h("script", { src: D.geo, async: "" });
+  s.onerror = failed;
+  document.head.appendChild(s);
+}
+function buildCountyMap(geo) {
+  const g = decodeGeo(geo);
+  const [W, H] = geo.size.map((n) => n * geo.grid);
+  Object.assign(CM, { W, H, states: g.states, box: [0, 0, W, H] });
+  const svg = $("#cmSvg");
+  const world = svgEl("g", { id: "cmWorld" });
+  const groups = {};
+  CM.paths = g.counties.map((c, i) => {
+    const st = c.id.slice(0, 2);
+    groups[st] ??= world.appendChild(svgEl("g", { "data-st": st }));
+    const el = groups[st].appendChild(svgEl("path", { d: c.d, class: "c", "data-i": i }));
+    return { ...c, ab: FP_AB[st], el };
+  });
+  CM.byId = new Map(CM.paths.map((p) => [p.id, p]));
+  CM.groups = groups;
+  CM.dc = world.appendChild(svgEl("path", { d: g.dc, class: "dc" }));
+  // State lines and coasts, by state, over every county.
+  const lines = world.appendChild(svgEl("g"));
+  CM.lines = Object.fromEntries(Object.entries(g.stateBorders).map(([st, d]) => [st, lines.appendChild(svgEl("path", { d, class: "b" }))]));
+  CM.you = world.appendChild(svgEl("path", { class: "you" }));
+  CM.hi = world.appendChild(svgEl("path", { class: "hi" }));
+  CM.world = world;
+  svg.setAttribute("viewBox", CM.box.join(" "));
+  svg.replaceChildren(world);
+  paintCountyMap();
+  // The mouse: hover for numbers; click a state to zoom in, then a county for its leaderboard.
+  const at = (e) => {
+    const t = e.target.closest?.("path.c");
+    return t ? CM.paths[Number(t.dataset.i)] : null;
+  };
+  svg.addEventListener("pointermove", (e) => {
+    if (e.pointerType === "touch") return;
+    const p = at(e);
+    CM.hover = p;
+    cmTip(p ? cmItem(p) : CM.cur, p ? e : null);
+  });
+  svg.addEventListener("pointerleave", () => {
+    CM.hover = null;
+    cmTip(CM.cur);
+  });
+  svg.addEventListener("click", (e) => {
+    const p = at(e);
+    if (!p?.ab) return;
+    if (CM.view !== p.ab) {
+      cmZoom(p.ab);
+      cmFocus(cmItem(p), false);
+    } else cmPick(p);
+  });
+  $("#cmBox").classList.add("ready");
+}
+// What the keyboard and the tooltip point at: a state (at the country level) or a county.
+function cmItem(p) {
+  if (CM.view === "us") {
+    const [x, y] = CM.states[p.id.slice(0, 2)].cent;
+    return { kind: "state", key: p.ab, ab: p.ab, x, y, v: STATE[p.ab]?.all?.[CM.by] ?? 0 };
+  }
+  return { kind: "county", key: p.id, ab: p.ab, p, x: p.cx, y: p.cy, v: cmVal(p.id) };
+}
+function cmItems() {
+  if (!CM.paths) return [];
+  if (CM.view === "us") {
+    return Object.keys(COUNTIES)
+      .filter((ab) => STATE[ab]?.counted)
+      .map((ab) => {
+        const [x, y] = CM.states[COUNTIES[ab].fp].cent;
+        return { kind: "state", key: ab, ab, x, y, v: STATE[ab].all?.[CM.by] ?? 0 };
+      });
+  }
+  return CM.paths.filter((p) => p.ab === CM.view).map((p) => ({ kind: "county", key: p.id, ab: p.ab, p, x: p.cx, y: p.cy, v: cmVal(p.id) }));
+}
+const cmBusiest = (items) => items.reduce((a, b) => (b.v > a.v ? b : a), items[0]) ?? null;
+// Where the map is looking, in the shapes' units: the country, or a state's box padded to the
+// map's own shape.
+function cmFit(ab) {
+  if (!ab) return [0, 0, CM.W, CM.H];
+  const [x0, y0, x1, y1] = CM.states[COUNTIES[ab].fp].box;
+  const a = CM.W / CM.H;
+  const w = Math.max((x1 - x0) * 1.12, (y1 - y0) * 1.12 * a);
+  return [(x0 + x1) / 2 - w / 2, (y0 + y1) / 2 - w / a / 2, w, w / a];
+}
+function paintCountyMap() {
+  if (!CM.paths) return;
+  const here = (p) => CM.view === "us" || p.ab === CM.view;
+  // Each shade a seventh of the counties with someone counted, in view.
+  const vals = CM.paths.filter((p) => here(p) && cmCounted(p.id)).map((p) => cmVal(p.id)).sort((a, b) => a - b);
+  const bin = (v) => {
+    let lo = 0;
+    let hi = vals.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (vals[mid] < v) lo = mid + 1;
+      else hi = mid;
+    }
+    return Math.min(THEME.ramp.length - 1, Math.floor((lo / vals.length) * THEME.ramp.length));
+  };
+  for (const p of CM.paths) {
+    p.el.setAttribute("fill", here(p) && cmCounted(p.id) ? THEME.ramp[bin(cmVal(p.id))] : THEME.tileEmpty);
+    p.el.classList.toggle("off", !here(p));
+  }
+  // Alaska and Hawaii are drawn in boxes beside the other 48: zoomed in on one of them, it is shown
+  // alone; zoomed in on any other state, they are hidden.
+  const fp = COUNTIES[CM.view]?.fp;
+  const inset = (st) => st === "02" || st === "15";
+  const shown = (st) => !fp || (inset(fp) ? st === fp : !inset(st));
+  for (const [st, el] of [...Object.entries(CM.groups), ...Object.entries(CM.lines)]) el.style.display = shown(st) ? "" : "none";
+  CM.dc.style.display = shown("11") ? "" : "none";
+  const mine = ME && ME[F.parish] ? CM.byId.get(ME[F.parish]) : null;
+  CM.you.setAttribute("d", mine?.d ?? "");
+  const inState = CM.view === "us" ? "" : ` in ${STATE[CM.view].name}`;
+  const of = CM.paths.filter(here).length;
+  const leg = $("#cmLegend");
+  leg.textContent = "";
+  leg.appendChild(h("span", { text: "Fewer" }));
+  for (const c of THEME.ramp) {
+    const i = h("i");
+    Object.assign(i.style, { background: c, width: "22px", height: "10px" });
+    leg.appendChild(i);
+  }
+  leg.appendChild(h("span", { text: `More (each shade is a seventh of the ${fmt(vals.length)} of ${fmt(of)} counties with someone counted${inState})` }));
+  const none = h("i");
+  Object.assign(none.style, { background: THEME.tileEmpty, width: "14px", height: "10px" });
+  leg.appendChild(h("span", {}, [none, "No one counted yet"]));
+  const c = COUNTIES[CM.view];
+  $("#cmTitle").textContent = c ? `${STATE[CM.view].name}, ${c.kind} by ${c.kind}` : "Every county";
+  $("#cmBox").setAttribute("aria-label", c ? `Map of ${STATE[CM.view].name}'s ${c.kinds}` : "Map of every county in the 50 states");
+  cmHighlight();
+}
+// Zooms to a state (or back out to the country, ab null): the map slides there, then redraws sharp.
+function cmZoom(ab) {
+  if (!CM.paths || (ab && !COUNTIES[ab])) return;
+  const from = CM.box;
+  const to = cmFit(ab);
+  Object.assign(CM, { view: ab || "us", box: to, cur: null });
+  $("#cmState").value = ab ?? "";
+  $("#cmAll").hidden = !ab;
+  $("#cmPick").hidden = true;
+  if (ab) {
+    countyAb = ab;
+    renderCountyTable();
+  }
+  paintCountyMap();
+  cmTip(null);
+  const svg = $("#cmSvg");
+  const w = CM.world;
+  clearTimeout(CM.timer);
+  w.style.transition = "none";
+  w.style.transform = "";
+  svg.setAttribute("viewBox", from.join(" "));
+  const land = () => {
+    w.style.transition = "none";
+    w.style.transform = "";
+    svg.setAttribute("viewBox", to.join(" "));
+    if (CM.cur) cmTip(CM.cur);
+  };
+  if (reducedMotion.matches) return land();
+  // Drawn in the old view, moved so the new view fills the box; then the view itself is set.
+  const s = from[2] / to[2];
+  w.getBoundingClientRect();
+  w.style.transition = "transform 320ms ease";
+  w.style.transform = `translate(${from[0] - to[0] * s}px, ${from[1] - to[1] * s}px) scale(${s})`;
+  CM.timer = setTimeout(land, 340);
+}
+// A county at the state level: its leaderboard, below.
+function cmPick(p) {
+  cmFocus(cmItem(p), false);
+  const r = CROW.get(p.id);
+  const box = $("#cmPick");
+  box.textContent = "";
+  box.hidden = false;
+  if (!r?.people) {
+    box.textContent = `No one counted in ${cmLines(cmItem(p))[0]} yet: no one found there has listed it in their GitHub location.`;
+    return;
+  }
+  setScope(`${COUNTIES[p.ab].kind}:${p.ab}:${p.id}`);
+  box.append(h("a", { href: "#lists", text: `Leaderboard: ${r.name}, ${STATE[p.ab].name} ↓` }));
+}
+// The keyboard's place, outlined in gold, with its numbers.
+function cmFocus(item, say = true) {
+  CM.cur = item;
+  cmHighlight();
+  cmTip(item);
+  if (say && item) {
+    clearTimeout(CM.sayTimer);
+    CM.sayTimer = setTimeout(() => ($("#cmSaid").textContent = cmLines(item).join(". ")), 300);
+  }
+}
+function cmHighlight() {
+  const it = CM.cur;
+  if (!CM.hi) return;
+  if (!it) return CM.hi.setAttribute("d", "");
+  CM.hi.setAttribute("d", it.kind === "county" ? it.p.d : CM.paths.filter((p) => p.ab === it.ab).map((p) => p.d).join(""));
+}
+// What the tooltip and the screen reader say about a state or a county.
+function cmLines(it) {
+  if (it.kind === "state") {
+    const s = STATE[it.ab];
+    const c = COUNTIES[it.ab];
+    const counted = c.rows.filter((r) => r.fips && r.people > 0).length;
+    return [s.name, `${fmt(s.all.total)} contributions from ${fmt(s.all.people)} people`, `${fmt(counted)} of ${fmt(c.n)} ${c.kinds} with someone counted`, `Click or press Enter for its ${c.kinds}`];
+  }
+  const r = CROW.get(it.key);
+  const where = `${r?.name ?? CM.names?.[it.key] ?? cap(COUNTIES[it.ab].kind)}, ${STATE[it.ab].name}`;
+  if (!r?.people) return [where, "No one counted here yet"];
+  const ranks = COUNTIES[it.ab].rows.filter((x) => x.fips && x.people > 0).sort((a, b) => b[CM.by] - a[CM.by]);
+  return [
+    where,
+    `${fmt(r.total)} contributions, ${fmt(r.people)} ${r.people === 1 ? "person" : "people"}, ${fmt(r.average)} average`,
+    r.top ? `Busiest: ${r.top.login} (${fmt(r.top.total)})` : "",
+    `#${fmt(ranks.indexOf(r) + 1)} of ${fmt(ranks.length)} by ${cmWhat[CM.by]} in ${STATE[it.ab].name}`,
+  ].filter(Boolean);
+}
+// The tooltip, by the pointer or at the place's centre.
+function cmTip(it, e) {
+  const tip = $("#cmTip");
+  if (!it) return (tip.style.display = "none");
+  const [title, ...rest] = cmLines(it);
+  tip.replaceChildren(h("div", { class: "t", text: title }), ...rest.map((l) => h("div", { text: l })));
+  tip.style.display = "block";
+  const box = $("#cmBox").getBoundingClientRect();
+  let x;
+  let y;
+  if (e) [x, y] = [e.clientX - box.left, e.clientY - box.top];
+  else {
+    const pt = new DOMPoint(it.x, it.y).matrixTransform($("#cmSvg").getScreenCTM());
+    [x, y] = [pt.x - box.left, pt.y - box.top];
+  }
+  const tw = tip.offsetWidth;
+  const th = tip.offsetHeight;
+  tip.style.left = `${Math.max(4, Math.min(box.width - tw - 4, x + 14))}px`;
+  tip.style.top = `${y + 14 + th > box.height ? Math.max(4, y - th - 10) : y + 14}px`;
+}
+{
+  // Arrow keys move to the nearest state or county that way; Enter goes in; Escape comes out.
+  const box = $("#cmBox");
+  const DIRS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  box.addEventListener("keydown", (e) => {
+    if (!CM.paths) return;
+    const items = cmItems();
+    const at = CM.cur && items.find((t) => t.key === CM.cur.key);
+    if (DIRS[e.key]) {
+      e.preventDefault();
+      if (!at) return cmFocus(cmBusiest(items));
+      const [dx, dy] = DIRS[e.key];
+      let best = null;
+      let score = Infinity;
+      for (const t of items) {
+        const vx = t.x - at.x;
+        const vy = t.y - at.y;
+        const along = vx * dx + vy * dy;
+        if (t === at || along <= 0) continue;
+        const sc = along + 2 * Math.abs(vx * dy - vy * dx);
+        if (sc < score) [best, score] = [t, sc];
+      }
+      if (best) cmFocus(best);
+    } else if (e.key === "Home" || e.key === "End") {
+      e.preventDefault();
+      const ranked = items.filter((t) => t.v > 0).sort((a, b) => b.v - a.v);
+      if (ranked.length) cmFocus(e.key === "Home" ? ranked[0] : ranked.at(-1));
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      if (!at) return cmFocus(cmBusiest(items));
+      if (at.kind === "state") {
+        cmZoom(at.ab);
+        cmFocus(cmBusiest(cmItems()));
+      } else cmPick(at.p);
+    } else if ((e.key === "Escape" || e.key === "Backspace") && CM.view !== "us") {
+      e.preventDefault();
+      const was = CM.view;
+      cmZoom(null);
+      cmFocus(cmItems().find((t) => t.key === was) ?? null);
+    }
+  });
+  box.addEventListener("focus", () => {
+    if (CM.paths && !CM.cur) cmFocus(cmBusiest(cmItems()));
+  });
+  box.addEventListener("blur", () => {
+    if (!CM.hover) cmTip(null);
+  });
+  const sel = $("#cmState");
+  sel.appendChild(h("option", { value: "", text: "All states" }));
+  for (const s of D.states.filter((s) => COUNTIES[s.ab] && s.counted).sort((a, b) => a.name.localeCompare(b.name))) {
+    sel.appendChild(h("option", { value: s.ab, text: s.name }));
+  }
+  sel.addEventListener("change", () => cmZoom(sel.value || null));
+  $("#cmAll").addEventListener("click", () => cmZoom(null));
+  for (const b of document.querySelectorAll("#cmBy button")) {
+    b.addEventListener("click", () => {
+      CM.by = b.dataset.k;
+      for (const o of document.querySelectorAll("#cmBy button")) o.setAttribute("aria-pressed", String(o === b));
+      paintCountyMap();
+      if (CM.cur) cmTip(CM.cur);
+    });
+  }
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver(
+      (es) => {
+        if (es.some((x) => x.isIntersecting)) {
+          io.disconnect();
+          loadCountyMap();
+        }
+      },
+      { rootMargin: "800px 0px" },
+    );
+    io.observe($("#counties"));
+  } else loadCountyMap();
+}
+
 // ---------------------------------------------------------------- method
-$("#method").textContent = `How this was made: GitHub's search found users whose profile location names a state in ${D.scopeName} (its full name, or "City, ST"), the top few hundred per state by followers and by number of repositories, plus Louisiana by city name. Of those who pushed code in the last year, up to ${D.perState} a state with the most public repositories and followers${DEEP.length ? ` (and everyone in ${andList(DEEP)})` : ""} had their contributions looked up, so very active people who work mostly in private can be missed. Each person's last 12 months of contributions came from GitHub's API. People are placed by what their profile says, and a two-letter code is checked against the places abroad that share it (MS is also Mato Grosso do Sul in Brazil, DE is Germany, IN is India); locations that stay ambiguous (Georgia the country, Washington DC) are left out, and so are accounts named as bots. It is a sample of each state's most visible GitHub users, not a census: ${fmt(D.candidates)} search results, ${fmt(D.fetched)} people looked up, ${fmt(D.P.length)} placed in a state.`;
+$("#method").textContent = `How this was made: GitHub's search found users whose profile location names a state in ${D.scopeName} (its full name, or "City, ST"), the top few hundred per state by followers and by number of repositories, plus Louisiana by city name. Of those who pushed code in the last year, the ${D.perState} a state with the most public repositories and followers had their contributions looked up every day, and the rest, up to 1,000 a state, once a week, so very active people who work mostly in private can be missed. Each person's last 12 months of contributions came from GitHub's API. People are placed by what their profile says, and a two-letter code is checked against the places abroad that share it (MS is also Mato Grosso do Sul in Brazil, DE is Germany, IN is India); locations that stay ambiguous (Georgia the country, Washington DC) are left out, and so are accounts named as bots. It is a sample of each state's most visible GitHub users, not a census: ${fmt(D.candidates)} search results, ${fmt(D.fetched)} people looked up, ${fmt(D.P.length)} placed in a state.`;
 
 // ---------------------------------------------------------------- find yourself
 const REMEMBER = "github-leaderboard.me";
@@ -2051,6 +2500,7 @@ function rerenderForMe() {
   renderBoard();
   renderTables();
   renderMap();
+  paintCountyMap();
   renderSide();
   fitHeight();
   storm.sig = "";
@@ -2067,7 +2517,7 @@ function notFound(login) {
   const add = h("a", { class: "btn go addme", href: "https://github.com/wbp318/github-leaderboard/issues/new?template=add-me.yml", target: "_blank", rel: "noopener", text: "Add me" });
   // The login is whatever was typed or put in ?me=, so it goes in as text, never as HTML.
   msg.append(
-    document.createTextNode(`${login} is not on the leaderboard yet: each state looks up only the ${D.perState} people likeliest to be busiest${DEEP.length ? ` (and ${andList(DEEP)} everyone active)` : ""}. `),
+    document.createTextNode(`${login} is not on the leaderboard yet: each state looks up the people GitHub's search finds there who pushed code in the last year, the ${D.perState} likeliest to be busiest every day and the rest once a week, and the search finds only about 800 a state. `),
     add,
     " opens a one-click GitHub issue; a bot adds whoever opens it and replies with a link to their ranks in a few minutes. Your profile's location must name a US state. ",
   );

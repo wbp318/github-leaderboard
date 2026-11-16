@@ -4,10 +4,11 @@
 // two-letter codes other places share, every city that was accepted, for a human to read.
 //   node scripts/audit.mjs   (or: npm run audit)
 //   node scripts/audit.mjs --placements   instead, one line per person found: login, state, the
-//                                         rule that placed them, and their county. Save it before
-//                                         and after a change to the rules, then diff the two.
+//                                         rule that placed them, and their county's short name
+//                                         ("-" for none). Save it before and after a change to the
+//                                         rules, then diff the two.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { countyOf, hasCounties } from "../src/counties.mjs";
+import { countyName, countyOf } from "../src/counties.mjs";
 import { NAMES, place, stateCodeAtEnd } from "../src/states.mjs";
 
 const file = (n) => new URL(`../data/${n}`, import.meta.url);
@@ -24,7 +25,8 @@ if (process.argv.includes("--placements")) {
     const loc = p?.location?.trim();
     const r = loc ? place(loc) : null;
     if (!r) continue;
-    const county = hasCounties(r.state) ? (countyOf(r.state, loc) ?? "-") : "-";
+    const fips = countyOf(r.state, loc);
+    const county = fips ? countyName(fips) : "-";
     lines.push(`${login}\t${r.state}\t${r.rule}\t${county}`);
   }
   process.stdout.write(`${lines.sort().join("\n")}\n`);

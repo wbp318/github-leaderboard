@@ -6,12 +6,16 @@
 //   SCOPE=LA,MS,AR   only some states (default: all)
 //   HISTORY=<file>   the daily history to show (default: data/history.json, if there is one)
 //   OUT=<file>       where to write the page (default: site/leaderboard.html); the badges go in
-//                    badge/ beside it
+//                    badge/ beside it, version.txt, the build's time, which an open page checks
+//                    to see if there is a newer one, and us-counties.js, the county map's shapes
+//   BADGES=0         no badges (for test builds)
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { gzipSync } from "node:zlib";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { BADGE_LABEL, badgeMessage, badgeSvg, ranksOf } from "../src/badge.mjs";
-import { COUNTY_STATES, countiesOf, countyKind, countyOf, hasCounties } from "../src/counties.mjs";
+import { COUNTY_STATES, countiesOf, countyKind, countyLabel, countyOf } from "../src/counties.mjs";
 import { isBot, optedOut } from "../src/exclude.mjs";
 import { stateOf } from "../src/states.mjs";
 import { current, markSample, refreshedAt } from "../src/sample.mjs";
@@ -68,13 +72,12 @@ for (const [login, u] of Object.entries(users)) {
   const ab = stateOf(u.location);
   if (!ab || (SCOPE && !SCOPE.has(ab))) continue;
   const s = BY_AB[ab];
-  const county = hasCounties(ab) ? (countyOf(ab, u.location) ?? "") : "";
+  // The county, by its 5-digit FIPS code (src/counties.mjs), or "" for someone who named none.
+  const county = countyOf(ab, u.location) ?? "";
   placed.push({ login, ...u, state: ab, region: s.region, division: s.division, county });
 }
 markSample(placed, profiles, PER_STATE, refreshed);
-// The collector looks up everyone active once a week, for county views (src/schedule.mjs). Until
-// every state has counties, people looked up only weekly are shown only in states that do.
-const people = placed.filter((p) => !(p.tier === "w" && !hasCounties(p.state) && !p.fair));
+const people = placed;
 const fair = people.filter((p) => p.fair);
 const CATS = ["total", "commits", "private", "prs", "reviews", "issues", "repos", "followers"];
 const sum = (list, k) => list.reduce((a, p) => a + p[k], 0);
@@ -102,19 +105,33 @@ const regions = regionNames.map((r) => ({ name: r, ...agg(fair.filter((p) => p.r
 const divisionNames = [...new Set(STATES.map((s) => s[3]))];
 const divisions = divisionNames.map((d) => ({ name: d, region: STATES.find((s) => s[3] === d)[2], ...agg(fair.filter((p) => p.division === d)) })).filter((d) => d.people > 0);
 const us = agg(fair);
-// Each state with a county list, county by county, then everyone who named only the state.
+// Each state county by county: a row for each county with someone counted, by FIPS code, then one
+// for everyone who named only the state (fips ""). fp is the state's FIPS code, n its count of counties.
+const byCounty = Map.groupBy(people, (p) => p.county || `${p.state}:-`);
 const counties = Object.fromEntries(
   COUNTY_STATES.filter((ab) => !SCOPE || SCOPE.has(ab)).map((ab) => {
     const [kind, kinds] = countyKind(ab);
-    const here = people.filter((p) => p.state === ab);
+    const all = countiesOf(ab);
     const notGiven = `${kind[0].toUpperCase()}${kind.slice(1)} not given`;
-    const rows = [...countiesOf(ab), ""].map((name) => ({ name: name || notGiven, ...agg(here.filter((p) => p.county === name)) }));
-    return [ab, { kind, kinds, rows }];
+    const rows = all.filter((f) => byCounty.has(f)).map((f) => ({ fips: f, name: countyLabel(f), ...agg(byCounty.get(f)) }));
+    rows.push({ fips: "", name: notGiven, ...agg(byCounty.get(`${ab}:-`) ?? []) });
+    return [ab, { kind, kinds, fp: all[0].slice(0, 2), n: all.length, rows }];
   }),
 );
 
-// Compact people: [login, name, state, total, commits, private, prs, reviews, issues, repos, followers, county, fair, location]
-const P = people.map((p) => [p.login, p.name, p.state, p.total, p.commits, p.private, p.prs, p.reviews, p.issues, p.repos, p.followers, p.county, p.fair ? 1 : 0, (p.location ?? "").trim()]);
+// People, by column, which is smaller than one array a person: each field a list, the state as its
+// place in states. The page turns them back into rows: [login, name, state, total, commits, private,
+// prs, reviews, issues, repos, followers, county, fair, location].
+const stateAt = Object.fromEntries(STATES.map(([ab], i) => [ab, i]));
+const P = { login: [], name: [], state: [], total: [], commits: [], private: [], prs: [], reviews: [], issues: [], repos: [], followers: [], county: [], fair: [], location: [] };
+for (const p of people) {
+  for (const k of ["login", "name", "total", "commits", "private", "prs", "reviews", "issues", "repos", "followers"]) P[k].push(p[k]);
+  // The county as the last 3 digits of its FIPS code (0 for none); the page adds the state's 2.
+  P.county.push(p.county ? Number(p.county.slice(2)) : 0);
+  P.state.push(stateAt[p.state]);
+  P.fair.push(p.fair ? 1 : 0);
+  P.location.push((p.location ?? "").trim());
+}
 const me = people.find((p) => p.login === VIEWER) ?? null;
 // The daily refresh's time, from the workflow.
 const cron = readFileSync(new URL("../.github/workflows/refresh.yml", import.meta.url), "utf8").match(/cron:\s*"(\d+) (\d+) \* \* \*"/);
@@ -127,18 +144,37 @@ data.history = lastYear(readHistory(process.env.HISTORY ?? new URL("../data/hist
 data.home = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).homepage;
 
 const out = process.env.OUT ? pathToFileURL(resolve(process.env.OUT)) : new URL("../site/leaderboard.html", import.meta.url);
+// The county map's shapes (web/us-counties.json, from scripts/make-geo.mjs), as a script the page
+// loads when the map comes near: a script rather than JSON, so it loads into a file:// page too.
+// Its name carries a hash of it, so a browser's cache never serves old shapes. The page decodes
+// them with src/geo.mjs, copied in here, so the page and its tests run the same code.
+const geoJson = readFileSync(new URL("../web/us-counties.json", import.meta.url), "utf8").trim();
+// Every county's name rides along, for the counties no one is counted in yet.
+const names = Object.fromEntries(COUNTY_STATES.flatMap(countiesOf).map((f) => [f, countyLabel(f)]));
+const geoJs = `/* The shape of every county: ${JSON.parse(geoJson).license}. */\n__countyGeo(${geoJson}, ${JSON.stringify(names)});\n`;
+writeFileSync(new URL("us-counties.js", out), geoJs);
+data.geo = `us-counties.js?v=${createHash("sha256").update(geoJs).digest("hex").slice(0, 8)}`;
+const decodeGeo = readFileSync(new URL("../src/geo.mjs", import.meta.url), "utf8").replace(/^export function decodeGeo/m, "function decodeGeo");
+
 const tpl = readFileSync(new URL("../web/template.html", import.meta.url), "utf8");
-writeFileSync(out, tpl.replace("/*__DATA__*/null", () => JSON.stringify(data).replace(/</g, String.fromCharCode(92) + "x3c")));
+const page = tpl
+  .replace("/*__DECODE_GEO__*/", () => decodeGeo)
+  .replace("/*__DATA__*/null", () => JSON.stringify(data).replace(/</g, String.fromCharCode(92) + "x3c"));
+writeFileSync(out, page);
+writeFileSync(new URL("version.txt", out), `${data.generated}
+`);
+const kb = (n) => `${Math.round(n / 1024)} KB`;
+console.log(`leaderboard.html: ${kb(Buffer.byteLength(page))}, ${kb(gzipSync(page).length)} gzipped`);
 
 // A badge for each person's profile README (src/badge.mjs), written fresh, so nobody who has left
 // keeps one.
 const badges = new URL("badge/", out);
 rmSync(badges, { recursive: true, force: true });
-mkdirSync(badges, { recursive: true });
+const BADGES = process.env.BADGES !== "0";
+if (BADGES) mkdirSync(badges, { recursive: true });
 const ranks = ranksOf(people);
-for (const p of people) {
-  const kind = hasCounties(p.state) ? countyKind(p.state)[0] : "county";
-  writeFileSync(new URL(`${p.login.toLowerCase()}.svg`, badges), badgeSvg(BADGE_LABEL, badgeMessage(ranks.get(p.login), BY_AB[p.state].name, p.county, kind)));
+for (const p of BADGES ? people : []) {
+  writeFileSync(new URL(`${p.login.toLowerCase()}.svg`, badges), badgeSvg(BADGE_LABEL, badgeMessage(ranks.get(p.login), BY_AB[p.state].name, p.county ? countyLabel(p.county) : "")));
 }
-console.log(`placed ${people.length} of ${Object.keys(users).length} users in a state (${fair.length} in the per-state sample); leaderboard.html and ${people.length} badges written`);
+console.log(`placed ${people.length} of ${Object.keys(users).length} users in a state (${fair.length} in the per-state sample); leaderboard.html and ${BADGES ? people.length : "no"} badges written`);
 if (me) console.log(`you: ${me.state}, ${me.total} contributions`);
