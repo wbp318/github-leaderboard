@@ -35,6 +35,8 @@ A year of GitHub contributions across the United States, drawn as a spinning tor
 
 ![Storm Cellar, the game at the top of the page: a blocky first-person view of a stone cellar, firing at a red and blue beetle, with a commit to pick up by the far door](docs/storm-cellar.png)
 
+![Storm Cellar's second level: the Heisenbug, a storm bug as wide as the tunnel, spitting three glowing balls across the flooded storm drain, with the lightning rod in hand and its health bar along the top](docs/storm-drain.png)
+
 ## What is on the page
 
 - **Storm Cellar.** At the top, a little first-person shooter in the old blocky style: the tornado shook the bugs loose, so clear the cellar, find the five commits, and get to the exit. Then go down the storm drain under it: a bigger, flooded level with roaches, five more commits, a lightning rod to find, and the Heisenbug, a storm bug as wide as the tunnel, holding the way out. It's drawn at 320×200 by a ray caster, and every texture, sprite, letter, and sound is made in code. You play it with the keyboard and mouse, or a stick and Fire and Swap buttons on a phone. It only runs while you play, and links to a view or to someone's ranks open past it.
