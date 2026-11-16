@@ -31,7 +31,7 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 | [scripts/history.mjs](scripts/history.mjs) | Adds the day to `data/history.json` ([src/history.mjs](src/history.mjs) describes it), the daily record behind the page's sparklines and chart. |
 | [scripts/fetch-data.mjs](scripts/fetch-data.mjs) | Downloads the latest data from the `data` branch. |
 | [scripts/add-me.mjs](scripts/add-me.mjs) | Checks an "Add me" request and writes the bot's reply. |
-| [web/template.html](web/template.html) | The page: the canvas tornado, the map, the tables, all in one file. |
+| [web/template.html](web/template.html) | The page: the canvas tornado, the map, the tables, and the Storm Cellar game at the top, all in one file. The game is the last script, in a block of its own. |
 | [test/states.test.mjs](test/states.test.mjs) | Locations and where they belong. |
 | [test/counties.test.mjs](test/counties.test.mjs) | Locations and the county or parish they name. |
 | [e2e/page.mjs](e2e/page.mjs) | Opens the built page in a browser and checks it works. |
@@ -93,7 +93,7 @@ CI ([refresh.yml](.github/workflows/refresh.yml)) checks every pull request:
 | Every script parses, and no doc links to a missing file | `npm run check:links` |
 | The workflows ([actionlint](https://github.com/rhysd/actionlint)) | `docker run --rm -v "$PWD:/repo" --workdir /repo rhysd/actionlint:1.7.12` |
 | The data looks whole | `npm run check:data` |
-| A full build, then the page in a real browser: it loads, the tornado draws, Find yourself and "where you'd rank" work, nothing scrolls sideways on a phone, no script errors | `npm run build && npm run e2e` |
+| A full build, then the page in a real browser: it loads, the tornado draws, Find yourself and "where you'd rank" work, the game plays from the keyboard and on a touch phone, nothing scrolls sideways on a phone, no script errors | `npm run build && npm run e2e` |
 
 The browser test needs Playwright, which is deliberately not a dependency: install it once with `npm i --no-save --no-package-lock playwright && npx playwright install chromium`. Please keep the project dependency-free and working at phone width.
 
