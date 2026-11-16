@@ -3,3 +3,6 @@
 # Language stats
 *.md      linguist-detectable=true linguist-documentation=false
 docs/**   linguist-documentation=false
+
+# Made by scripts/make-geo.mjs
+web/us-counties.json linguist-generated=true
