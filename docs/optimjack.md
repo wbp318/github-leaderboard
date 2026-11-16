@@ -79,12 +79,17 @@ The page loads no code from anywhere else. Checked on the live page on November 
 - **No tag managers or tracking.** There is no analytics, A/B testing, or ad code: nothing like Optimizely for an attacker to borrow.
 - **The county map keeps it that way.** Its shapes come from `us-atlas`, downloaded once by a script run by hand, checked against a pinned SHA-256 hash, committed, and then served from this site. Visitors never fetch it from a CDN.
 - **Updates need the repository.** The page changes only through a commit to `main` and the [Refresh and deploy](../.github/workflows/refresh.yml) workflow. Playwright is pinned to an exact version and used only to test the page, never shipped in it.
+- **And now a Content Security Policy** (added the same day). The page tells the browser exactly what it may load and run, and the browser refuses everything else. The policy is in a `<meta>` tag, because GitHub Pages can't send headers, and [scripts/build.mjs](../scripts/build.mjs) writes it on every build:
+  - **Scripts:** only the page's own. Each of its three inline scripts is named by its SHA-256 hash, so a script slipped into the page some other way doesn't match and never runs. The only file allowed is this site's own `us-counties.js`. There's no `'unsafe-inline'`, no `eval`, and no other host.
+  - **Images:** this site, the page's own drawings (`data:` and `blob:`), and `avatars.githubusercontent.com`.
+  - **Requests:** only to this site (`version.txt`).
+  - **Everything else:** nothing, from anywhere (`default-src 'none'`). The browser test checks that a CDN's script, an injected script, and `eval` are all refused.
 
 The lesson for anyone adding to the page: **keep it free of third-party scripts.** If one is ever truly needed:
 
 - copy it into the repository and serve it from here;
 - or load it with [Subresource Integrity](https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity) and an exact version, so the browser refuses a changed file;
-- and add a Content Security Policy that names only the hosts the page needs.
+- and add its host to the Content Security Policy in [scripts/build.mjs](../scripts/build.mjs), the one place that says what the page may load. Otherwise the browser refuses it.
 
 ## Sources
 

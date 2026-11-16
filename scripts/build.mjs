@@ -160,11 +160,28 @@ const tpl = readFileSync(new URL("../web/template.html", import.meta.url), "utf8
 const page = tpl
   .replace("/*__DECODE_GEO__*/", () => decodeGeo)
   .replace("/*__DATA__*/null", () => JSON.stringify(data).replace(/</g, String.fromCharCode(92) + "x3c"));
-writeFileSync(out, page);
+// The Content Security Policy: what the page may load and run. Scripts only from the page itself,
+// each one named by its hash (so a script slipped into the page some other way never runs) or from
+// this site (us-counties.js); images from this site, the page's own drawings (data: and blob:),
+// and GitHub avatars for the share card; requests only to this site (version.txt). Nothing from
+// anywhere else, ever: a new outside host has to be added here on purpose (docs/optimjack.md).
+const scriptHashes = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(([, body]) => `'sha256-${createHash("sha256").update(body).digest("base64")}'`);
+const CSP = [
+  "default-src 'none'",
+  `script-src 'self' ${scriptHashes.join(" ")}`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https://avatars.githubusercontent.com",
+  "connect-src 'self'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "object-src 'none'",
+].join("; ");
+if (!page.includes('content="__CSP__"')) throw new Error("web/template.html has lost its Content-Security-Policy placeholder");
+writeFileSync(out, page.replace('content="__CSP__"', `content="${CSP}"`));
 writeFileSync(new URL("version.txt", out), `${data.generated}
 `);
 const kb = (n) => `${Math.round(n / 1024)} KB`;
-console.log(`leaderboard.html: ${kb(Buffer.byteLength(page))}, ${kb(gzipSync(page).length)} gzipped`);
+console.log(`leaderboard.html: ${kb(Buffer.byteLength(page))}, ${kb(gzipSync(page).length)} gzipped; ${scriptHashes.length} scripts hashed into its Content Security Policy`);
 
 // A badge for each person's profile README (src/badge.mjs), written fresh, so nobody who has left
 // keeps one.

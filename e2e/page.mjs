@@ -691,6 +691,38 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   check(!errors.some((e) => e.startsWith("game keys:")), "no script errors with the mouse and keys");
   await ctx.close();
 }
+// The Content Security Policy: the page's scripts are named by hash and no other site's scripts are
+// allowed, so a script from a CDN, one slipped into the page, and a string run as code are all
+// refused. The string goes through setTimeout, since the test's own eval comes from DevTools, which
+// the policy lets through. (This tab
+// isn't watched: the refusals below log errors on purpose. Every other tab is, so any refusal of
+// the page's own code fails "no script errors".)
+{
+  const cs = await browser.newPage({ viewport: { width: 1340, height: 900 } });
+  await cs.goto(url);
+  await cs.waitForTimeout(300);
+  const policy = (await cs.getAttribute('meta[http-equiv="Content-Security-Policy"]', "content")) ?? "";
+  const scripts = policy.match(/script-src ([^;]*)/)?.[1] ?? "";
+  check(/^'self'( 'sha256-[A-Za-z0-9+/=]+'){3,}$/.test(scripts), `the page's policy allows only its own scripts (${scripts.split(" ").length - 1} by hash)`);
+  check(/default-src 'none'/.test(policy) && /img-src 'self' data: blob: https:\/\/avatars\.githubusercontent\.com;/.test(policy) && /connect-src 'self'/.test(policy), "and nothing else from anywhere but GitHub's avatars");
+  const tried = await cs.evaluate(
+    () =>
+      new Promise((done) => {
+        const seen = [];
+        document.addEventListener("securitypolicyviolation", (e) => seen.push(e.violatedDirective));
+        const outside = document.createElement("script");
+        outside.src = "https://cdn.jsdelivr.net/npm/left-pad@1.3.0/index.js";
+        document.head.appendChild(outside);
+        const inside = document.createElement("script");
+        inside.textContent = "window.__slipped = true";
+        document.head.appendChild(inside);
+        setTimeout("window.__evaled = true", 0);
+        setTimeout(() => done({ seen, slipped: Boolean(window.__slipped), evaled: Boolean(window.__evaled) }), 600);
+      }),
+  );
+  check(tried.seen.filter((d) => d.startsWith("script-src")).length >= 3 && !tried.slipped && !tried.evaled, `a CDN's script, a script slipped into the page, and a string run as code are all refused (${tried.seen.join(", ")})`);
+  await cs.close();
+}
 // Every county, on a map: its shapes load when it comes near (from a file:// page too), a state
 // zooms in, a county there sets the leaderboard, the keyboard moves and speaks, the colours follow
 // the theme, a phone never scrolls sideways, and reduced motion jumps straight there.

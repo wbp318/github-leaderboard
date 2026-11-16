@@ -96,7 +96,7 @@ CI ([refresh.yml](.github/workflows/refresh.yml)) checks every pull request:
 | The data looks whole | `npm run check:data` |
 | A full build, then the page in a real browser: it loads, the tornado draws, Find yourself and "where you'd rank" work, Share my ranks draws a picture and its badge matches the page, the game plays from the keyboard and on a touch phone, nothing scrolls sideways on a phone, no script errors | `npm run build && npm run e2e` |
 
-The browser test needs Playwright, which is deliberately not a dependency: install it once with `npm i --no-save --no-package-lock playwright && npx playwright install chromium`. Please keep the project dependency-free and working at phone width.
+The browser test needs Playwright, which is deliberately not a dependency: install it once with `npm i --no-save --no-package-lock playwright && npx playwright install chromium`. Please keep the project dependency-free, working at phone width, and free of third-party scripts: the page's Content Security Policy, written by `scripts/build.mjs`, refuses any script, request, or image host it doesn't name (see [docs/optimjack.md](docs/optimjack.md)).
 
 [Dependabot](.github/dependabot.yml) keeps the workflows' actions up to date, and CodeQL scans the code.
 
