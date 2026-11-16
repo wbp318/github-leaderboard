@@ -112,6 +112,55 @@ const CASES = [
   ["Tupelo, Brazil", null],
   ["Biloxi, Deutschland", null],
 
+  // Alabama towns without the state.
+  ["Tuscaloosa", "AL"],
+  ["Muscle Shoals", "AL"],
+  ["Dothan", "AL"],
+  ["Opelika, USA", "AL"],
+  ["Redstone Arsenal", "AL"],
+  ["Auburn University", "AL"],
+  ["gulf shores al", "AL"],
+  // But not names shared with a town elsewhere, and a state code still wins.
+  ["Huntsville", null],
+  ["Birmingham", null],
+  ["Auburn", null],
+  ["Mobile", null],
+  ["Huntsville, TX", "TX"],
+  ["Dothan, WV", "WV"],
+
+  // Arkansas towns without the state.
+  ["Little Rock", "AR"],
+  ["Bentonville", "AR"],
+  ["Pine Bluff", "AR"],
+  ["Paragould", "AR"],
+  ["Hot Springs Village", "AR"],
+  ["Mississippi County, Arkansas", "AR"],
+  // But not names shared with a town elsewhere, and a state code still wins.
+  ["Fayetteville", null],
+  ["Springdale", null],
+  ["Fort Smith", null],
+  ["Texarkana", null],
+  ["Conway", null],
+  ["Fayetteville, NC", "NC"],
+  ["Texarkana, TX", "TX"],
+  ["Little Rock, Brazil", null],
+
+  // Tennessee towns without the state.
+  ["Chattanooga", "TN"],
+  ["Kingsport", "TN"],
+  ["Mt. Juliet", "TN"],
+  ["Gatlinburg", "TN"],
+  ["Vanderbilt University", "TN"],
+  ["Oak Ridge National Laboratory", "TN"],
+  // But not names shared with a town elsewhere, and a state code still wins.
+  ["Nashville", null],
+  ["Memphis", null],
+  ["Knoxville", null],
+  ["Murfreesboro", null],
+  ["Fort Campbell", null],
+  ["Chattanooga, OK", "OK"],
+  ["Kingsport, Deutschland", null],
+
   // Brazil: Mato Grosso do Sul (MS), Santa Catarina (SC), Alagoas (AL).
   ["Campo Grande, MS", null],
   ["Campo Grande MS", null],

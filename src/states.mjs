@@ -14,7 +14,7 @@
 //   3. Otherwise the state named last: "Kansas City, Missouri" is Missouri, and
 //      "Washington Heights, New York" is New York. Rivers named after states are dropped first.
 //   4. Otherwise a place name that means nowhere else, for the states with county lists
-//      (src/counties.mjs): "New Orleans" is Louisiana and "Hattiesburg" Mississippi.
+//      (src/counties.mjs): "New Orleans" is Louisiana, "Hattiesburg" Mississippi, and "Chattanooga" Tennessee.
 //
 // test/states.test.mjs holds the cases; scripts/audit.mjs lists what each rule placed.
 import { COUNTY_STATES, onlyTownsRe } from "./counties.mjs";

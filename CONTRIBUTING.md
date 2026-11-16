@@ -21,7 +21,7 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 | [src/states.mjs](src/states.mjs) | Reads a free-text profile location and decides which state it names, if any. The rules most likely to need you. |
 | [src/counties.mjs](src/counties.mjs) | The states with county lists, and which county a location names. |
 | [src/counties/la.mjs](src/counties/la.mjs) | Louisiana's 64 parishes and the towns and universities in each. |
-| [src/counties/ms.mjs](src/counties/ms.mjs) | Mississippi's 82 counties and the towns and universities in each. |
+| [src/counties/ms.mjs](src/counties/ms.mjs), [al.mjs](src/counties/al.mjs), [ar.mjs](src/counties/ar.mjs), [tn.mjs](src/counties/tn.mjs) | Mississippi's, Alabama's, Arkansas's, and Tennessee's counties, and the towns and universities in each. |
 | [src/opt-out.txt](src/opt-out.txt) | People who asked to be left off. |
 | [src/exclude.mjs](src/exclude.mjs) | Who is left off: bot and test accounts, and the opt-out list. |
 | [scripts/collect.mjs](scripts/collect.mjs) | Gathers people and their contributions from GitHub's API into `data/`. |
@@ -43,13 +43,13 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 
 ### Add your state's counties
 
-Louisiana and Mississippi go down to the county. To add another state:
+Louisiana, Mississippi, Alabama, Arkansas, and Tennessee go down to the county. To add another state:
 
 1. Copy [src/counties/ms.mjs](src/counties/ms.mjs) to `src/counties/` with your state's code, such as `al.mjs`, and fill it in: the code, what the state calls its counties, every county, the towns, cities, and universities in each (a city in two counties goes in its principal one), and `ONLY`, the few names that mean your state and nowhere else. Leave a name out of `ONLY` if any other town, in the US or abroad, shares it.
 2. Add it to `STATES` in [src/counties.mjs](src/counties.mjs): one line. The placement rules, the collector, the build, and the page take it from there: a tornado and a table of its counties, leaderboards for each, and county ranks in Find yourself.
 3. Add locations and their counties to [test/counties.test.mjs](test/counties.test.mjs), and towns from `ONLY` to [test/states.test.mjs](test/states.test.mjs), then run `npm test`.
 4. Everyone active in a state with counties is looked up every day, up to 500. Count your state's active people and check the [budget](docs/data.md#who-is-looked-up) first.
-5. Name your state where README.md and the top of web/template.html list Louisiana and Mississippi.
+5. Name your state where README.md and the top of web/template.html list the states with counties.
 
 ## Someone is in the wrong place
 
