@@ -129,7 +129,6 @@ select, input[type="search"] {
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
 .findme label { font-weight: 700; color: var(--gold); }
 .findme input { min-width: 200px; flex: 0 1 260px; }
-.findme .go { background: var(--gold); color: var(--on-gold); border-color: var(--gold); font-weight: 600; }
 .findme .go:hover { background: var(--gold-hover); }
 #findmsg { flex-basis: 100%; margin: 0; color: var(--muted); font-size: 13px; }
 #findmsg:empty { display: none; }
@@ -192,6 +191,23 @@ td.spark span { display: inline-block; min-width: 3.4em; font-variant-numeric: t
 .chart .hair { stroke: var(--muted); stroke-width: 1; }
 .chart text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .card p.readout { color: var(--ink); }
+/* Share your ranks: a card to post and a badge for a profile README. */
+#share { box-sizing: border-box; width: min(760px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 16px 18px 14px;
+  color: var(--ink); background: var(--panel); border: 1px solid var(--gold); border-radius: 12px; }
+#share::backdrop { background: rgba(5, 8, 18, 0.72); }
+#share h2 { margin: 0 40px 12px 0; font-size: 18px; color: var(--gold); }
+#share h3 { margin: 18px 0 2px; font-size: 14px; }
+#share p { margin: 4px 0; }
+#share .x { position: absolute; top: 10px; right: 10px; margin: 0; }
+#share .x button { width: 32px; height: 32px; padding: 0; font-size: 16px; line-height: 1; }
+#shareCard { display: block; width: 100%; height: auto; aspect-ratio: 1200 / 630; border-radius: 8px; border: 1px solid var(--line); background: var(--sky); }
+#share .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+#share .gold, .findme .go { background: var(--gold); color: var(--on-gold); border-color: var(--gold); font-weight: 600; }
+#share .gold:hover { background: var(--gold-hover); }
+#shareBadge { display: block; max-width: 100%; height: auto; margin: 10px 0 8px; }
+#shareMd { box-sizing: border-box; display: block; width: 100%; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--ink); background: var(--sky); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; resize: none; }
+#shareSaid:empty { display: none; }
 footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 980px; }
 /* Storm Cellar, the game at the top: 320×200 pixels, scaled up with no smoothing. */
 #cellar { margin-top: 18px; }
@@ -251,9 +267,27 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
   <input type="search" id="me" name="me" placeholder="your GitHub login" spellcheck="false" autocapitalize="none" aria-describedby="findmsg">
   <button class="btn go" type="submit">Show my ranks</button>
   <button class="btn" type="button" id="forget" hidden>Forget me</button>
+  <button class="btn" type="button" id="shareOpen" aria-haspopup="dialog" hidden>Share my ranks</button>
   <p id="findmsg" role="status" aria-live="polite"></p>
 </form>
 <div class="tiles" id="you"></div>
+<dialog id="share" aria-labelledby="shareTitle">
+  <form method="dialog" class="x"><button class="btn" aria-label="Close">✕</button></form>
+  <h2 id="shareTitle">Share your ranks</h2>
+  <img id="shareCard" width="1200" height="630" alt="">
+  <div class="row">
+    <button type="button" class="btn gold" id="shareSave">Download the picture</button>
+    <button type="button" class="btn" id="shareCopy" hidden>Copy the picture</button>
+    <button type="button" class="btn" id="shareSend" hidden>Share…</button>
+    <button type="button" class="btn" id="shareLink">Copy a link to your ranks</button>
+  </div>
+  <h3>A badge for your GitHub profile</h3>
+  <p class="note" id="shareHow"></p>
+  <img id="shareBadge" alt="">
+  <textarea id="shareMd" readonly rows="3" aria-label="The badge, in Markdown" spellcheck="false"></textarea>
+  <div class="row"><button type="button" class="btn" id="shareMdCopy">Copy the Markdown</button></div>
+  <p class="note" id="shareSaid" role="status" aria-live="polite"></p>
+</dialog>
 
 <section id="tornado">
   <h2>The tornado</h2>
@@ -398,6 +432,7 @@ function readTheme() {
   Object.assign(THEME, {
     name: document.documentElement.dataset.theme,
     sky: v("sky"), ink: v("ink"), muted: v("muted"), faint: v("faint"), where: v("where"), gold,
+    stormTop: v("storm-top"), panel: v("panel"),
     left, right, leftMe: v("left-me"), rightMe: v("right-me"), leftBack: fade(left, 0.28), rightBack: fade(right, 0.28),
     dustLeft: fade(dustL, 0.24), dustRight: fade(dustR, 0.24), dustBackLeft: fade(dustL, 0.09), dustBackRight: fade(dustR, 0.09),
     glow: fade(glow, 0.1), glowEnd: fade(glow, 0), beamTop: fade(glow, 0.08), beamBottom: fade(glow, 0.24),
@@ -532,22 +567,27 @@ setInterval(checkForUpdate, 10 * 60000);
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) checkForUpdate();
 });
+// Your ranks, from your county (where the state lists them) out to the country: { place, scope, rank, of }.
+function myRanks() {
+  if (!ME) return [];
+  const st = STATE[ME[F.state]];
+  const c = COUNTIES[ME[F.state]];
+  const places = [[st.name, `state:${st.ab}`], [st.division, `division:${st.division}`], [`The ${st.region}`, `region:${st.region}`], [SCOPE, "us"]];
+  if (c && ME[F.parish]) places.unshift([`${ME[F.parish]} ${cap(c.kind)}`, `${c.kind}:${ME[F.state]}:${ME[F.parish]}`]);
+  return places.map(([place, scope]) => ({ place, scope, ...rankOf(scope) })).filter((r) => r.rank);
+}
+const topPct = (r) => Math.max(1, Math.ceil((r.rank / r.of) * 100));
 function renderYou() {
   const box = $("#you");
   box.textContent = "";
+  $("#shareOpen").hidden = !ME;
   if (!ME) return;
-  const st = STATE[ME[F.state]];
   const tiles = [
     [`${ME[F.login]}: contributions`, fmt(ME[F.total]), `${fmt(ME[F.commits])} public commits · ${fmt(ME[F.private])} private`],
   ];
-  const c = COUNTIES[ME[F.state]];
-  if (c && ME[F.parish]) {
-    const r = rankOf(`${c.kind}:${ME[F.state]}:${ME[F.parish]}`);
-    if (r) tiles.push([`${ME[F.parish]} ${cap(c.kind)}`, `#${r.rank}`, `of ${fmt(r.of)} counted`]);
-  }
-  for (const [label, scope] of [[st.name, `state:${st.ab}`], [st.division, `division:${st.division}`], [`The ${st.region}`, `region:${st.region}`], [SCOPE, "us"]]) {
-    const r = rankOf(scope);
-    if (r) tiles.push([label, `#${fmt(r.rank)}`, `of ${fmt(r.of)} · top ${Math.max(1, Math.ceil((r.rank / r.of) * 100))}%`]);
+  for (const r of myRanks()) {
+    const county = r.scope.split(":").length === 3;
+    tiles.push([r.place, county ? `#${r.rank}` : `#${fmt(r.rank)}`, county ? `of ${fmt(r.of)} counted` : `of ${fmt(r.of)} · top ${topPct(r)}%`]);
   }
   tiles.forEach(([k, v, n], i) => box.appendChild(h("div", { class: i === 0 ? "tile me" : "tile" }, [h("div", { class: "k", text: k }), h("div", { class: "v", text: v }), h("div", { class: "n", text: n })])));
 }
@@ -1736,6 +1776,327 @@ $("#forget").addEventListener("click", () => setMe(""));
   }
   $("#forget").hidden = !ME;
 }
+
+// ---------------------------------------------------------------- share your ranks
+// A picture to post (1200×630, the size link previews use): your ranks, and your state's tornado
+// with you in gold. And a badge for your profile README, which the build writes for everyone
+// placed and updates every day (src/badge.mjs); the page only shows it and hands out the Markdown.
+const CARD = { W: 1200, H: 630 };
+const BADGE_ALT = "My rank on the GitHub Contribution Tornado";
+const shareBox = $("#share");
+const said = (text) => ($("#shareSaid").textContent = text);
+// What your badge says, worded as src/badge.mjs words it; the e2e test holds the two together.
+function badgeText() {
+  const ranks = myRanks();
+  const home = ranks.find((r) => r.scope === `state:${ME[F.state]}`);
+  const county = ranks.find((r) => r.scope.split(":").length === 3);
+  return county ? `#${county.rank} in ${county.place} · #${home.rank} in ${home.place}` : `#${home.rank} of ${home.of} in ${home.place}`;
+}
+const ranksUrl = (login) => {
+  const u = new URL("leaderboard.html", D.home);
+  u.searchParams.set("me", login);
+  return u.href;
+};
+// Your GitHub picture, if it arrives in time (GitHub lets other sites' canvases use it); the card
+// is drawn without it otherwise.
+function avatarOf(login) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    const done = (ok) => {
+      clearTimeout(wait);
+      resolve(ok ? img : null);
+    };
+    const wait = setTimeout(() => done(false), 4000);
+    img.onload = () => done(true);
+    img.onerror = () => done(false);
+    img.src = `https://avatars.githubusercontent.com/${encodeURIComponent(login)}?s=240`;
+  });
+}
+// Text cut to fit a width, with an ellipsis.
+function fit(c, text, room) {
+  if (c.measureText(text).width <= room) return text;
+  let t = text;
+  while (t.length > 1 && c.measureText(`${t}…`).width > room) t = t.slice(0, -1);
+  return `${t}…`;
+}
+function drawCard(c, avatar) {
+  const { W, H } = CARD;
+  const font = (w, px) => `${w} ${px}px system-ui, -apple-system, 'Segoe UI', sans-serif`;
+  const st = STATE[ME[F.state]];
+  // The sky: the page's storm, lightest over the tornado.
+  c.fillStyle = THEME.sky;
+  c.fillRect(0, 0, W, H);
+  const sky = c.createRadialGradient(W * 0.8, -80, 40, W * 0.8, -80, 780);
+  sky.addColorStop(0, THEME.stormTop);
+  sky.addColorStop(1, THEME.sky);
+  c.fillStyle = sky;
+  c.fillRect(0, 0, W, H);
+  c.textBaseline = "alphabetic";
+
+  // The tornado: your state's ten busiest, the widest on top, and you in gold.
+  const list = ranked(`state:${st.ab}`, "total");
+  const rank = list.indexOf(ME) + 1;
+  const rows = list.slice(0, 10);
+  if (!rows.includes(ME)) rows.push(ME);
+  const cx = 958;
+  const top = 136;
+  const bot = 500;
+  const step = (bot - top) / Math.max(1, rows.length - 1);
+  // Widths go by the square root, so a state's few giants leave room to see everyone else's ring.
+  const maxHalf = Math.max(1, ...rows.flatMap((p) => [p[F.commits], p[F.total] - p[F.commits]]));
+  const half = (v) => 14 + 154 * Math.sqrt(Math.max(0, v) / maxHalf);
+  const rings = rows.map((p, i) => {
+    const rL = half(p[F.commits]);
+    const rR = half(p[F.total] - p[F.commits]);
+    return { p, y: top + step * i, rL, rR, ry: ((rL + rR) / 2) * 0.2 };
+  });
+  const glow = c.createRadialGradient(cx, bot + 70, 0, cx, bot + 70, 250);
+  glow.addColorStop(0, THEME.glow);
+  glow.addColorStop(1, THEME.glowEnd);
+  c.fillStyle = glow;
+  c.fillRect(cx - 250, bot - 180, 500, H - bot + 180);
+  c.textAlign = "center";
+  c.fillStyle = THEME.gold;
+  c.font = font(700, 17);
+  c.fillText(`${st.name.toUpperCase()}: ITS BUSIEST`, cx, 78);
+  c.fillStyle = THEME.muted;
+  c.font = font(400, 15);
+  c.fillText("public commits  ·  everything else", cx, 100);
+  // Dust round the funnel, behind and in front, the same for the same login.
+  let seed = [...ME[F.login]].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7);
+  const rand = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32;
+  const dust = (front) => {
+    for (let i = 0; i < 160; i++) {
+      const y = top - 30 + (bot - top + 70) * rand();
+      const a = rand() * Math.PI * 2;
+      const j = 0.75 + rand() * 0.5;
+      const z = Math.sin(a);
+      if (front !== z >= 0) continue;
+      const near = rings.reduce((b, g) => (Math.abs(g.y - y) < Math.abs(b.y - y) ? g : b), rings[0]);
+      const left = Math.cos(a) < 0;
+      const r = (left ? near.rL : near.rR) * j + 6;
+      c.strokeStyle = z < 0 ? (left ? THEME.dustBackLeft : THEME.dustBackRight) : left ? THEME.dustLeft : THEME.dustRight;
+      c.lineWidth = z < 0 ? 1 : 1.5;
+      c.beginPath();
+      c.ellipse(cx, y, r, r * 0.2, 0, a - 0.25, a);
+      c.stroke();
+    }
+  };
+  const ring = (g, front) => {
+    const me = g.p === ME;
+    const parts = front
+      ? [[0, Math.PI / 2, g.rR, me ? THEME.rightMe : THEME.right], [Math.PI / 2, Math.PI, g.rL, me ? THEME.leftMe : THEME.left]]
+      : [[Math.PI, Math.PI * 1.5, g.rL, THEME.leftBack], [Math.PI * 1.5, Math.PI * 2, g.rR, THEME.rightBack]];
+    for (const [a0, a1, rx, color] of parts) {
+      c.strokeStyle = color;
+      c.lineWidth = front ? (me ? 4 : 2.5) : 1.2;
+      c.beginPath();
+      c.ellipse(cx, g.y, rx, g.ry, 0, a0, a1);
+      c.stroke();
+    }
+  };
+  dust(false);
+  for (const g of rings) ring(g, false);
+  const beam = c.createLinearGradient(0, top - 40, 0, bot + 30);
+  beam.addColorStop(0, THEME.beamTop);
+  beam.addColorStop(1, THEME.beamBottom);
+  c.fillStyle = beam;
+  c.beginPath();
+  c.moveTo(cx - 9, top - 40);
+  c.lineTo(cx + 9, top - 40);
+  c.lineTo(cx + 4, bot + 30);
+  c.lineTo(cx - 4, bot + 30);
+  c.fill();
+  for (const g of rings) ring(g, true);
+  dust(true);
+  // You: a gold halo round your ring, a gold dot on its front, and your rank beside it.
+  const mine = rings.find((g) => g.p === ME);
+  c.strokeStyle = THEME.guideMe;
+  c.lineWidth = 2;
+  c.beginPath();
+  c.ellipse(cx, mine.y, (mine.rL + mine.rR) / 2 + 9, mine.ry + 7, 0, 0, Math.PI * 2);
+  c.stroke();
+  c.fillStyle = THEME.gold;
+  c.strokeStyle = THEME.sky;
+  c.lineWidth = 3;
+  c.beginPath();
+  c.arc(cx + mine.rR * Math.cos(1.1), mine.y + mine.ry * Math.sin(1.1), 9, 0, Math.PI * 2);
+  c.fill();
+  c.stroke();
+  c.textAlign = "left";
+  c.font = font(800, 20);
+  const tag = `#${fmt(rank)} YOU`;
+  c.fillText(tag, Math.min(cx + (mine.rL + mine.rR) / 2 + 22, W - 24 - c.measureText(tag).width), mine.y + 7);
+
+  // You: your picture, your login, and your year.
+  const x0 = 64;
+  c.textAlign = "left";
+  c.fillStyle = THEME.gold;
+  c.font = font(800, 20);
+  c.fillText("GITHUB CONTRIBUTION TORNADO", x0, 74);
+  const ax = x0 + 56;
+  const ay = 162;
+  c.save();
+  c.beginPath();
+  c.arc(ax, ay, 56, 0, Math.PI * 2);
+  c.fillStyle = THEME.panel;
+  c.fill();
+  if (avatar) {
+    c.clip();
+    c.drawImage(avatar, ax - 56, ay - 56, 112, 112);
+  } else {
+    c.fillStyle = THEME.gold;
+    c.font = font(800, 54);
+    c.textAlign = "center";
+    c.fillText(ME[F.login][0].toUpperCase(), ax, ay + 19);
+  }
+  c.restore();
+  c.strokeStyle = THEME.gold;
+  c.lineWidth = 4;
+  c.beginPath();
+  c.arc(ax, ay, 58, 0, Math.PI * 2);
+  c.stroke();
+  c.textAlign = "left";
+  const tx0 = ax + 80;
+  c.fillStyle = THEME.ink;
+  c.font = font(800, 50);
+  c.fillText(fit(c, ME[F.login], 700 - tx0), tx0, 164);
+  const about = [ME[F.name], ME[F.location]].filter(Boolean).join(" · ");
+  if (about) {
+    c.fillStyle = THEME.muted;
+    c.font = font(400, 21);
+    c.fillText(fit(c, about, 700 - tx0), tx0, 198);
+  }
+  c.fillStyle = THEME.gold;
+  c.font = font(800, 72);
+  const total = fmt(ME[F.total]);
+  c.fillText(total, x0, 308);
+  const tw = c.measureText(total).width;
+  c.fillStyle = THEME.ink;
+  c.font = font(600, 26);
+  c.fillText("contributions", x0 + tw + 14, 286);
+  c.fillStyle = THEME.muted;
+  c.font = font(400, 19);
+  c.fillText("in the last 12 months", x0 + tw + 14, 308);
+
+  // Your ranks, county to country, the places lined up after the widest rank.
+  const ranks = myRanks();
+  c.font = font(800, 32);
+  const nx = x0 + 16 + Math.max(76, ...ranks.map((r) => c.measureText(`#${fmt(r.rank)}`).width));
+  ranks.forEach((r, i) => {
+    const y = 380 + i * 44;
+    c.fillStyle = THEME.gold;
+    c.font = font(800, 32);
+    c.fillText(`#${fmt(r.rank)}`, x0, y);
+    c.fillStyle = THEME.ink;
+    c.font = font(600, 22);
+    const place = fit(c, `in ${r.place.replace(/^The /, "the ")}`, 700 - nx - 160);
+    c.fillText(place, nx, y - 3);
+    const pw = c.measureText(place).width;
+    c.fillStyle = THEME.muted;
+    c.font = font(400, 17);
+    c.fillText(r.scope.split(":").length === 3 ? `of ${fmt(r.of)} counted` : `of ${fmt(r.of)} · top ${topPct(r)}%`, nx + pw + 12, y - 3);
+  });
+
+  const home = new URL(D.home);
+  const day = new Date(D.refreshed).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  c.fillStyle = THEME.muted;
+  c.font = font(400, 17);
+  c.fillText(`${home.host}${home.pathname.replace(/\/$/, "")}  ·  data from GitHub, ${day}`, x0, H - 30);
+}
+// The card for whoever is "you", drawn once per person and theme.
+let card = null;
+async function makeCard() {
+  const key = `${ME[F.login]}|${THEME.name}`;
+  if (card?.key === key) return card;
+  const cv = document.createElement("canvas");
+  cv.width = CARD.W;
+  cv.height = CARD.H;
+  const c = cv.getContext("2d");
+  const avatar = await avatarOf(ME[F.login]);
+  let blob = null;
+  for (const pic of avatar ? [avatar, null] : [null]) {
+    drawCard(c, pic);
+    try {
+      blob = await new Promise((resolve) => cv.toBlob(resolve, "image/png"));
+      break;
+    } catch {
+      // A picture the canvas may not read back: draw the card again without it.
+    }
+  }
+  if (card) URL.revokeObjectURL(card.url);
+  card = { key, blob, url: URL.createObjectURL(blob), file: `tornado-${ME[F.login]}.png` };
+  return card;
+}
+async function copyText(text, what) {
+  try {
+    await navigator.clipboard.writeText(text);
+    said(`${what} copied.`);
+  } catch {
+    said(`Copy this: ${text}`);
+  }
+}
+async function openShare() {
+  if (!ME) return;
+  const login = ME[F.login];
+  const file = login.toLowerCase();
+  said("");
+  const img = $("#shareCard");
+  img.removeAttribute("src");
+  img.alt = "Drawing your picture…";
+  $("#shareMd").value = `[![${BADGE_ALT}](${new URL(`badge/${file}.svg`, D.home).href})](${ranksUrl(login)})`;
+  $("#shareBadge").src = `badge/${file}.svg`;
+  $("#shareBadge").alt = `Your badge: ${badgeText()}`;
+  $("#shareHow").textContent = "";
+  $("#shareHow").append(
+    "Paste this into the README of your profile repository, ",
+    h("a", { href: `https://github.com/${login}/${login}`, target: "_blank", rel: "noopener", text: `${login}/${login}` }),
+    ". It updates itself every day and links back to your ranks.",
+  );
+  if (!shareBox.open) shareBox.showModal();
+  const made = await makeCard();
+  if (!ME || ME[F.login] !== login) return;
+  img.src = made.url;
+  img.alt = `A picture of your ranks: ${login}, ${fmt(ME[F.total])} contributions; ${myRanks().map((r) => `#${fmt(r.rank)} in ${r.place}`).join(", ")}; and ${STATE[ME[F.state]].name}'s tornado with you in gold.`;
+  const png = new File([made.blob], made.file, { type: "image/png" });
+  $("#shareCopy").hidden = !(window.ClipboardItem && navigator.clipboard?.write);
+  $("#shareSend").hidden = !navigator.canShare?.({ files: [png] });
+}
+$("#shareOpen").addEventListener("click", openShare);
+// A click on the dark backdrop, outside the box, closes it too.
+shareBox.addEventListener("click", (e) => {
+  const r = shareBox.getBoundingClientRect();
+  if (e.target === shareBox && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)) shareBox.close();
+});
+$("#shareSave").addEventListener("click", async () => {
+  const made = await makeCard();
+  const a = h("a", { href: made.url, download: made.file });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  said(`Saved as ${made.file}.`);
+});
+$("#shareCopy").addEventListener("click", async () => {
+  try {
+    const made = await makeCard();
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": made.blob })]);
+    said("Picture copied: paste it into a post or a message.");
+  } catch {
+    said("This browser would not copy the picture; download it instead.");
+  }
+});
+$("#shareSend").addEventListener("click", async () => {
+  const made = await makeCard();
+  try {
+    await navigator.share({ files: [new File([made.blob], made.file, { type: "image/png" })], title: "My GitHub Contribution Tornado ranks", url: ranksUrl(ME[F.login]) });
+  } catch {}
+});
+$("#shareLink").addEventListener("click", () => copyText(ranksUrl(ME[F.login]), "Link"));
+$("#shareMdCopy").addEventListener("click", () => {
+  $("#shareMd").select();
+  copyText($("#shareMd").value, "Markdown");
+});
 
 // ---------------------------------------------------------------- start
 buildViewSelect();

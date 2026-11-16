@@ -28,6 +28,7 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 | [scripts/audit.mjs](scripts/audit.mjs) | Writes `data/audit.md`: what each rule placed and what it turned away. |
 | [scripts/build.mjs](scripts/build.mjs) | Places everyone, adds it all up, and writes the page. |
 | [src/sample.mjs](src/sample.mjs) | Who each state is compared on: the 80 likeliest to be busiest. Shared by the build and the history. |
+| [src/badge.mjs](src/badge.mjs) | The README badge: everyone's state and county rank, drawn as an SVG the build writes to `site/badge/<login>.svg` every day. |
 | [scripts/history.mjs](scripts/history.mjs) | Adds the day to `data/history.json` ([src/history.mjs](src/history.mjs) describes it), the daily record behind the page's sparklines and chart. |
 | [scripts/fetch-data.mjs](scripts/fetch-data.mjs) | Downloads the latest data from the `data` branch. |
 | [scripts/add-me.mjs](scripts/add-me.mjs) | Checks an "Add me" request and writes the bot's reply. |
@@ -93,7 +94,7 @@ CI ([refresh.yml](.github/workflows/refresh.yml)) checks every pull request:
 | Every script parses, and no doc links to a missing file | `npm run check:links` |
 | The workflows ([actionlint](https://github.com/rhysd/actionlint)) | `docker run --rm -v "$PWD:/repo" --workdir /repo rhysd/actionlint:1.7.12` |
 | The data looks whole | `npm run check:data` |
-| A full build, then the page in a real browser: it loads, the tornado draws, Find yourself and "where you'd rank" work, the game plays from the keyboard and on a touch phone, nothing scrolls sideways on a phone, no script errors | `npm run build && npm run e2e` |
+| A full build, then the page in a real browser: it loads, the tornado draws, Find yourself and "where you'd rank" work, Share my ranks draws a picture and its badge matches the page, the game plays from the keyboard and on a touch phone, nothing scrolls sideways on a phone, no script errors | `npm run build && npm run e2e` |
 
 The browser test needs Playwright, which is deliberately not a dependency: install it once with `npm i --no-save --no-package-lock playwright && npx playwright install chromium`. Please keep the project dependency-free and working at phone width.
 
