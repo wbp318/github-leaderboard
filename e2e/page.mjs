@@ -30,6 +30,9 @@ const lit = (page) =>
     for (let i = 3; i < d.length; i += 16) if (d[i] > 0) n++;
     return n;
   });
+// Storm Cellar's picture, read from its canvas. A screenshot of the element waits for it to stand
+// still, and while the game plays it sometimes never does, which timed the test out in CI.
+const gameFrame = async (page) => Buffer.from(await page.evaluate(() => document.querySelector("#game").toDataURL()));
 const viewName = (page) => page.locator("#view").evaluate((s) => s.options[s.selectedIndex]?.text ?? "");
 
 const page = await browser.newPage({ viewport: { width: 1340, height: 900 } });
@@ -756,7 +759,7 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   watch(mk, "game keys");
   await mk.goto(url);
   await mk.waitForFunction(() => document.querySelector("#game").dataset.ready === "1" && document.querySelector("#game").dataset.state === "title", null, { timeout: 8000 });
-  const frame = () => mk.locator("#game").screenshot();
+  const frame = () => gameFrame(mk);
   await mk.click("#game");
   await mk.waitForTimeout(250);
   const box = await mk.locator("#game").boundingBox();
@@ -925,11 +928,11 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   check((await gpPage.locator("#padStatus").textContent()).startsWith("Connected: Xbox Wireless Controller.") && (await gpPage.locator("#padWizard").isEnabled()), "a controller is seen, and its wizard is offered");
   await hold(0);
   check((await state()) === "playing", "A starts the game");
-  const still = await gpPage.locator("#game").screenshot();
+  const still = await gameFrame(gpPage);
   await gpPage.evaluate(() => (window.__pad.axes[1] = -1));
   await gpPage.waitForTimeout(450);
   await gpPage.evaluate(() => (window.__pad.axes[1] = 0));
-  check(Buffer.compare(still, await gpPage.locator("#game").screenshot()) !== 0, "the left stick walks");
+  check(Buffer.compare(still, await gameFrame(gpPage)) !== 0, "the left stick walks");
   await hold(9);
   check((await state()) === "paused", "Menu pauses");
   await hold(2);
@@ -962,14 +965,14 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   await km.keyboard.press("Enter");
   await km.waitForTimeout(250);
   check((await km.evaluate(() => document.pointerLockElement?.id)) === "game", "starting with Enter hands the mouse to the game too");
-  const before = await km.locator("#game").screenshot();
+  const before = await gameFrame(km);
   await km.keyboard.down("KeyW");
   for (let i = 1; i <= 6; i++) {
     await km.mouse.move(box.x + box.width / 2 + i * 30, box.y + box.height / 2);
     await km.waitForTimeout(50);
   }
   await km.keyboard.up("KeyW");
-  check(Buffer.compare(before, await km.locator("#game").screenshot()) !== 0 && (await km.getAttribute("#game", "data-state")) === "playing", "and W and the mouse work together");
+  check(Buffer.compare(before, await gameFrame(km)) !== 0 && (await km.getAttribute("#game", "data-state")) === "playing", "and W and the mouse work together");
   await km.keyboard.press("Escape");
   await km.waitForTimeout(200);
   check((await km.evaluate(() => document.pointerLockElement)) === null && (await km.getAttribute("#game", "data-state")) === "paused", "Escape gives the mouse back and pauses");
