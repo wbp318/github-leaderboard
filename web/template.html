@@ -770,7 +770,12 @@ function myRanks() {
   if (c && ME[F.parish]) places.unshift([countyLabel(ME[F.parish]), `${c.kind}:${ME[F.state]}:${ME[F.parish]}`]);
   return places.map(([place, scope]) => ({ place, scope, ...rankOf(scope) })).filter((r) => r.rank);
 }
+// Where a rank stands: "top 13% · 87th percentile". Top is the share ranked at or above you, rounded
+// up; the percentile is the share you rank above, rounded down, so the two always add up to 100.
+// Neither means anything when you're the only one counted, so that says neither.
 const topPct = (r) => Math.max(1, Math.ceil((r.rank / r.of) * 100));
+const ordinal = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`;
+const standing = (r) => (r.of > 1 ? ` · top ${topPct(r)}% · ${ordinal(100 - topPct(r))} percentile` : "");
 function renderYou() {
   const box = $("#you");
   box.textContent = "";
@@ -781,7 +786,7 @@ function renderYou() {
   ];
   for (const r of myRanks()) {
     const county = r.scope.split(":").length === 3;
-    tiles.push([r.place, `#${fmt(r.rank)}`, `of ${fmt(r.of)}${county ? " counted" : ""} · top ${topPct(r)}%`]);
+    tiles.push([r.place, `#${fmt(r.rank)}`, `of ${fmt(r.of)}${county ? " counted" : ""}${standing(r)}`]);
   }
   tiles.forEach(([k, v, n], i) => box.appendChild(h("div", { class: i === 0 ? "tile me" : "tile" }, [h("div", { class: "k", text: k }), h("div", { class: "v", text: v }), h("div", { class: "n", text: n })])));
 }
@@ -2893,12 +2898,17 @@ function drawCard(c, avatar) {
     c.fillText(`#${fmt(r.rank)}`, x0, y);
     c.fillStyle = THEME.ink;
     c.font = font(600, 22);
-    const place = fit(c, `in ${r.place.replace(/^The /, "the ")}`, 700 - nx - 160);
+    // The place gets the room the detail after it leaves, short of the tornado.
+    const detail = r.scope.split(":").length === 3 ? `of ${fmt(r.of)} counted` : `of ${fmt(r.of)}${standing(r)}`;
+    c.font = font(400, 17);
+    const dw = c.measureText(detail).width;
+    c.font = font(600, 22);
+    const place = fit(c, `in ${r.place.replace(/^The /, "the ")}`, Math.max(120, 740 - nx - 12 - dw));
     c.fillText(place, nx, y - 3);
     const pw = c.measureText(place).width;
     c.fillStyle = THEME.muted;
     c.font = font(400, 17);
-    c.fillText(r.scope.split(":").length === 3 ? `of ${fmt(r.of)} counted` : `of ${fmt(r.of)} · top ${topPct(r)}%`, nx + pw + 12, y - 3);
+    c.fillText(detail, nx + pw + 12, y - 3);
   });
 
   const home = new URL(D.home);
