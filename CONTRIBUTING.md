@@ -34,7 +34,7 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 | [scripts/history.mjs](scripts/history.mjs) | Adds the day to `data/history.json` ([src/history.mjs](src/history.mjs) describes it), the daily record behind the page's sparklines and chart. |
 | [scripts/fetch-data.mjs](scripts/fetch-data.mjs) | Downloads the latest data from the `data` branch. |
 | [scripts/add-me.mjs](scripts/add-me.mjs) | Checks an "Add me" request and writes the bot's reply. |
-| [web/template.html](web/template.html) | The page: the canvas tornado, the map, the tables, and the Storm Cellar game at the top, all in one file. The game is the last script, in a block of its own, with each level a map drawn in text (`LEVELS`). |
+| [web/template.html](web/template.html) | The page: the canvas tornado, the map, the tables, and the Storm Cellar game near the top (under the county map), all in one file. The game is the last script, in a block of its own, with each level a map drawn in text (`LEVELS`). |
 | [test/states.test.mjs](test/states.test.mjs) | Locations and where they belong. |
 | [test/counties.test.mjs](test/counties.test.mjs) | Locations and the county or parish they name. |
 | [test/refresh.test.mjs](test/refresh.test.mjs) | When the daily refresh is due. |

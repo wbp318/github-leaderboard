@@ -220,7 +220,7 @@ td.loc { color: var(--muted); max-width: 240px; overflow: hidden; text-overflow:
 .stip .loc { color: var(--muted); font-size: 12px; margin: -2px 0 6px; }
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 14px; }
 #map svg { display: block; width: 100%; height: auto; }
-/* Every county: an SVG map whose shapes load when it comes near. The box holds its size until then. */
+/* Every county: an SVG map, first under the header. Its shapes load with the page; the box holds its size until then. */
 .cm-box { position: relative; aspect-ratio: 975 / 610; border-radius: 8px; overflow: hidden; }
 .cm-box:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 #cmSvg { display: block; width: 100%; height: 100%; touch-action: pan-y; }
@@ -244,6 +244,9 @@ td.loc { color: var(--muted); max-width: 240px; overflow: hidden; text-overflow:
 .cm-zoom button:disabled { opacity: 0.4; cursor: default; }
 .cm-hint { position: absolute; left: 50%; bottom: 10px; z-index: 2; transform: translateX(-50%); max-width: calc(100% - 24px); margin: 0; padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--tip); color: var(--ink); font-size: 12px; text-align: center; pointer-events: none; opacity: 0; transition: opacity 0.2s; }
 .cm-hint.on { opacity: 1; }
+/* While the keyboard has the map, a note says what its gold outline is. */
+.cm-note { position: absolute; left: 8px; top: 8px; z-index: 2; max-width: min(420px, calc(100% - 70px)); margin: 0; padding: 5px 10px; border: 1px solid var(--gold); border-radius: 6px; background: var(--tip); color: var(--ink); font-size: 12px; pointer-events: none; opacity: 0; transition: opacity 0.2s; }
+.cm-box:focus-visible .cm-note { opacity: 1; }
 .cm-box .wait { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--muted); font-size: 13px; }
 .cm-box.ready .wait { display: none; }
 #cmPick { margin: 6px 2px 0; }
@@ -283,7 +286,7 @@ td.spark span { display: inline-block; min-width: 3.4em; font-variant-numeric: t
   color: var(--ink); background: var(--sky); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; resize: none; }
 #shareSaid:empty { display: none; }
 footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 980px; }
-/* Storm Cellar, the game at the top: 320×200 pixels, scaled up with no smoothing. */
+/* Storm Cellar, the game under the county map: 320×200 pixels, scaled up with no smoothing. */
 #cellar { margin-top: 18px; }
 .arcade { max-width: 880px; background: #05070d; border: 1px solid var(--line); border-radius: 12px; padding: 8px; }
 #game { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; border-radius: 4px; background: #000; cursor: pointer;
@@ -353,6 +356,38 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
   <p id="sub"></p>
   <a class="repo" href="https://github.com/wbp318/github-leaderboard">Open source on GitHub: fix a placement, add a feature, star it ★</a>
 </header>
+<section id="counties">
+  <h2 id="cmTitle">Every county</h2>
+  <p class="lede" id="cmLede">Every county in the 50 states, coloured by the people counted there. Click a state to zoom in, then a county to see its leaderboard. To get closer, use + and − on the map, or the mouse wheel once you've clicked it (or Ctrl and the wheel, or a pinch), and drag to move around. GitHub's search finds about 800 people in each state, so this is a sample: a blank county means no one has been found there yet, not that no one codes there.</p>
+  <div class="panel">
+    <div class="bar">
+      <button type="button" class="btn" id="cmAll" hidden>← All states</button>
+      <select id="cmState" aria-label="Zoom to a state"></select>
+      <span class="lbl">Colour by</span>
+      <fieldset class="seg" id="cmBy" aria-label="County map colour">
+        <button type="button" data-k="total" aria-pressed="true">Contributions</button>
+        <button type="button" data-k="people" aria-pressed="false">People</button>
+        <button type="button" data-k="average" aria-pressed="false">Average</button>
+      </fieldset>
+    </div>
+    <div class="cm-box" id="cmBox" tabindex="0" role="application" aria-roledescription="map" aria-label="Map of every county" aria-describedby="cmKeys">
+      <svg id="cmSvg" viewBox="0 0 975 610" aria-hidden="true"></svg>
+      <div class="cm-zoom" id="cmZoomBtns" hidden>
+        <button type="button" id="cmIn" aria-label="Zoom in" title="Zoom in">+</button>
+        <button type="button" id="cmOut" aria-label="Zoom out" title="Zoom out">−</button>
+      </div>
+      <p class="cm-hint" id="cmHint" aria-hidden="true">Click the map first, or hold Ctrl, to zoom with the wheel. Or use + and −.</p>
+      <p class="cm-note" id="cmNote" aria-hidden="true">Gold outline: where the keyboard is. Arrow keys move it, Enter zooms in or opens a county, + and − zoom, Escape zooms out.</p>
+      <p class="wait" id="cmWait">Drawing every county…</p>
+      <div class="stip" id="cmTip"></div>
+    </div>
+    <div class="legend" id="cmLegend"></div>
+    <p class="note" id="cmPick" hidden></p>
+    <p class="note" id="cmKeys">From the keyboard: arrow keys move between states, or between counties once zoomed in; Enter zooms in, or opens a county's leaderboard; + and − zoom in and out; Escape zooms back out.</p>
+    <p class="sr" id="cmSaid" aria-live="polite"></p>
+  </div>
+</section>
+
 <section id="cellar" aria-labelledby="cellarTitle">
   <h2 id="cellarTitle">Storm Cellar</h2>
   <p class="lede">The tornado shook the bugs loose. A little first-person shooter in the old blocky style, drawn and coded for this page: clear out the cellar, find the five commits and the neighbours sheltering there, and get to the exit, with Biscuit the dog at your heels. Then go down the storm drain under it, where something big is waiting by the way out.</p>
@@ -508,37 +543,6 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
   <div class="panel" style="margin-top: 14px">
     <div class="scroll"><table id="stateTable"></table></div>
     <p class="note" id="histNote" hidden></p>
-  </div>
-</section>
-
-<section id="counties">
-  <h2 id="cmTitle">Every county</h2>
-  <p class="lede" id="cmLede">Every county in the 50 states, coloured by the people counted there. Click a state to zoom in, then a county to see its leaderboard. To get closer, use + and − on the map, or the mouse wheel once you've clicked it (or Ctrl and the wheel, or a pinch), and drag to move around. GitHub's search finds about 800 people in each state, so this is a sample: a blank county means no one has been found there yet, not that no one codes there.</p>
-  <div class="panel">
-    <div class="bar">
-      <button type="button" class="btn" id="cmAll" hidden>← All states</button>
-      <select id="cmState" aria-label="Zoom to a state"></select>
-      <span class="lbl">Colour by</span>
-      <fieldset class="seg" id="cmBy" aria-label="County map colour">
-        <button type="button" data-k="total" aria-pressed="true">Contributions</button>
-        <button type="button" data-k="people" aria-pressed="false">People</button>
-        <button type="button" data-k="average" aria-pressed="false">Average</button>
-      </fieldset>
-    </div>
-    <div class="cm-box" id="cmBox" tabindex="0" role="application" aria-roledescription="map" aria-label="Map of every county" aria-describedby="cmKeys">
-      <svg id="cmSvg" viewBox="0 0 975 610" aria-hidden="true"></svg>
-      <div class="cm-zoom" id="cmZoomBtns" hidden>
-        <button type="button" id="cmIn" aria-label="Zoom in" title="Zoom in">+</button>
-        <button type="button" id="cmOut" aria-label="Zoom out" title="Zoom out">−</button>
-      </div>
-      <p class="cm-hint" id="cmHint" aria-hidden="true">Click the map first, or hold Ctrl, to zoom with the wheel. Or use + and −.</p>
-      <p class="wait" id="cmWait">Drawing every county…</p>
-      <div class="stip" id="cmTip"></div>
-    </div>
-    <div class="legend" id="cmLegend"></div>
-    <p class="note" id="cmPick" hidden></p>
-    <p class="note" id="cmKeys">From the keyboard: arrow keys move between states, or between counties once zoomed in; Enter zooms in, or opens a county's leaderboard; + and − zoom in and out; Escape zooms back out.</p>
-    <p class="sr" id="cmSaid" aria-live="polite"></p>
   </div>
 </section>
 
@@ -2249,7 +2253,8 @@ for (const b of document.querySelectorAll("#mapby button")) {
 }
 
 // ---------------------------------------------------------------- every county, on a map
-// The shapes (us-counties.js, from web/us-counties.json) load when the map comes near, and are
+// The shapes (us-counties.js, from web/us-counties.json) load once the map is on screen (at once,
+// since it is first on the page), and are
 // drawn as one SVG path a county. The map opens on the whole country; a state zooms in, and a county
 // there sets the leaderboard to it. Colours, like the tile map's, are by rank: each shade is a
 // seventh of the counties with someone counted, in the country or, zoomed in, in the state.
@@ -2603,7 +2608,9 @@ function cmHighlight() {
   const it = CM.cur;
   if (!CM.hi) return;
   if (!it) return CM.hi.setAttribute("d", "");
-  CM.hi.setAttribute("d", it.kind === "county" ? it.p.d : CM.paths.filter((p) => p.ab === it.ab).map((p) => p.d).join(""));
+  // A county by its own outline; a state by its border and coast alone, not every county in it.
+  const state = () => CM.lines[COUNTIES[it.ab].fp]?.getAttribute("d") ?? CM.paths.filter((p) => p.ab === it.ab).map((p) => p.d).join("");
+  CM.hi.setAttribute("d", it.kind === "county" ? it.p.d : state());
 }
 // What the tooltip and the screen reader say about a state or a county.
 function cmLines(it) {
@@ -2695,8 +2702,10 @@ function cmTip(it, e) {
       cmFocus(cmItems().find((t) => t.key === was) ?? null);
     }
   });
+  // Reached from the keyboard (Tab), the map starts on its busiest place; a click or a drag, which
+  // focus it too, doesn't, so the mouse never lights up California for no reason.
   box.addEventListener("focus", () => {
-    if (CM.paths && !CM.cur) cmFocus(cmBusiest(cmItems()));
+    if (CM.paths && !CM.cur && box.matches(":focus-visible")) cmFocus(cmBusiest(cmItems()));
   });
   box.addEventListener("blur", () => {
     if (!CM.hover) cmTip(null);
@@ -3190,9 +3199,12 @@ function viewFromHash() {
   return [...$("#view").options].some((option) => option.value === requestedView) ? requestedView : null;
 }
 
-go(viewFromHash() ?? defaultView);
-// A link to a view, or to someone's ranks, opens there, past the game at the top of the page.
-if (viewFromHash()) $("#tornado").scrollIntoView();
+// A link to a view, or to someone's ranks, opens there, past the map and the game at the top of the
+// page. The view is read before go() writes the default one ("#us") into the address, so a plain
+// visit isn't taken for a link and opens at the top.
+const linkedView = viewFromHash();
+go(linkedView ?? defaultView);
+if (linkedView) $("#tornado").scrollIntoView();
 else if (new URLSearchParams(location.search).get("me")) $("#findme").scrollIntoView();
 // A view link opened in a tab already on the page changes only the hash; follow it.
 addEventListener("hashchange", () => {
@@ -3412,7 +3424,7 @@ draw(0);
 requestAnimationFrame(frame);
 </script>
 <script>
-// Storm Cellar, the game at the top of the page: a small first-person shooter in the old blocky
+// Storm Cellar, the game under the county map at the top of the page: a small first-person shooter in the old blocky
 // style. A ray caster draws 320×200 pixels (textured walls, floors, and ceilings, a stormy sky,
 // sprites, and light that fades with distance) and the browser scales them up with no smoothing.
 // Every texture, sprite, letter, and sound is made here in code, so there is nothing to download,

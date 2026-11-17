@@ -1,6 +1,6 @@
 // Opens the built page in a real browser and checks that it works: no script errors, the tornado
 // draws, the views change and links to them work, Find yourself and "where you'd rank" work, the
-// game at the top plays, and nothing scrolls sideways on a phone. CI runs it on every pull request and before every deploy.
+// game near the top plays, and nothing scrolls sideways on a phone. CI runs it on every pull request and before every deploy.
 //   npm i --no-save --no-package-lock playwright && npx playwright install chromium   (once)
 //   npm run build && npm run e2e
 import { readFileSync } from "node:fs";
@@ -118,6 +118,11 @@ watch(linked, "linked");
 await linked.goto(`${url}#division:${encodeURIComponent(division)}`);
 await linked.waitForTimeout(500);
 check((await linked.locator("#view").inputValue()) === `division:${division}`, `a link to #division:${division} opens it`);
+check(await linked.evaluate(() => Math.abs(document.querySelector("#tornado").getBoundingClientRect().top) < 5), "and scrolls down to the tornado, past the map and the game");
+await linked.goto("about:blank");
+await linked.goto(url);
+await linked.waitForTimeout(500);
+check((await linked.evaluate(() => scrollY)) === 0, "a plain visit opens at the top, on the county map, not taken for a link to a view");
 await linked.goto("about:blank");
 await linked.goto(`${url}#nonsense`);
 await linked.waitForTimeout(500);
@@ -531,7 +536,7 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   check((await rm.locator("#weather").getAttribute("aria-pressed")) === "false", "with reduced motion, the storm starts off");
   await still.close();
 }
-// Storm Cellar, the game at the top: its title draws, Enter starts it from the keyboard, the arrow
+// Storm Cellar, the game near the top: its title draws, Enter starts it from the keyboard, the arrow
 // keys turn the view and the weapon keys and mouse wheel switch weapons without scrolling the page,
 // Escape pauses it, and Tab moves on past it. On a touch phone it has a stick and a fire button,
 // and a Swap button once there's a second weapon, and still nothing scrolls sideways.
@@ -557,7 +562,7 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   await g.goto(url);
   await drawn(g);
   const game = g.locator("#game");
-  check((await pixels(g)).lit > 20000, "the game at the top draws its title screen");
+  check((await pixels(g)).lit > 20000, "the game draws its title screen");
   check((await game.getAttribute("data-state")) === "title", "and waits to be played");
   await game.focus();
   await g.keyboard.press("Enter");
@@ -836,19 +841,36 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   check(tried.seen.filter((d) => d.startsWith("script-src")).length >= 3 && !tried.slipped && !tried.evaled, `a CDN's script, a script slipped into the page, and a string run as code are all refused (${tried.seen.join(", ")})`);
   await cs.close();
 }
-// Every county, on a map: its shapes load when it comes near (from a file:// page too), a state
+// Every county, on a map, first under the header: its shapes load (from a file:// page too), a state
 // zooms in, a county there sets the leaderboard, the keyboard moves and speaks, the colours follow
 // the theme, a phone never scrolls sideways, and reduced motion jumps straight there.
 {
   const cm = await browser.newPage({ viewport: { width: 1340, height: 900 } });
   watch(cm, "county map");
   await cm.goto(url);
-  await cm.waitForTimeout(400);
-  check(!(await cm.evaluate(() => document.querySelectorAll("#cmSvg path.c").length)), "the county map waits until it comes near");
-  await cm.locator("#counties").scrollIntoViewIfNeeded();
+  check(await cm.evaluate(() => document.querySelector("header").nextElementSibling?.id === "counties"), "the county map is first on the page, under the header");
   const ready = await cm.waitForFunction(() => document.querySelector("#cmBox").classList.contains("ready"), null, { timeout: 10000 }).then(() => true, () => false);
   const paths = await cm.evaluate(() => document.querySelectorAll("#cmSvg path.c").length);
-  check(ready && paths === 3141, `then draws every county in the 50 states (${paths})`);
+  check(ready && paths === 3141, `and draws every county in the 50 states with no scrolling (${paths})`);
+  // The gold outline is the keyboard's: a click or a drag on the map doesn't light up a state; Tab
+  // does, with a note on the map saying what it is.
+  const sv0 = await cm.locator("#cmSvg").boundingBox();
+  await cm.mouse.move(sv0.x + 30, sv0.y + 30);
+  await cm.mouse.down();
+  await cm.mouse.move(sv0.x + 90, sv0.y + 60, { steps: 4 });
+  await cm.mouse.up();
+  await cm.waitForTimeout(150);
+  check((await cm.evaluate(() => CM.cur)) === null && (await cm.evaluate(() => getComputedStyle(document.querySelector("#cmNote")).opacity)) === "0", "clicking or dragging the map outlines nothing");
+  await cm.focus('#cmBy button[data-k="average"]');
+  await cm.keyboard.press("Tab");
+  await cm.waitForTimeout(350);
+  check((await cm.evaluate(() => document.activeElement.id === "cmBox" && CM.cur?.kind === "state")) && (await cm.evaluate(() => getComputedStyle(document.querySelector("#cmNote")).opacity)) === "1", "Tab to the map outlines its busiest state in gold, and a note says what the outline is");
+  await cm.evaluate(() => {
+    CM.cur = null;
+    cmHighlight();
+    cmTip(null);
+    document.activeElement.blur();
+  });
   const lit = () => cm.evaluate(() => [...document.querySelectorAll("#cmSvg path.c")].filter((p) => p.getAttribute("fill") !== THEME.tileEmpty).length);
   const counted = await cm.evaluate(() => CROW.size);
   check(counted > 100 && (await lit()) === counted, `and colours the ${counted} with someone counted`);
