@@ -235,7 +235,15 @@ td.loc { color: var(--muted); max-width: 240px; overflow: hidden; text-overflow:
 #cmSvg .hi, #cmSvg .you { fill: none; stroke: var(--gold); vector-effect: non-scaling-stroke; pointer-events: none; }
 #cmSvg .hi { stroke-width: 2.5; }
 #cmSvg .you { stroke-width: 1.5; stroke-dasharray: 4 3; }
-#cmWorld { transform-origin: 0 0; }
+#cmSvg.zoomed { touch-action: none; cursor: grab; }
+#cmSvg.dragging, #cmSvg.dragging .c { cursor: grabbing; }
+.cm-zoom { position: absolute; top: 8px; right: 8px; z-index: 2; display: flex; flex-direction: column; gap: 4px; }
+.cm-zoom button { width: 34px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); font: 600 20px/1 system-ui, sans-serif; cursor: pointer; }
+.cm-zoom button:hover:not(:disabled) { background: var(--hover); border-color: var(--gold); }
+.cm-zoom button:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+.cm-zoom button:disabled { opacity: 0.4; cursor: default; }
+.cm-hint { position: absolute; left: 50%; bottom: 10px; z-index: 2; transform: translateX(-50%); max-width: calc(100% - 24px); margin: 0; padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--tip); color: var(--ink); font-size: 12px; text-align: center; pointer-events: none; opacity: 0; transition: opacity 0.2s; }
+.cm-hint.on { opacity: 1; }
 .cm-box .wait { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--muted); font-size: 13px; }
 .cm-box.ready .wait { display: none; }
 #cmPick { margin: 6px 2px 0; }
@@ -505,7 +513,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
 
 <section id="counties">
   <h2 id="cmTitle">Every county</h2>
-  <p class="lede" id="cmLede">Every county in the 50 states, coloured by the people counted there. Click a state to zoom in, then a county to see its leaderboard. GitHub's search finds about 800 people in each state, so this is a sample: a blank county means no one has been found there yet, not that no one codes there.</p>
+  <p class="lede" id="cmLede">Every county in the 50 states, coloured by the people counted there. Click a state to zoom in, then a county to see its leaderboard. To get closer, use + and − on the map, or the mouse wheel once you've clicked it (or Ctrl and the wheel, or a pinch), and drag to move around. GitHub's search finds about 800 people in each state, so this is a sample: a blank county means no one has been found there yet, not that no one codes there.</p>
   <div class="panel">
     <div class="bar">
       <button type="button" class="btn" id="cmAll" hidden>← All states</button>
@@ -519,12 +527,17 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
     </div>
     <div class="cm-box" id="cmBox" tabindex="0" role="application" aria-roledescription="map" aria-label="Map of every county" aria-describedby="cmKeys">
       <svg id="cmSvg" viewBox="0 0 975 610" aria-hidden="true"></svg>
+      <div class="cm-zoom" id="cmZoomBtns" hidden>
+        <button type="button" id="cmIn" aria-label="Zoom in" title="Zoom in">+</button>
+        <button type="button" id="cmOut" aria-label="Zoom out" title="Zoom out">−</button>
+      </div>
+      <p class="cm-hint" id="cmHint" aria-hidden="true">Click the map first, or hold Ctrl, to zoom with the wheel. Or use + and −.</p>
       <p class="wait" id="cmWait">Drawing every county…</p>
       <div class="stip" id="cmTip"></div>
     </div>
     <div class="legend" id="cmLegend"></div>
     <p class="note" id="cmPick" hidden></p>
-    <p class="note" id="cmKeys">From the keyboard: arrow keys move between states, or between counties once zoomed in; Enter zooms in, or opens a county's leaderboard; Escape zooms out.</p>
+    <p class="note" id="cmKeys">From the keyboard: arrow keys move between states, or between counties once zoomed in; Enter zooms in, or opens a county's leaderboard; + and − zoom in and out; Escape zooms back out.</p>
     <p class="sr" id="cmSaid" aria-live="polite"></p>
   </div>
 </section>
@@ -2285,9 +2298,12 @@ function buildCountyMap(geo) {
   CM.you = world.appendChild(svgEl("path", { class: "you" }));
   CM.hi = world.appendChild(svgEl("path", { class: "hi" }));
   CM.world = world;
+  CM.shown = CM.box;
   svg.setAttribute("viewBox", CM.box.join(" "));
   svg.replaceChildren(world);
   paintCountyMap();
+  cmZoomState();
+  $("#cmZoomBtns").hidden = false;
   // The mouse: hover for numbers; click a state to zoom in, then a county for its leaderboard.
   const at = (e) => {
     const t = e.target.closest?.("path.c");
@@ -2304,6 +2320,7 @@ function buildCountyMap(geo) {
     cmTip(CM.cur);
   });
   svg.addEventListener("click", (e) => {
+    if (CM.dragged) return; // the end of a drag, not a click
     const p = at(e);
     if (!p?.ab) return;
     if (CM.view !== p.ab) {
@@ -2311,7 +2328,96 @@ function buildCountyMap(geo) {
       cmFocus(cmItem(p), false);
     } else cmPick(p);
   });
+  cmGestures(svg);
   $("#cmBox").classList.add("ready");
+}
+// Closer than a state: the wheel, a drag, and a pinch. The wheel zooms where it points once the map
+// has been clicked (until the pointer leaves it), or any time with Ctrl or ⌘ (a trackpad's pinch is
+// Ctrl and the wheel); otherwise it scrolls the page, and a hint says how. At the farthest out,
+// scrolling down moves on down the page, so the map never traps the wheel.
+function cmGestures(svg) {
+  const box = $("#cmBox");
+  const point = (x, y) => {
+    const p = new DOMPoint(x, y).matrixTransform(svg.getScreenCTM().inverse());
+    return [p.x, p.y];
+  };
+  svg.addEventListener(
+    "wheel",
+    (e) => {
+      if (!(e.ctrlKey || e.metaKey || CM.engaged)) return cmHint();
+      // A notch of a mouse wheel is about 100; a trackpad's pinch sends many small steps.
+      const k = e.deltaMode === 1 ? 0.08 : e.deltaMode === 2 ? 0.8 : e.ctrlKey && Math.abs(e.deltaY) < 50 ? 0.012 : 0.0025;
+      const f = Math.exp(-e.deltaY * k);
+      if (f < 1 && cmAtFit()) return;
+      e.preventDefault();
+      cmZoomBy(f, point(e.clientX, e.clientY));
+    },
+    { passive: false },
+  );
+  box.addEventListener("pointerleave", () => (CM.engaged = false));
+  // One pointer drags the view, zoomed in; two pinch it.
+  const ptrs = new Map();
+  let drag = null;
+  let pinch = null;
+  svg.addEventListener("pointerdown", (e) => {
+    CM.engaged = true;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+    if (ptrs.size === 1) drag = { x: e.clientX, y: e.clientY, box: CM.box, moved: false };
+    else if (ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()];
+      pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, box: CM.box, at: point((a[0] + b[0]) / 2, (a[1] + b[1]) / 2) };
+      drag = null;
+    }
+  });
+  svg.addEventListener("pointermove", (e) => {
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pinch && ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()];
+      const f = Math.hypot(a[0] - b[0], a[1] - b[1]) / pinch.d;
+      const [x, y, w] = pinch.box;
+      const [ax, ay] = pinch.at;
+      cmTo(cmClamp([ax - (ax - x) / f, ay - (ay - y) / f, w / f]));
+      CM.dragged = true;
+      return;
+    }
+    if (!drag || !svg.classList.contains("zoomed")) return;
+    const dx = e.clientX - drag.x;
+    const dy = e.clientY - drag.y;
+    if (!drag.moved) {
+      if (Math.hypot(dx, dy) < 5) return;
+      drag.moved = true;
+      svg.setPointerCapture(e.pointerId);
+      svg.classList.add("dragging");
+      cmTip(null);
+    }
+    const k = drag.box[2] / svg.getBoundingClientRect().width;
+    cmTo(cmClamp([drag.box[0] - dx * k, drag.box[1] - dy * k, drag.box[2]]));
+  });
+  const end = (e) => {
+    ptrs.delete(e.pointerId);
+    if (ptrs.size < 2) pinch = null;
+    if (drag?.moved || CM.dragged) {
+      // The click that follows a drag is not a click on a county.
+      CM.dragged = true;
+      setTimeout(() => (CM.dragged = false), 0);
+    }
+    if (!ptrs.size) {
+      drag = null;
+      svg.classList.remove("dragging");
+    }
+  };
+  svg.addEventListener("pointerup", end);
+  svg.addEventListener("pointercancel", end);
+  $("#cmIn").addEventListener("click", () => cmZoomBy(2, null, 220));
+  $("#cmOut").addEventListener("click", cmOut);
+}
+function cmHint() {
+  const el = $("#cmHint");
+  el.classList.add("on");
+  clearTimeout(CM.hintTimer);
+  CM.hintTimer = setTimeout(() => el.classList.remove("on"), 1800);
 }
 // What the keyboard and the tooltip point at: a state (at the country level) or a county.
 function cmItem(p) {
@@ -2342,6 +2448,62 @@ function cmFit(ab) {
   const a = CM.W / CM.H;
   const w = Math.max((x1 - x0) * 1.12, (y1 - y0) * 1.12 * a);
   return [(x0 + x1) / 2 - w / 2, (y0 + y1) / 2 - w / a / 2, w, w / a];
+}
+// The view, CM.box, is the SVG's viewBox. Zoomed closer, it stays inside the view's own box (the
+// country, or the state), and comes no closer than a 60th of the country's width.
+const cmFitNow = () => cmFit(CM.view === "us" ? null : CM.view);
+const cmAtFit = () => CM.box[2] >= cmFitNow()[2] * 0.999;
+function cmClamp([x, y, w]) {
+  const fit = cmFitNow();
+  w = Math.min(fit[2], Math.max(CM.W / 60, w));
+  const h = w * (CM.H / CM.W);
+  return [Math.min(fit[0] + fit[2] - w, Math.max(fit[0], x)), Math.min(fit[1] + fit[3] - h, Math.max(fit[1], y)), w, h];
+}
+// Shows a view at once, or slides there over ms, zooming evenly. CM.shown is what is on screen.
+function cmTo(to, ms = 0) {
+  cancelAnimationFrame(CM.anim);
+  const svg = $("#cmSvg");
+  const from = CM.shown ?? CM.box;
+  CM.box = to;
+  cmZoomState();
+  const show = (b) => {
+    CM.shown = b;
+    svg.setAttribute("viewBox", b.join(" "));
+  };
+  const done = () => {
+    show(to);
+    if (CM.cur) cmTip(CM.cur);
+  };
+  if (!ms || reducedMotion.matches) return done();
+  const t0 = performance.now();
+  const [fx, fy, tx, ty] = [from[0] + from[2] / 2, from[1] + from[3] / 2, to[0] + to[2] / 2, to[1] + to[3] / 2];
+  const step = (now) => {
+    const t = Math.min(1, (now - t0) / ms);
+    if (t >= 1) return done();
+    const e = t < 0.5 ? 2 * t * t : 1 - (2 - 2 * t) ** 2 / 2;
+    const w = from[2] * (to[2] / from[2]) ** e;
+    const h = w * (CM.H / CM.W);
+    show([fx + (tx - fx) * e - w / 2, fy + (ty - fy) * e - h / 2, w, h]);
+    CM.anim = requestAnimationFrame(step);
+  };
+  CM.anim = requestAnimationFrame(step);
+}
+// Zooms in (f above 1) or out about a point of the map, the middle if none.
+function cmZoomBy(f, at, ms = 0) {
+  const [x, y, w, h] = CM.box;
+  const [ax, ay] = at ?? [x + w / 2, y + h / 2];
+  cmTo(cmClamp([ax - (ax - x) / f, ay - (ay - y) / f, w / f]), ms);
+}
+// Out: halfway back, or from a whole state out to the country.
+function cmOut() {
+  if (!cmAtFit()) return cmZoomBy(0.5, null, 220);
+  if (CM.view !== "us") cmZoom(null);
+}
+function cmZoomState() {
+  const zoomed = !cmAtFit();
+  $("#cmSvg").classList.toggle("zoomed", zoomed);
+  $("#cmIn").disabled = CM.box[2] <= (CM.W / 60) * 1.001;
+  $("#cmOut").disabled = !zoomed && CM.view === "us";
 }
 function paintCountyMap() {
   if (!CM.paths) return;
@@ -2396,9 +2558,7 @@ function paintCountyMap() {
 // Zooms to a state (or back out to the country, ab null): the map slides there, then redraws sharp.
 function cmZoom(ab) {
   if (!CM.paths || (ab && !COUNTIES[ab])) return;
-  const from = CM.box;
-  const to = cmFit(ab);
-  Object.assign(CM, { view: ab || "us", box: to, cur: null });
+  Object.assign(CM, { view: ab || "us", cur: null });
   $("#cmState").value = ab ?? "";
   $("#cmAll").hidden = !ab;
   $("#cmPick").hidden = true;
@@ -2408,25 +2568,7 @@ function cmZoom(ab) {
   }
   paintCountyMap();
   cmTip(null);
-  const svg = $("#cmSvg");
-  const w = CM.world;
-  clearTimeout(CM.timer);
-  w.style.transition = "none";
-  w.style.transform = "";
-  svg.setAttribute("viewBox", from.join(" "));
-  const land = () => {
-    w.style.transition = "none";
-    w.style.transform = "";
-    svg.setAttribute("viewBox", to.join(" "));
-    if (CM.cur) cmTip(CM.cur);
-  };
-  if (reducedMotion.matches) return land();
-  // Drawn in the old view, moved so the new view fills the box; then the view itself is set.
-  const s = from[2] / to[2];
-  w.getBoundingClientRect();
-  w.style.transition = "transform 320ms ease";
-  w.style.transform = `translate(${from[0] - to[0] * s}px, ${from[1] - to[1] * s}px) scale(${s})`;
-  CM.timer = setTimeout(land, 340);
+  cmTo(cmFit(ab), 320);
 }
 // A county at the state level: its leaderboard, below.
 function cmPick(p) {
@@ -2445,6 +2587,11 @@ function cmPick(p) {
 // The keyboard's place, outlined in gold, with its numbers.
 function cmFocus(item, say = true) {
   CM.cur = item;
+  // Zoomed in, the view follows the keyboard's place.
+  if (item && !cmAtFit()) {
+    const [x, y, w, h] = CM.box;
+    if (item.x < x + w * 0.05 || item.x > x + w * 0.95 || item.y < y + h * 0.05 || item.y > y + h * 0.95) cmTo(cmClamp([item.x - w / 2, item.y - h / 2, w]), 200);
+  }
   cmHighlight();
   cmTip(item);
   if (say && item) {
@@ -2502,7 +2649,7 @@ function cmTip(it, e) {
   const box = $("#cmBox");
   const DIRS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
   box.addEventListener("keydown", (e) => {
-    if (!CM.paths) return;
+    if (!CM.paths || e.target !== box) return;
     const items = cmItems();
     const at = CM.cur && items.find((t) => t.key === CM.cur.key);
     if (DIRS[e.key]) {
@@ -2531,6 +2678,16 @@ function cmTip(it, e) {
         cmZoom(at.ab);
         cmFocus(cmBusiest(cmItems()));
       } else cmPick(at.p);
+    } else if (e.key === "+" || e.key === "=") {
+      e.preventDefault();
+      cmZoomBy(2, CM.cur ? [CM.cur.x, CM.cur.y] : null, 220);
+    } else if (e.key === "-" || e.key === "_") {
+      e.preventDefault();
+      cmOut();
+    } else if ((e.key === "Escape" || e.key === "Backspace") && !cmAtFit()) {
+      // Zoomed closer: back to the whole state (or country) first.
+      e.preventDefault();
+      cmTo(cmFitNow(), 220);
     } else if ((e.key === "Escape" || e.key === "Backspace") && CM.view !== "us") {
       e.preventDefault();
       const was = CM.view;
