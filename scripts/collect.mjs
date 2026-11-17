@@ -263,7 +263,7 @@ async function phase2(cands, extra) {
   ];
   const prof = await profiles(everyone);
   const tier = tiers(prof, extra, { perState: K, allActive: ALL_ACTIVE, scope: SCOPE });
-  const todays = due(tier, users, { contribMax: CONTRIB_MAX, newMax: NEW_MAX });
+  const todays = due(tier, users, { contribMax: CONTRIB_MAX, newMax: NEW_MAX, always: extra });
   log(
     `${tier.daily.length} looked up daily (${todays.daily.length} due), ${tier.weekly.length} weekly ` +
       `(${todays.weekly.length} due, ${todays.fresh.length} new, ${todays.later} new left for later runs)`,
