@@ -14,6 +14,10 @@
 //       ONLY      place names that mean this state and nowhere else (src/states.mjs places people by them)
 //   - The other 45 take their place names from us.json, which the script generates from the Census
 //     list of places in each county, with hand fixes in src/counties/aliases.mjs.
+// Then, in all 50, post offices and unincorporated communities fill the gaps (the fifth field of each
+// county in us.json): "Sondheimer, Louisiana" is East Carroll Parish. They're tried last, after the
+// county names, the aliases, and the places, and in the hand-written states only when the state's
+// own file finds nothing.
 import { readFileSync } from "node:fs";
 import * as AL from "./counties/al.mjs";
 import * as AR from "./counties/ar.mjs";
@@ -133,7 +137,16 @@ function lookups(state) {
   let l = LOOKUPS.get(state);
   if (l) return l;
   const s = us()[state];
-  l = { fips: new Map() };
+  l = { fips: new Map(), places: new Map(), more: new Map(), aliases: new Map(Object.entries(ALIASES[state] ?? {})) };
+  // Post offices and communities, in every state.
+  for (const [fp, , , , more] of s.counties) {
+    if (more) for (const p of more.split("|")) l.more.set(p, s.fp + fp);
+  }
+  // The state's own names, to drop from a location.
+  const name = normalizePlace(STATE_NAMES[state]);
+  const code = state.toLowerCase();
+  l.self = new Set([code, name, `${name} state`, `state of ${name}`, `commonwealth of ${name}`]);
+  l.stuck = new RegExp(`\\s+(?:${code}|${name}(?: state)?)$`);
   if (BY[state]) {
     // A hand-written state: its county names to FIPS.
     for (const [fp, name] of s.counties) l.fips.set(key(name), s.fp + fp);
@@ -152,16 +165,10 @@ function lookups(state) {
       `\\b(${pats.join("|")})\\s+(county\\b|co\\b\\.?|parish\\b|city\\s+and\\s+borough\\b|borough\\b|census\\s+area\\b|municipality\\b|city\\b)`,
       "gi",
     );
-    // Place names, and the state's own names to drop.
-    l.places = new Map();
+    // Place names.
     for (const [fp, , , places] of s.counties) {
       if (places) for (const p of places.split("|")) l.places.set(p, s.fp + fp);
     }
-    l.aliases = new Map(Object.entries(ALIASES[state] ?? {}));
-    const name = normalizePlace(STATE_NAMES[state]);
-    const code = state.toLowerCase();
-    l.self = new Set([code, name, `${name} state`, `state of ${name}`, `commonwealth of ${name}`]);
-    l.stuck = new RegExp(`\\s+(?:${code}|${name}(?: state)?)$`);
   }
   LOOKUPS.set(state, l);
   return l;
@@ -198,12 +205,30 @@ const tidy = (piece) => {
   return p;
 };
 
-// The county a piece of a location names: an alias first, then a place. undefined for neither.
+// The county a piece of a location names: an alias first, then a place, then a post office or
+// community. undefined for none of them.
 function pieceCounty(l, piece) {
   const forms = [...new Set([piece, tidy(piece)])];
   for (const f of forms) if (l.aliases.has(f)) return l.aliases.get(f);
   for (const f of forms) if (l.places.has(f)) return l.places.get(f);
+  for (const f of forms) if (l.more.has(f)) return l.more.get(f);
   return undefined;
+}
+
+// Steps 2 and 3 below: the location in pieces, and the two nearest the state looked up. null for none.
+function byPieces(l, loc) {
+  let rest = loc;
+  for (const re of DROP) rest = rest.replace(re, " ");
+  const all = rest.split(PIECES).map(normalizePlace).filter(Boolean);
+  let pieces = all.filter((p) => !l.self.has(p));
+  if (!pieces.length && all.length > 1) pieces = [all[0]];
+  pieces = pieces.filter((p) => !STOP.has(p) && !STOP.has(tidy(p)));
+  for (const piece of pieces.slice(-2).reverse()) {
+    let c = pieceCounty(l, piece);
+    if (c === undefined && l.stuck.test(piece)) c = pieceCounty(l, piece.replace(l.stuck, ""));
+    if (c !== undefined) return c;
+  }
+  return null;
 }
 
 /** The county for a location already placed in the state, as a FIPS code, or null when it names
@@ -221,7 +246,8 @@ export function countyOf(state, location) {
   const l = lookups(state);
   if (BY[state]) {
     const name = handCounty(state, loc);
-    return name ? l.fips.get(key(name)) : null;
+    // Nothing in the state's own file: a post office or community, by the same pieces as below.
+    return name ? l.fips.get(key(name)) : byPieces(l, loc);
   }
 
   // 1. A county named in full; the longest name wins.
@@ -234,18 +260,6 @@ export function countyOf(state, location) {
   if (best) return best.fips;
 
   // 2. The location in pieces, without the state itself. "New York, NY" keeps its city.
-  let rest = loc;
-  for (const re of DROP) rest = rest.replace(re, " ");
-  const all = rest.split(PIECES).map(normalizePlace).filter(Boolean);
-  let pieces = all.filter((p) => !l.self.has(p));
-  if (!pieces.length && all.length > 1) pieces = [all[0]];
-  pieces = pieces.filter((p) => !STOP.has(p) && !STOP.has(tidy(p)));
-
   // 3. The two pieces nearest the state, nearest first.
-  for (const piece of pieces.slice(-2).reverse()) {
-    let c = pieceCounty(l, piece);
-    if (c === undefined && l.stuck.test(piece)) c = pieceCounty(l, piece.replace(l.stuck, ""));
-    if (c !== undefined) return c;
-  }
-  return null;
+  return byPieces(l, loc);
 }

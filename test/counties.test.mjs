@@ -161,6 +161,12 @@ const CASES = [
   ["TN", "Middle Tennessee, USA", ""],
   ["TN", "Tri-Cities, Tennessee", ""],
   ["TN", "Tennessee", ""],
+  // Post offices and communities the state's file doesn't name (scripts/make-counties.mjs, rule 8).
+  ["LA", "Tickfaw, Louisiana", "Tangipahoa"],
+  ["LA", "Venice, LA", "Plaquemines"],
+  ["MS", "Prairie, Mississippi", "Monroe"],
+  ["AL", "Warrior, Alabama", "Jefferson"],
+  ["AR", "Casa, Arkansas", "Perry"],
 ];
 
 for (const [state, location, want] of CASES) {
@@ -281,6 +287,22 @@ const GENERATED = [
   ["TX", "Dallas-Fort Worth, TX", ""],
   ["MN", "Twin Cities, MN", ""],
   ["NC", "Research Triangle, NC", ""],
+  // Post offices and unincorporated communities (scripts/make-counties.mjs, rule 8).
+  ["TX", "Cypress, TX", "48201"],
+  ["AK", "Girdwood, AK", "02020"],
+  ["FL", "Ponte Vedra Beach, FL", "12109"],
+  ["MI", "Hell, Michigan", "26093"],
+  ["NC", "Camp Lejeune, NC", "37133"],
+  // And what rule 8 leaves out, though a hamlet has the name: the state's own name, another state's,
+  // a region, a big city elsewhere, a township the Census left out, and words that aren't places.
+  ["ME", "Portland, Maine Metropolitan Area", "23005"],
+  ["FL", "New York Florida", ""],
+  ["MO", "Mid-Missouri", ""],
+  ["PA", "Lehigh Valley, Pennsylvania", ""],
+  ["SC", "Greater Pee Dee Area, South Carolina", ""],
+  ["CA", "Austin, Texas and San Diego, California", ""],
+  ["NJ", "Monroe Township, New Jersey", ""],
+  ["VT", "the woods, Vermont", ""],
 ];
 
 for (const [state, location, want] of GENERATED) {
