@@ -767,7 +767,7 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   await mk.waitForTimeout(500);
   await mk.keyboard.up("KeyS");
   check(Buffer.compare(before, await frame()) !== 0, "and the game plays with the changed keys");
-  check(/^Click the game or press Enter to play\. S or Down arrow, I, A, and D move/.test(await mk.locator("#gameKeys").textContent()), "the keys under the game say so");
+  check(/Esc gives it back\. S or Down arrow, I, A, and D move/.test(await mk.locator("#gameKeys").textContent()), "the keys under the game say so");
   await mk.keyboard.press("Escape");
   await mk.click("#keyReset");
   check((await mk.evaluate(() => JSON.parse(localStorage.getItem("github-leaderboard.keys")).forward.join())) === "KeyW,ArrowUp", "Reset all keys puts them back");
@@ -919,6 +919,34 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   await gpPage.click("#padReset");
   check((await gpPage.evaluate(() => JSON.parse(localStorage.getItem("github-leaderboard.pad")).act.join())) === "0,9", "Reset controller buttons puts them back");
   check(!errors.some((e) => e.startsWith("controller:")), "no script errors with a controller");
+  await ctx.close();
+}
+// Keys and mouse together: a game started from the keyboard takes the mouse at once (as a click
+// does), so W and the mouse both work, and Escape gives the mouse back and pauses.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1340, height: 900 } });
+  const km = await ctx.newPage();
+  watch(km, "keys and mouse");
+  await km.goto(url);
+  await km.waitForFunction(() => document.querySelector("#game").dataset.state === "title", null, { timeout: 8000 });
+  await km.locator("#game").scrollIntoViewIfNeeded();
+  const box = await km.locator("#game").boundingBox();
+  await km.focus("#game");
+  await km.keyboard.press("Enter");
+  await km.waitForTimeout(250);
+  check((await km.evaluate(() => document.pointerLockElement?.id)) === "game", "starting with Enter hands the mouse to the game too");
+  const before = await km.locator("#game").screenshot();
+  await km.keyboard.down("KeyW");
+  for (let i = 1; i <= 6; i++) {
+    await km.mouse.move(box.x + box.width / 2 + i * 30, box.y + box.height / 2);
+    await km.waitForTimeout(50);
+  }
+  await km.keyboard.up("KeyW");
+  check(Buffer.compare(before, await km.locator("#game").screenshot()) !== 0 && (await km.getAttribute("#game", "data-state")) === "playing", "and W and the mouse work together");
+  await km.keyboard.press("Escape");
+  await km.waitForTimeout(200);
+  check((await km.evaluate(() => document.pointerLockElement)) === null && (await km.getAttribute("#game", "data-state")) === "paused", "Escape gives the mouse back and pauses");
+  check(!errors.some((e) => e.startsWith("keys and mouse:")), "no script errors with keys and mouse together");
   await ctx.close();
 }
 // The page stays a sensible size for a phone on a slow connection.

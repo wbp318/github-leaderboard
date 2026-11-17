@@ -41,6 +41,8 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 | [scripts/check-data.mjs](scripts/check-data.mjs), [scripts/check-links.mjs](scripts/check-links.mjs) | Refuse to publish broken data; catch broken doc links. |
 | [docs/placement.md](docs/placement.md) | How the placement rules work, and the audit. |
 | [docs/data.md](docs/data.md) | Every data file and field, and the collector's settings. |
+| [docs/controller.md](docs/controller.md) | Playing Storm Cellar with an Xbox controller: connecting it, the buttons, the wizard, and what to try when it isn't seen. |
+| [docs/optimjack.md](docs/optimjack.md) | The November 2026 third-party script attack, and the page's Content Security Policy. |
 | [.github/workflows/refresh.yml](.github/workflows/refresh.yml) | The daily refresh and the deploy to GitHub Pages. |
 | [.github/workflows/add-me.yml](.github/workflows/add-me.yml) | Answers "Add me" issues. |
 
