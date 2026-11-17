@@ -31,6 +31,8 @@ A year of GitHub contributions across the United States, drawn as a spinning tor
 
 **See it live: https://wbp318.github.io/github-leaderboard/** and type your GitHub login to see where you rank. Not on it? One click adds you.
 
+![The page moving to its own music: a spectrum blazing along the top in red and blue, a glow throbbing behind the tornado, and on the drop, lightning striking the busiest ring and the edges flashing gold](docs/page-music.gif)
+
 ![The tornado for Mississippi, county by county: each ring split into public commits and everything else, with Hinds picked from the keyboard and its numbers beside it](docs/screenshot.png)
 
 ![Storm Cellar, the game at the top of the page: a blocky first-person view of a stone cellar, firing at a red and blue beetle, with a commit to pick up by the far door](docs/storm-cellar.png)
