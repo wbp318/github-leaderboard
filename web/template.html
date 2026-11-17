@@ -46,6 +46,7 @@
   --ramp: #184f95 #1c5cab #256abf #2975d3 #5598e7 #86b6ef #cde2fb;
   --ramp-ink: #ffffff #ffffff #ffffff #ffffff #0b1430 #0b1430 #0b1430;
   --tile-empty: #1a2547;
+  --county-line: #5b6ea8;
   /* The weather round the tornado: clouds, rain, debris, and lightning. */
   --cloud: #31447a;
   --cloud-dark: #050a1b;
@@ -85,6 +86,7 @@
   --ramp: #d3e2f4 #b0caeb #89afe0 #5f90d2 #3b72bd #2556a0 #153a73;
   --ramp-ink: #131d35 #131d35 #131d35 #131d35 #ffffff #ffffff #ffffff;
   --tile-empty: #e4e9e5;
+  --county-line: #9aa69f;
   --cloud: #c9d1cc;
   --cloud-dark: #7d8a86;
   --rain: #4f6488;
@@ -222,9 +224,13 @@ td.loc { color: var(--muted); max-width: 240px; overflow: hidden; text-overflow:
 .cm-box { position: relative; aspect-ratio: 975 / 610; border-radius: 8px; overflow: hidden; }
 .cm-box:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 #cmSvg { display: block; width: 100%; height: 100%; touch-action: pan-y; }
-#cmSvg .c { stroke: var(--panel); stroke-width: 0.5; vector-effect: non-scaling-stroke; cursor: pointer; }
+/* County lines: the script colours each one to stand out from its own fill (--county-line on an
+   empty county, the ramp's ink on a shaded one). They and the state lines thicken inside a state. */
+#cmSvg .c { stroke-width: 0.6; vector-effect: non-scaling-stroke; cursor: pointer; }
+#cmSvg.in .c { stroke-width: 1.4; }
 #cmSvg .c.off { opacity: 0.4; }
-#cmSvg .b { fill: none; stroke: var(--muted); stroke-width: 0.8; vector-effect: non-scaling-stroke; pointer-events: none; }
+#cmSvg .b { fill: none; stroke: var(--muted); stroke-width: 0.9; vector-effect: non-scaling-stroke; pointer-events: none; }
+#cmSvg.in .b { stroke-width: 2; }
 #cmSvg .dc { fill: var(--tile-empty); pointer-events: none; }
 #cmSvg .hi, #cmSvg .you { fill: none; stroke: var(--gold); vector-effect: non-scaling-stroke; pointer-events: none; }
 #cmSvg .hi { stroke-width: 2.5; }
@@ -591,8 +597,9 @@ function readTheme() {
     dustLeft: fade(dustL, 0.24), dustRight: fade(dustR, 0.24), dustBackLeft: fade(dustL, 0.09), dustBackRight: fade(dustR, 0.09),
     glow: fade(glow, 0.1), glowEnd: fade(glow, 0), beamTop: fade(glow, 0.08), beamBottom: fade(glow, 0.24),
     guide: fade(gold, 0.3), guideNarrow: fade(gold, 0.25), guideMe: fade(gold, 0.7),
-    ramp: v("ramp").split(/\s+/), rampInk: v("ramp-ink").split(/\s+/), tileEmpty: v("tile-empty"),
+    ramp: v("ramp").split(/\s+/), rampInk: v("ramp-ink").split(/\s+/), tileEmpty: v("tile-empty"), countyLine: v("county-line"),
   });
+  THEME.rampLine = THEME.rampInk.map((c) => fade(c, 0.45));
   const [cloud, cloudDark, rain, boltGlow] = ["cloud", "cloud-dark", "rain", "bolt-glow"].map(v);
   const light = THEME.name === "light";
   Object.assign(THEME, {
@@ -2338,9 +2345,12 @@ function paintCountyMap() {
     return Math.min(THEME.ramp.length - 1, Math.floor((lo / vals.length) * THEME.ramp.length));
   };
   for (const p of CM.paths) {
-    p.el.setAttribute("fill", here(p) && cmCounted(p.id) ? THEME.ramp[bin(cmVal(p.id))] : THEME.tileEmpty);
+    const b = here(p) && cmCounted(p.id) ? bin(cmVal(p.id)) : -1;
+    p.el.setAttribute("fill", b < 0 ? THEME.tileEmpty : THEME.ramp[b]);
+    p.el.setAttribute("stroke", b < 0 ? THEME.countyLine : THEME.rampLine[b]);
     p.el.classList.toggle("off", !here(p));
   }
+  $("#cmSvg").classList.toggle("in", CM.view !== "us");
   // Alaska and Hawaii are drawn in boxes beside the other 48: zoomed in on one of them, it is shown
   // alone; zoomed in on any other state, they are hidden.
   const fp = COUNTIES[CM.view]?.fp;
