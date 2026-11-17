@@ -705,7 +705,10 @@ const rankOf = (scope, cat = "total") => {
   // "Louisiana's own view and its parishes", or for more states "...own views and their parishes and counties".
   $("#sub").textContent = `The last 12 months of GitHub contributions for ${fmt(D.P.length)} people whose profile places them in ${D.scopeName}. States, divisions and regions are compared on the same ${D.perState} a state (${fmt(D.compared)} people), the likeliest to be busiest${DEEP.length ? `; each state's own view and its counties count everyone active there, up to 1,000, looked up once a week` : ""}. Private contributions count for people who show them on their profile.`;
 }
-// When the data was refreshed and when it next will be, in the visitor's own time; kept current while the page is open.
+// When the data was refreshed and when it next will be, in the visitor's own time; kept current while
+// the page is open. Data from before the day's refresh time means that refresh hasn't landed yet (it
+// takes about an hour, and GitHub can start it late), and the page says so rather than promise the
+// next one. When it lands, checkForUpdate below reloads the page onto it.
 function renderFresh() {
   const at = new Date(D.refreshed);
   const mins = Math.max(0, Math.round((Date.now() - at) / 60000));
@@ -713,10 +716,16 @@ function renderFresh() {
   const when = at.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
   let next = "";
   if (D.schedule) {
-    const n = new Date();
-    n.setUTCHours(D.schedule.hour, D.schedule.minute, 0, 0);
-    if (n <= Date.now()) n.setUTCDate(n.getUTCDate() + 1);
-    next = ` · next refresh around ${n.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZoneName: "short" })}, daily`;
+    const time = (d) => d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+    // The latest refresh time at or before now (src/refresh.mjs's lastDue).
+    const due = new Date();
+    due.setUTCHours(D.schedule.hour, D.schedule.minute, 0, 0);
+    if (due > Date.now()) due.setUTCDate(due.getUTCDate() - 1);
+    if (at < due) next = ` · the refresh due at ${time(due)} hasn't landed yet; this page updates itself when it does`;
+    else {
+      due.setUTCDate(due.getUTCDate() + 1);
+      next = ` · next refresh around ${time(due)}, daily`;
+    }
   }
   $("#fresh").textContent = `Data refreshed ${ago} (${when})${next}`;
 }

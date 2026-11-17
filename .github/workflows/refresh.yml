@@ -1,8 +1,12 @@
 # Every day: refresh the data from GitHub, audit where people were placed, rebuild the page, and
-# publish it to GitHub Pages. On a push to main it rebuilds from the latest data and publishes; on
-# a pull request it tests and builds without publishing. Every run checks the placement rules, the
-# scripts, the docs' links, and the workflows first, refuses to publish data that looks broken, and
-# opens the built page in a real browser before it can go live.
+# publish it to GitHub Pages. GitHub starts scheduled workflows late, sometimes hours late, and
+# sometimes not at all, so this is triggered every hour, and the first trigger at or after
+# REFRESH_AT_UTC (below) refreshes; the others see the day's data is already saved, or still being
+# collected, and stop in the first job (scripts/refresh-due.mjs). On a push to main it rebuilds
+# from the latest data and publishes; on a pull request it tests and builds without publishing.
+# Every run that builds checks the placement rules, the scripts, the docs' links, and the
+# workflows first, refuses to publish data that looks broken, and opens the built page in a real
+# browser before it can go live.
 #
 # The data lives on the `data` branch, one commit replaced each day, so history does not grow.
 # Instead data/history.json, carried from each run to the next, keeps one small record a day.
@@ -13,7 +17,7 @@ name: Refresh and deploy
 
 on:
   schedule:
-    - cron: "23 10 * * *" # every day, about 4:23 a.m. Central
+    - cron: "23 * * * *" # every hour; the refresh itself is once a day, at REFRESH_AT_UTC
   workflow_dispatch:
     inputs:
       collect:
@@ -24,14 +28,46 @@ on:
     branches: [main]
   pull_request:
 
-concurrency:
-  group: refresh-and-deploy-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+env:
+  REFRESH_AT_UTC: "10:23" # the day's refresh: about 4:23 a.m. Central. The page shows it.
 
 jobs:
+  # A scheduled run refreshes only when the day's refresh is due and no earlier run is already at
+  # it. Every other run (a push, a pull request, a run started by hand) goes straight on.
+  due:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      go: ${{ steps.due.outputs.go }}
+    steps:
+      - uses: actions/checkout@v7
+        if: github.event_name == 'schedule'
+
+      - name: Is the day's refresh due?
+        id: due
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != schedule ]; then echo "go=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          saved=$(gh api "repos/$GITHUB_REPOSITORY/branches/data" --jq .commit.commit.committer.date || true)
+          going=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow refresh.yml --limit 100 --json databaseId,status,event \
+            --jq "[.[] | select(.status != \"completed\" and (.event == \"schedule\" or .event == \"workflow_dispatch\") and .databaseId < $GITHUB_RUN_ID)] | length" || echo 0)
+          node scripts/refresh-due.mjs "$saved" "$going"
+
   build:
+    needs: due
+    if: needs.due.outputs.go == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 300
+    # One build at a time for main, so a long refresh and a push never publish out of order. Here,
+    # not on the whole workflow, so the hourly check never waits in line, and never takes the
+    # place of a push waiting to publish.
+    concurrency:
+      group: refresh-and-deploy-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     permissions:
       contents: write
       actions: write
@@ -155,6 +191,9 @@ jobs:
     needs: build
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-pages
+      cancel-in-progress: false
     permissions:
       pages: write
       id-token: write

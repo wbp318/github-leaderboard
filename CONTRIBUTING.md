@@ -37,6 +37,7 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 | [web/template.html](web/template.html) | The page: the canvas tornado, the map, the tables, and the Storm Cellar game at the top, all in one file. The game is the last script, in a block of its own, with each level a map drawn in text (`LEVELS`). |
 | [test/states.test.mjs](test/states.test.mjs) | Locations and where they belong. |
 | [test/counties.test.mjs](test/counties.test.mjs) | Locations and the county or parish they name. |
+| [test/refresh.test.mjs](test/refresh.test.mjs) | When the daily refresh is due. |
 | [e2e/page.mjs](e2e/page.mjs) | Opens the built page in a browser and checks it works. |
 | [scripts/check-data.mjs](scripts/check-data.mjs), [scripts/check-links.mjs](scripts/check-links.mjs) | Refuse to publish broken data; catch broken doc links. |
 | [docs/placement.md](docs/placement.md) | How the placement rules work, and the audit. |
@@ -44,6 +45,7 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 | [docs/controller.md](docs/controller.md) | Playing Storm Cellar with an Xbox controller: connecting it, the buttons, the wizard, and what to try when it isn't seen. |
 | [docs/optimjack.md](docs/optimjack.md) | The November 2026 third-party script attack, and the page's Content Security Policy. |
 | [.github/workflows/refresh.yml](.github/workflows/refresh.yml) | The daily refresh and the deploy to GitHub Pages. |
+| [scripts/refresh-due.mjs](scripts/refresh-due.mjs), [src/refresh.mjs](src/refresh.mjs) | Whether the daily refresh is due: the workflow is triggered every hour, because GitHub starts scheduled runs late, and only the first trigger after the day's time refreshes. |
 | [.github/workflows/add-me.yml](.github/workflows/add-me.yml) | Answers "Add me" issues. |
 
 ### Fix your state's counties

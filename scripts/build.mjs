@@ -20,6 +20,7 @@ import { isBot, optedOut } from "../src/exclude.mjs";
 import { stateOf } from "../src/states.mjs";
 import { current, markSample, refreshedAt } from "../src/sample.mjs";
 import { lastYear, readHistory } from "../src/history.mjs";
+import { dailyAt } from "../src/refresh.mjs";
 
 const VIEWER = process.env.VIEWER ?? "wbp318";
 const SCOPE = process.env.SCOPE && process.env.SCOPE !== "all" ? new Set(process.env.SCOPE.split(",")) : null;
@@ -133,9 +134,8 @@ for (const p of people) {
   P.location.push((p.location ?? "").trim());
 }
 const me = people.find((p) => p.login === VIEWER) ?? null;
-// The daily refresh's time, from the workflow.
-const cron = readFileSync(new URL("../.github/workflows/refresh.yml", import.meta.url), "utf8").match(/cron:\s*"(\d+) (\d+) \* \* \*"/);
-const schedule = cron ? { hour: Number(cron[2]), minute: Number(cron[1]) } : null;
+// The daily refresh's time, from the workflow (src/refresh.mjs).
+const schedule = dailyAt(readFileSync(new URL("../.github/workflows/refresh.yml", import.meta.url), "utf8"));
 const data = { generated: new Date().toISOString(), refreshed, schedule, scopeName: SCOPE_NAME, perState: PER_STATE, compared: fair.length, viewer: VIEWER, me, us, regions, divisions, states, counties, P, candidates: Object.values(cands).reduce((a, s) => a + s.logins.length, 0), fetched: Object.keys(users).length };
 // The daily history (scripts/history.mjs), its last year: a sparkline per state, and a chart of one.
 data.history = lastYear(readHistory(process.env.HISTORY ?? new URL("../data/history.json", import.meta.url)));
