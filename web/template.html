@@ -6685,6 +6685,9 @@ swapBtn.addEventListener("pointerdown", (e) => {
 swapBtn.addEventListener("click", (e) => e.detail === 0 && swap());
 
 title();
+// Set up, and listening: the canvas says title from the start, so this is how to tell (the tests
+// wait for it, since the game sets itself up only once the page is idle).
+cv.dataset.ready = "1";
 });
 </script>
 </body>
