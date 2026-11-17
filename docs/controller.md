@@ -1,6 +1,6 @@
 # Playing Storm Cellar with an Xbox controller
 
-Storm Cellar, the game at the top of the [leaderboard page](https://wbp318.github.io/github-leaderboard/), plays with a game controller as well as with the keyboard and mouse or a phone's touch pad. An Xbox controller is the easy one: plug it in, press a button, and play. This page covers connecting one, what each button does, how to change them, and what to try when it isn't seen.
+Storm Cellar, the game near the top of the [leaderboard page](https://wbp318.github.io/github-leaderboard/), plays with a game controller as well as with the keyboard and mouse or a phone's touch pad. An Xbox controller is the easy one: plug it in, press a button, and play. This page covers connecting one, what each button does, how to change them, and what to try when it isn't seen.
 
 ## Connect it
 

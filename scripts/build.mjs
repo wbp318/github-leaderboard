@@ -145,7 +145,7 @@ data.home = JSON.parse(readFileSync(new URL("../package.json", import.meta.url),
 
 const out = process.env.OUT ? pathToFileURL(resolve(process.env.OUT)) : new URL("../site/leaderboard.html", import.meta.url);
 // The county map's shapes (web/us-counties.json, from scripts/make-geo.mjs), as a script the page
-// loads when the map comes near: a script rather than JSON, so it loads into a file:// page too.
+// loads once the map is on screen: a script rather than JSON, so it loads into a file:// page too.
 // Its name carries a hash of it, so a browser's cache never serves old shapes. The page decodes
 // them with src/geo.mjs, copied in here, so the page and its tests run the same code.
 const geoJson = readFileSync(new URL("../web/us-counties.json", import.meta.url), "utf8").trim();
