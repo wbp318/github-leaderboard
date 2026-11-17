@@ -51,6 +51,12 @@ test("daily entries are due once stale", () => {
   assert.deepEqual(d.daily, ["a", "c", "d"]);
 });
 
+test("the viewer and people who added themselves are due every run, however recent", () => {
+  const users = { me: { at: NOW - 60000 }, added: { at: NOW - 3600000 }, b: { at: NOW - 3600000 } };
+  const d = due({ daily: ["me", "added", "b"], weekly: [] }, users, { now: NOW, contribMax: 12 * 3600000, always: ["me", "added"] });
+  assert.deepEqual(d.daily, ["me", "added"]);
+});
+
 test("over a week of daily runs, each weekly person is looked up once", () => {
   const weekly = Array.from({ length: 300 }, (_, i) => `user-${i}`);
   // As things settle: everyone last looked up on their own weekday, in the week up to today.

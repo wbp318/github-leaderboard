@@ -90,7 +90,7 @@ One record a day of what the page showed for each state, for the sparklines in t
 | `ALL_ACTIVE` | 1,000 | People a state looked up in all, the rest of them once a week |
 | `NEW_MAX` | 3,000 | People never looked up before who are added in one run |
 | `COLLECT_MINUTES` | 210 | After this long no more weekly lookups start; the daily ones always finish |
-| `VIEWER` | wbp318 | Always looked up |
+| `VIEWER` | wbp318 | Looked up on every run, as are people who added themselves, so a change to their profile shows on the next refresh |
 | `CONTRIB_MAX_HOURS` | 20 (12 in the daily run) | When contributions count as stale |
 | `PROFILE_MAX_DAYS` | 7 | When profiles count as stale |
 | `SEARCH_MAX_DAYS` | 7 | When searches count as stale |

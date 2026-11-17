@@ -47,12 +47,15 @@ export function tiers(prof, extra = [], { perState = 80, allActive = 1000, now =
 /**
  * Who to look up this run, in order: the daily tier's stale entries, then the weekly tier's due
  * ones, then up to newMax never looked up (or whose last lookup failed). users is users.json;
- * contribMax is how old a daily entry may be, in milliseconds.
+ * contribMax is how old a daily entry may be, in milliseconds. always: logins looked up every run,
+ * however recent (the viewer and people who added themselves, so a change to their profile shows on
+ * the next refresh, even one started by hand the same day).
  *   due weekly: their weekday, and more than 2 days since their last lookup, or any day once it is
  *   more than 8 days old.
  */
-export function due({ daily, weekly }, users, { now = Date.now(), contribMax, newMax = 3000 }) {
-  const d = daily.filter((l) => !users[l]?.at || now - users[l].at > contribMax);
+export function due({ daily, weekly }, users, { now = Date.now(), contribMax, newMax = 3000, always = [] }) {
+  const every = new Set(always);
+  const d = daily.filter((l) => every.has(l) || !users[l]?.at || now - users[l].at > contribMax);
   const today = weekdayOf(now);
   const w = [];
   const fresh = [];
