@@ -7,7 +7,11 @@
 // below, and only parsed, never run:
 //   - us-atlas's county map, for the set of county codes the page draws (3,141 without D.C.);
 //   - the Census 2020 lists of counties, of places in each county, and of county subdivisions;
-//   - the Census 2024 population estimates of places and county subdivisions.
+//   - the Census 2024 population estimates of places and county subdivisions;
+//   - GeoNames' US postal codes (CC BY 4.0, geonames.org): each ZIP's post office, as USPS names it,
+//     and its county;
+//   - the USGS's Geographic Names Information System (GNIS, public domain): every named populated
+//     place, incorporated or not, and its county.
 //
 // Which names go to which county, within one state:
 //   1. Census suffixes come off ("Austin city" is Austin, "Edison township" Edison), and an alternate
@@ -22,6 +26,18 @@
 //   6. Towns and townships (county subdivisions) count only in the states where they are what
 //      people live in: CT, ME, MA, MI, MN, NH, NJ, NY, PA, RI, VT, and WI.
 //   7. Names shorter than 3 letters, and the words in STOP (src/counties/aliases.mjs), are left out.
+//   8. Then post offices and unincorporated communities fill the gaps, in all 50 states: a name the
+//      Census places, the hand-written states' files, and the aliases don't have. A post office
+//      whose ZIPs are all in one county is in that county; a name with no post office counts only
+//      if every populated place of that name in the state is in one county. GNIS's former places
+//      ("(historical)") and subdivisions, trailer parks, and apartments are left out, and so is a
+//      name like another county's (rule 5). So are names people write that aren't where they live,
+//      even where a hamlet has one: a state's name ("New York, Florida" is two states, not New York
+//      in Santa Rosa County), a name with the state's own in it ("Mid-Missouri"), a city of 500,000
+//      or more in another state ("Austin" in California), "X Township" where the Census left X out
+//      or put it elsewhere, and NOT_PLACES ("bay", "the woods", "java", "narnia"). In the
+//      hand-written states these are tried only when the state's own file finds nothing.
+//      Sondheimer, Louisiana (ZIP 71276) is East Carroll Parish.
 // src/counties/aliases.mjs overrides the result where Census names are not what people write.
 //
 // Then, if data/profiles.json is there, it replays the county match over everyone placed in a
@@ -31,8 +47,14 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { inflateRawSync } from "node:zlib";
 import { ALIASES, STOP } from "../src/counties/aliases.mjs";
 import { normalizePlace } from "../src/counties.mjs";
+import * as AL from "../src/counties/al.mjs";
+import * as AR from "../src/counties/ar.mjs";
+import * as LA from "../src/counties/la.mjs";
+import * as MS from "../src/counties/ms.mjs";
+import * as TN from "../src/counties/tn.mjs";
 import { NAMES } from "../src/states.mjs";
 
 const CACHE = join(tmpdir(), "gh-leaderboard-census");
@@ -46,16 +68,21 @@ const SOURCES = {
   places: [`${CENSUS}/geo/docs/reference/codes2020/national_place_by_county2020.txt`, "9996494d33cf6ee4527491508aa1b8dae85dcff3a979886e19b0b375e5d06ec6"],
   cousubs: [`${CENSUS}/geo/docs/reference/codes2020/national_cousub2020.txt`, "2f292e90e56b1c1b085402bef6e4dc9d9404b0006e44988860226759217c7cf3"],
   people: [`${CENSUS}/programs-surveys/popest/datasets/2020-2024/cities/totals/sub-est2024.csv`, "af9cd4835c93552a2161fc88bf4d7aa31e81b4f16f7457980b95295cf91e49e9"],
+  // GeoNames rewrites this file most days; a new one is read and its hash updated here.
+  postal: ["https://download.geonames.org/export/zip/US.zip", "4d112ab59ee40eacdd0bcabfcbb20caf2352c1008bb8d2daa24101e077c840f9"],
+  gnis: ["https://prd-tnm.s3.amazonaws.com/StagedProducts/GeographicNames/DomesticNames/DomesticNames_National_Text.zip", "1ccd7aaa8f50ba7e2340e131bce815154e6c8288df72bbff01e0e99033ac9acd"],
 };
 const HEADERS = {
   counties: "STATE|STATEFP|COUNTYFP|COUNTYNS|COUNTYNAME|CLASSFP|FUNCSTAT",
   places: "STATE|STATEFP|COUNTYFP|COUNTYNAME|PLACEFP|PLACENS|PLACENAME|TYPE|CLASSFP|FUNCSTAT",
   cousubs: "STATE|STATEFP|COUNTYFP|COUNTYNAME|COUSUBFP|COUSUBNS|COUSUBNAME|CLASSFP|FUNCSTAT",
   people: "SUMLEV,STATE,COUNTY,PLACE,COUSUB,CONCIT,PRIMGEO_FLAG,FUNCSTAT,NAME,STNAME,ESTIMATESBASE2020,POPESTIMATE2020,POPESTIMATE2021,POPESTIMATE2022,POPESTIMATE2023,POPESTIMATE2024",
+  gnis: "feature_id|feature_name|feature_class|state_name|state_numeric|county_name|county_numeric|map_name|date_created|date_edited|bgn_type|bgn_authority|bgn_date|prim_lat_dms|prim_long_dms|prim_lat_dec|prim_long_dec|source_lat_dms|source_long_dms|source_lat_dec|source_long_dec",
 };
 
 // The hand-written states keep their own places (src/counties/*.mjs).
-const HAND = new Set(["LA", "MS", "AL", "AR", "TN"]);
+const HAND_FILES = [LA, MS, AL, AR, TN];
+const HAND = new Set(HAND_FILES.map((f) => f.STATE));
 // The states where people live in towns and townships, not only in incorporated places.
 const TOWNSHIPS = new Set(["CT", "ME", "MA", "MI", "MN", "NH", "NJ", "NY", "PA", "RI", "VT", "WI"]);
 // Towns and townships (T1), and towns that are also a place (T5). The rest are cities already in the
@@ -114,8 +141,33 @@ function csv(name, buf) {
   return lines.slice(1).map((l) => [...l.matchAll(/(?:^|,)("(?:[^"]|"")*"|[^,]*)/g)].map((m) => m[1].replace(/^"|"$/g, "").replace(/""/g, '"')));
 }
 
-const [atlasBuf, countyBuf, placeBuf, cousubBuf, peopleBuf] = await Promise.all(
-  ["atlas", "counties", "places", "cousubs", "people"].map(source),
+// The one file in a zip whose name matches, unpacked. Only what these sources use: no Zip64.
+function unzip(buf, match) {
+  let end = buf.length - 22;
+  while (end >= 0 && buf.readUInt32LE(end) !== 0x06054b50) end--;
+  assert(end >= 0, "not a zip file");
+  let at = buf.readUInt32LE(end + 16);
+  for (let i = buf.readUInt16LE(end + 10); i > 0; i--) {
+    assert(buf.readUInt32LE(at) === 0x02014b50, "a broken zip directory");
+    const method = buf.readUInt16LE(at + 10);
+    const size = buf.readUInt32LE(at + 20);
+    const local = buf.readUInt32LE(at + 42);
+    const nameLen = buf.readUInt16LE(at + 28);
+    const name = buf.toString("utf8", at + 46, at + 46 + nameLen);
+    at += 46 + nameLen + buf.readUInt16LE(at + 30) + buf.readUInt16LE(at + 32);
+    if (!match.test(name)) continue;
+    assert(size !== 0xffffffff && local !== 0xffffffff && buf.readUInt32LE(local) === 0x04034b50, `${name}: can't be read`);
+    const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
+    const data = buf.subarray(start, start + size);
+    if (method === 0) return data;
+    assert(method === 8, `${name}: compression ${method}`);
+    return inflateRawSync(data);
+  }
+  return fail(`no file like ${match} in the zip`);
+}
+
+const [atlasBuf, countyBuf, placeBuf, cousubBuf, peopleBuf, postalZip, gnisZip] = await Promise.all(
+  ["atlas", "counties", "places", "cousubs", "people", "postal", "gnis"].map(source),
 );
 
 // The states, by code and by FIPS.
@@ -186,8 +238,11 @@ const fmtN = (n) => (n == null ? "?" : n.toLocaleString("en-US"));
 // Every place of the generated states, once each, in the county with most of its people.
 const ENTRIES = Object.fromEntries(CODES.map((ab) => [ab, []])); // { name, fips, kind, people, raw }
 const PLACES = new Map();
+// Every name the Census gave a state, kept or not, so rule 8 never brings back one left out.
+const CENSUS_NAMES = Object.fromEntries(CODES.map((ab) => [ab, new Set()]));
 for (const [ab, sfp, cfp, , pfp, , raw, type] of pipes("places", placeBuf)) {
   if (!CODES.includes(ab) || HAND.has(ab)) continue;
+  for (const name of namesOf(ab, raw)) CENSUS_NAMES[ab].add(name);
   const id = sfp + pfp;
   const p = PLACES.get(id) ?? { ab, pfp, raw, cdp: type !== "INCORPORATED PLACE", counties: new Set() };
   p.counties.add(MERGED[sfp + cfp] ?? sfp + cfp);
@@ -215,6 +270,7 @@ let towns = 0;
 for (const [ab, sfp, cfp, , sub, , raw, cls] of pipes("cousubs", cousubBuf)) {
   if (!TOWNSHIPS.has(ab) || !TOWNSHIP_CLASSES.has(cls)) continue;
   towns++;
+  for (const name of namesOf(ab, raw)) CENSUS_NAMES[ab].add(name);
   const people = townPeople.get(ab === "CT" ? sfp + sub : sfp + cfp + sub) ?? null;
   for (const name of namesOf(ab, raw)) ENTRIES[ab].push({ name, fips: sfp + cfp, kind: "town", people, raw });
 }
@@ -260,6 +316,118 @@ for (const ab of CODES) {
   }
 }
 
+// Rule 8: post offices and unincorporated communities, where the names so far leave a gap.
+const AB_OF = Object.fromEntries(Object.entries(FP).map(([ab, sfp]) => [sfp, ab]));
+const countyFips = (ab, cfp) => {
+  if (!/^\d{3}$/.test(cfp ?? "")) return null;
+  const f = MERGED[FP[ab] + cfp] ?? FP[ab] + cfp;
+  return COUNTY.has(f) ? f : null;
+};
+// name → Set of county FIPS, by state, for post offices and for populated places.
+const POST = Object.fromEntries(CODES.map((ab) => [ab, new Map()]));
+const POPULATED = Object.fromEntries(CODES.map((ab) => [ab, new Map()]));
+const addTo = (m, name, fips) => m.set(name, (m.get(name) ?? new Set()).add(fips));
+const ok = (name) => name.length >= 3 && !STOP.has(name);
+
+// GeoNames: country, ZIP, post office, state, state code, county, county code, and more, by tabs.
+let zips = 0;
+for (const line of unzip(postalZip, /^US\.txt$/).toString("utf8").split(/\r?\n/)) {
+  if (!line) continue;
+  const [cc, zip, office, , ab, , cfp] = line.split("\t");
+  assert(cc === "US" && /^\d{5}$/.test(zip), `postal: unexpected line ${line}`);
+  if (!CODES.includes(ab)) continue; // D.C., the territories, and military mail
+  const fips = countyFips(ab, cfp);
+  const name = normalizePlace(office);
+  if (!fips || !ok(name)) continue;
+  zips++;
+  addTo(POST[ab], name, fips);
+}
+
+// GNIS: one feature a line; only populated places are read, found by their class.
+const gnis = unzip(gnisZip, /DomesticNames_National\.txt$/);
+assert(gnis.toString("utf8", 0, gnis.indexOf(10)).replace(/^﻿/, "").trim() === HEADERS.gnis, "gnis: unexpected header");
+const LEFT_OUT = /\(historical\)|\b(?:subdivision|mobile homes?|trailer|apartments?|condominiums?|condos|rv park|labor camp|addition|estates?)\b/i;
+const needle = Buffer.from("|Populated Place|");
+let populated = 0;
+for (let i = gnis.indexOf(needle); i >= 0; i = gnis.indexOf(needle, i + 1)) {
+  const start = gnis.lastIndexOf(10, i) + 1;
+  let stop = gnis.indexOf(10, i);
+  if (stop < 0) stop = gnis.length;
+  const [, raw, cls, , sfp, , cfp] = gnis.toString("utf8", start, stop).replace(/\r$/, "").split("|");
+  i = stop;
+  const ab = AB_OF[sfp];
+  if (cls !== "Populated Place" || !ab || LEFT_OUT.test(raw)) continue;
+  const fips = countyFips(ab, cfp);
+  const name = normalizePlace(raw);
+  if (!fips || !ok(name)) continue;
+  populated++;
+  addTo(POPULATED[ab], name, fips);
+}
+
+// Words rule 8 leaves out, though a hamlet somewhere has the name: what people write that isn't
+// where they live. Only here: a Census town with one of these names (Cisco, Texas) stays.
+const NOT_PLACES = new Set([
+  "bay", "beach", "lake", "river", "forest", "island", "islands", "hill", "hills", "valley", "village", "house",
+  "kitchen", "couch", "place", "land", "planet", "galaxy", "woods", "the woods", "sky", "star", "sun", "desert",
+  "mountain", "mountains", "ocean", "sea", "coast", "the hill", "the hills", "the valley", "the shire", "shire",
+  "middle earth", "narnia", "atlantis", "gotham", "metropolis", "pluto", "jupiter", "saturn", "neptune", "mercury",
+  "venus", "java", "ruby", "rust", "swift", "python", "apple", "amazon", "dell", "cisco", "nirvana", "utopia",
+  "heaven", "southeastern", "southwestern", "northeastern", "northwestern", "mid",
+]);
+const STATE_NAMES = new Set(NAMES.map(([, n]) => normalizePlace(n)));
+// Cities of 500,000 people or more, by name: the states they are in.
+const BIG = new Map();
+for (const [ab, sfp, , , pfp, , raw] of pipes("places", placeBuf)) {
+  if (!CODES.includes(ab) || (placePeople.get(sfp + pfp) ?? 0) < 500000) continue;
+  for (const name of namesOf(ab, raw)) BIG.set(name, (BIG.get(name) ?? new Set()).add(ab));
+}
+const TYPED = / (?:township|town|city|village|borough|plantation)$/;
+
+// What a hand-written state's file already names.
+const HAND_NAMES = Object.fromEntries(
+  HAND_FILES.map((f) => [f.STATE, new Set([...Object.keys(f.PLACES), ...f.COUNTIES, ...f.ONLY].map(normalizePlace))]),
+);
+const MORE = new Map(); // fips → [name]
+const moreCount = Object.fromEntries(CODES.map((ab) => [ab, { post: 0, community: 0 }]));
+Object.assign(review, { moreShared: [], moreLikeCounty: [] });
+for (const ab of CODES) {
+  // The state's own name too: GNIS has a Maine in Aroostook County, but "Portland, Maine Metropolitan
+  // Area" is Portland.
+  const self = normalizePlace(NAME_OF[ab]);
+  const hasSelf = new RegExp(`(?:^| )${self}(?: |$)`);
+  const elsewhere = (name) => [...(BIG.get(name) ?? [])].some((st) => st !== ab);
+  const taken = (name) =>
+    hasSelf.test(name) || STATE_NAMES.has(name) || NOT_PLACES.has(name) || elsewhere(name) ||
+    GEN[ab].has(name) || CENSUS_NAMES[ab].has(name) || HAND_NAMES[ab]?.has(name) || ALIASES[ab]?.[name] !== undefined;
+  const all = new Set([...POST[ab].keys(), ...POPULATED[ab].keys()]);
+  for (const name of [...all].sort()) {
+    if (taken(name)) continue;
+    const post = POST[ab].get(name);
+    const where = post ?? POPULATED[ab].get(name);
+    const label = (set) => [...set].map((f) => COUNTY.get(f).label).join(", ");
+    if (where.size !== 1) {
+      review.moreShared.push(`${ab} ${name}: ${post ? "a post office in" : "places in"} ${label(where)}`);
+      continue;
+    }
+    const [fips] = where;
+    // "Monroe Township, New Jersey": the Census has a Monroe in two counties and left it out.
+    const base = name.replace(TYPED, "");
+    if (base !== name && (CENSUS_NAMES[ab].has(base) || HAND_NAMES[ab]?.has(base)) && GEN[ab].get(base) !== fips) {
+      review.moreShared.push(`${ab} ${name}: ${COUNTY.get(fips).label}, but the Census's ${base} is ${GEN[ab].has(base) ? COUNTY.get(GEN[ab].get(base)).label : "left out"}`);
+      continue;
+    }
+    const like = COUNTY_KEYS[ab].get(key(name));
+    if (like && like !== fips) {
+      review.moreLikeCounty.push(`${ab} ${name} → ${COUNTY.get(fips).label}, like ${COUNTY.get(like).label}`);
+      continue;
+    }
+    moreCount[ab][post ? "post" : "community"]++;
+    MORE.set(fips, [...(MORE.get(fips) ?? []), name]);
+  }
+}
+const moreTotal = Object.values(moreCount).reduce((a, c) => a + c.post + c.community, 0);
+console.log(`post offices and communities: ${zips} ZIPs and ${populated} populated places read, ${moreTotal} names added`);
+
 // us.json, one county per line.
 const byShort = new Intl.Collator("en");
 const lines = ["{"];
@@ -271,7 +439,9 @@ CODES.forEach((ab, i) => {
       .sort((a, b) => (b.people ?? -1) - (a.people ?? -1) || byShort.compare(a.name, b.name))
       .map((p) => p.name)
       .join("|");
-    const row = [c.fips.slice(2), c.name, c.label, places].map((v) => JSON.stringify(v)).join(", ");
+    // Rule 8's names, after the Census places: post offices and communities, A to Z.
+    const more = (MORE.get(c.fips) ?? []).sort(byShort.compare).join("|");
+    const row = [c.fips.slice(2), c.name, c.label, places, more].map((v) => JSON.stringify(v)).join(", ");
     lines.push(`[${row}]${j < rows.length - 1 ? "," : ""}`);
   });
   lines.push(`]}${i < CODES.length - 1 ? "," : ""}`);
@@ -308,6 +478,10 @@ for (const [ab, m] of Object.entries(ALIASES)) {
   }
 }
 section("Aliases that repeat or override a generated place", aliasNotes);
+section(
+  `Post offices and communities added, by state: post offices, other communities (${moreTotal} in all)`,
+  CODES.map((ab) => `${ab}${HAND.has(ab) ? "*" : " "} ${String(moreCount[ab].post).padStart(5)} ${String(moreCount[ab].community).padStart(6)}`),
+);
 
 // Replay the county match over everyone placed.
 const profilesFile = new URL("../data/profiles.json", import.meta.url);
@@ -390,5 +564,7 @@ section("Names shared across counties, kept for the biggest", review.contestedKe
 section("Names shared across counties, left out", review.contestedDropped);
 section("Places named like another county, left out", review.likeCounty);
 section("Places named like another county, kept (50,000 people or more)", review.likeCountyKept);
+section("Post offices and communities whose name is in more than one county, left out", review.moreShared);
+section("Post offices and communities named like another county, left out", review.moreLikeCounty);
 writeFileSync(REVIEW, out.join("\n"));
 console.log(`review: ${REVIEW}`);

@@ -20,7 +20,7 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 |---|---|
 | [src/states.mjs](src/states.mjs) | Reads a free-text profile location and decides which state it names, if any. The rules most likely to need you. |
 | [src/counties.mjs](src/counties.mjs) | Which county a location names, by FIPS code, in every state. |
-| [src/counties/us.json](src/counties/us.json) | Every county of the 50 states, and for 45 of them the Census place names in each. Made by [scripts/make-counties.mjs](scripts/make-counties.mjs). |
+| [src/counties/us.json](src/counties/us.json) | Every county of the 50 states: for 45 of them the Census place names in each, and for all 50 the post offices and unincorporated communities that fill the gaps. Made by [scripts/make-counties.mjs](scripts/make-counties.mjs). |
 | [src/counties/aliases.mjs](src/counties/aliases.mjs) | Hand fixes to those place names: nicknames, boroughs, universities, and regions that name no one county. |
 | [src/counties/la.mjs](src/counties/la.mjs) | Louisiana's 64 parishes and the towns and universities in each. |
 | [src/counties/ms.mjs](src/counties/ms.mjs), [al.mjs](src/counties/al.mjs), [ar.mjs](src/counties/ar.mjs), [tn.mjs](src/counties/tn.mjs) | Mississippi's, Alabama's, Arkansas's, and Tennessee's counties, and the towns and universities in each. |
@@ -51,12 +51,12 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 
 ### Fix your state's counties
 
-Every state's counties are in [src/counties/us.json](src/counties/us.json), one county a line, by FIPS code. For 45 states it also lists the towns and cities in each county, made from Census files by [scripts/make-counties.mjs](scripts/make-counties.mjs). Louisiana, Mississippi, Alabama, Arkansas, and Tennessee have hand-written files in `src/counties/` instead. To fix where a location lands:
+Every state's counties are in [src/counties/us.json](src/counties/us.json), one county a line, by FIPS code. For 45 states it also lists the towns and cities in each county, made from Census files by [scripts/make-counties.mjs](scripts/make-counties.mjs). Louisiana, Mississippi, Alabama, Arkansas, and Tennessee have hand-written files in `src/counties/` instead. For all 50 it adds the post offices (USPS's names, from GeoNames) and unincorporated communities (from the USGS's GNIS) those leave out, each only if its name means one county in the state. To fix where a location lands:
 
 1. Add the location and its county to [test/counties.test.mjs](test/counties.test.mjs): the FIPS code, or `""` for none.
 2. In Louisiana, Mississippi, Alabama, Arkansas, or Tennessee, fix the town in the state's file. In any other state, add the name to [src/counties/aliases.mjs](src/counties/aliases.mjs): a nickname, a neighborhood, a university, a town the Census writes another way, or a region that names no one county (`null`).
 3. Run `npm test`.
-4. To change how the names are generated, change [scripts/make-counties.mjs](scripts/make-counties.mjs) and run `node scripts/make-counties.mjs`. It downloads the Census files once, rewrites us.json, and writes a review to read: match rates by state, the commonest locations with no county, and a sample of matches.
+4. To change how the names are generated, change [scripts/make-counties.mjs](scripts/make-counties.mjs) and run `node scripts/make-counties.mjs`. It downloads the Census, GNIS, and GeoNames files once, rewrites us.json, and writes a review to read: match rates by state, the commonest locations with no county, and a sample of matches.
 
 ## Someone is in the wrong place
 

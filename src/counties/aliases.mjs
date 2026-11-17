@@ -85,10 +85,10 @@ export const ALIASES = {
   OR: { pdx: "41051", "oregon state university": "41003", "university of oregon": "41039" },
   PA: {
     philly: "42101", "university of pennsylvania": "42101", "pennsylvania state university": "42027", "penn state": "42027",
-    landenberg: "42029",
+    landenberg: "42029", "lehigh valley": null,
   },
   RI: { wakefield: "44009", "university of rhode island": "44009", "brown university": "44007" },
-  SC: { "university of south carolina": "45079" },
+  SC: { "university of south carolina": "45079", "pee dee": null },
   SD: { "south dakota school of mines and technology": "46103", "university of south dakota": "46027", vermilion: "46027" },
   TX: { atx: "48453", "the woodlands": "48339", dfw: null, "dallas ft worth": null },
   UT: { slc: "49035", "salt lake": "49035", "university of utah": "49035" },
