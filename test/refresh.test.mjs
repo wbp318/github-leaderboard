@@ -37,6 +37,14 @@ test("refresh.yml is triggered every hour, on the minute of its daily refresh ti
   assert.match(yml, /node scripts\/refresh-due\.mjs/);
 });
 
+test("the Windows fallback (scripts/refresh-fallback.ps1) looks for the same refresh time", () => {
+  const at = dailyAt(readFileSync(new URL("../.github/workflows/refresh.yml", import.meta.url), "utf8"));
+  const ps1 = readFileSync(new URL("../scripts/refresh-fallback.ps1", import.meta.url), "utf8");
+  const m = ps1.match(/\$Now\.Date\.AddHours\((\d+)\)\.AddMinutes\((\d+)\)/);
+  assert.ok(m, "the fallback works out the refresh time from hours and minutes");
+  assert.deepEqual({ hour: Number(m[1]), minute: Number(m[2]) }, at);
+});
+
 test("dailyAt reads the time, or gives null without one", () => {
   assert.deepEqual(dailyAt('env:\n  REFRESH_AT_UTC: "9:05" # comment'), { hour: 9, minute: 5 });
   assert.equal(dailyAt('cron: "23 10 * * *"'), null);

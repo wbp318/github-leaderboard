@@ -46,6 +46,7 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 | [docs/optimjack.md](docs/optimjack.md) | The November 2026 third-party script attack, and the page's Content Security Policy. |
 | [.github/workflows/refresh.yml](.github/workflows/refresh.yml) | The daily refresh and the deploy to GitHub Pages. |
 | [scripts/refresh-due.mjs](scripts/refresh-due.mjs), [src/refresh.mjs](src/refresh.mjs) | Whether the daily refresh is due: the workflow is triggered every hour, because GitHub starts scheduled runs late, and only the first trigger after the day's time refreshes. |
+| [scripts/refresh-fallback.ps1](scripts/refresh-fallback.ps1) | A fallback from outside GitHub, on the owner's Windows PC: a scheduled task that starts the day's refresh if GitHub hasn't. `-Install` sets it up. |
 | [.github/workflows/add-me.yml](.github/workflows/add-me.yml) | Answers "Add me" issues. |
 
 ### Fix your state's counties

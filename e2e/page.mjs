@@ -67,6 +67,20 @@ await page.fill("#me", login);
 await page.click("#findme .go");
 await page.waitForTimeout(600);
 check((await page.locator("#you .tile").count()) >= 3, `finding ${login} shows their ranks`);
+// Each rank says top x% and its percentile, which add up to 100; the only one counted says neither.
+const standings = (await page.locator("#you .tile .n").allTextContents()).slice(1);
+check(
+  standings.some((t) => t.endsWith("percentile")) &&
+    standings.every((t) => {
+      const m = t.match(/ · top (\d+)% · (\d+)(?:st|nd|rd|th) percentile$/);
+      return t === "of 1 counted" || (m && Number(m[1]) + Number(m[2]) === 100);
+    }),
+  `each rank says top x% and its percentile, adding up to 100 (${standings.join(" | ")})`,
+);
+check(
+  (await page.evaluate(() => [0, 1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 73, 87, 99].map(ordinal).join(" "))) === "0th 1st 2nd 3rd 4th 11th 12th 13th 21st 22nd 23rd 73rd 87th 99th",
+  "percentiles are written 1st, 2nd, 3rd, 11th, 21st…",
+);
 check((await page.evaluate(() => new URLSearchParams(location.search).get("me"))) === login, "the address gets ?me=");
 check((await page.locator("#view").inputValue()) === `state:${home}`, "the tornado turns to their state");
 check((await page.locator("#board tr.me").count()) === 1, "their row is highlighted in the leaderboard");
