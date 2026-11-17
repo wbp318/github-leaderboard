@@ -76,7 +76,7 @@ export const PLACES = {
   Ruston: "Lincoln", Grambling: "Lincoln", "Louisiana Tech": "Lincoln", Dubach: "Lincoln",
   "West Monroe": "Ouachita", Monroe: "Ouachita", Sterlington: "Ouachita", ULM: "Ouachita",
   Bastrop: "Morehouse", "Mer Rouge": "Morehouse",
-  "Lake Providence": "East Carroll", "Oak Grove": "West Carroll", Tallulah: "Madison",
+  "Lake Providence": "East Carroll", Sondheimer: "East Carroll", "Oak Grove": "West Carroll", Tallulah: "Madison",
   Rayville: "Richland", Delhi: "Richland", Winnsboro: "Franklin", Columbia: "Caldwell",
   Jonesboro: "Jackson", Farmerville: "Union", "St. Joseph": "Tensas",
 };

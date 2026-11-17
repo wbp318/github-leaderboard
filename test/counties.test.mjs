@@ -17,6 +17,7 @@ const CASES = [
   ["LA", "New Orleans, LA", "Orleans"],
   ["LA", "Shreveport, Louisiana", "Caddo"],
   ["LA", "East Carroll Parish, Louisiana", "East Carroll"],
+  ["LA", "Sondheimer, Louisiana", "East Carroll"],
   ["LA", "West Monroe, LA", "Ouachita"],
   ["LA", "Monroe, LA", "Ouachita"],
   ["LA", "Saint Tammany Parish", "St. Tammany"],
