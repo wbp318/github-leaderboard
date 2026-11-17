@@ -270,6 +270,8 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
 .saves .btn[hidden] { display: none; }
 .saves .btn:disabled { opacity: 0.5; cursor: default; }
 .saves .mousey { margin-left: auto; }
+#musicBtn { margin-left: auto; }
+#musicBtn + .mousey { margin-left: 0; }
 .keys { max-width: 880px; margin-top: 8px; }
 .keys summary { cursor: pointer; color: var(--gold); font-weight: 600; }
 .keys table { max-width: 560px; }
@@ -324,6 +326,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
     <button type="button" class="btn" id="gameForget" hidden>Delete save</button>
     <span class="lbl" id="saveNote"></span>
     <span class="lbl" id="padHere" hidden>Controller connected: its buttons are under Keys.</span>
+    <button type="button" class="btn toggle" id="musicBtn" aria-pressed="true" title="Music on and off (N)">Music</button>
     <span class="lbl mousey">Mouse up and down</span>
     <fieldset class="seg" id="mouseY" aria-label="Mouse up and down">
       <button type="button" data-m="look" aria-pressed="true">Look</button>
@@ -732,7 +735,7 @@ function renderYou() {
   ];
   for (const r of myRanks()) {
     const county = r.scope.split(":").length === 3;
-    tiles.push([r.place, county ? `#${r.rank}` : `#${fmt(r.rank)}`, county ? `of ${fmt(r.of)} counted` : `of ${fmt(r.of)} · top ${topPct(r)}%`]);
+    tiles.push([r.place, `#${fmt(r.rank)}`, `of ${fmt(r.of)}${county ? " counted" : ""} · top ${topPct(r)}%`]);
   }
   tiles.forEach(([k, v, n], i) => box.appendChild(h("div", { class: i === 0 ? "tile me" : "tile" }, [h("div", { class: "k", text: k }), h("div", { class: "v", text: v }), h("div", { class: "n", text: n })])));
 }
@@ -4991,12 +4994,12 @@ const KEY_DEFAULTS = {
   forward: ["KeyW", "ArrowUp"], back: ["KeyS", "ArrowDown"], left: ["KeyA"], right: ["KeyD"],
   turnLeft: ["ArrowLeft"], turnRight: ["ArrowRight"], fire: ["Space", "KeyF"], run: ["ShiftLeft", "ShiftRight"],
   arm1: ["Digit1", "Numpad1"], arm2: ["Digit2", "Numpad2"], swap: ["KeyQ"],
-  pause: ["KeyP"], sound: ["KeyM"], mouse: ["KeyV"], save: ["KeyS"], load: ["KeyC"],
+  pause: ["KeyP"], sound: ["KeyM"], music: ["KeyN"], mouse: ["KeyV"], save: ["KeyS"], load: ["KeyC"],
 };
 const KEY_WHAT = {
   forward: "Move forward", back: "Move back", left: "Step left", right: "Step right", turnLeft: "Turn left", turnRight: "Turn right",
   fire: "Shoot", run: "Run", arm1: "Pea shooter", arm2: "Lightning rod", swap: "Switch weapon",
-  pause: "Pause (Escape too)", sound: "Sound on and off", mouse: "Mouse up and down: look or walk", save: "Save (when paused)", load: "Load your save (on the title)",
+  pause: "Pause (Escape too)", sound: "Sound on and off", music: "Music on and off", mouse: "Mouse up and down: look or walk", save: "Save (when paused)", load: "Load your save (on the title)",
 };
 const MENU = new Set(["save", "load"]);
 const FIXED = new Set(["Enter", "NumpadEnter", "Escape", "Tab"]);
@@ -5104,7 +5107,7 @@ function describeKeys() {
   $("#gameKeys").textContent =
     `Click the game or press Enter to play: either way the mouse steers from the start, alongside the keys, and Esc gives it back. ${move}, the mouse or ${kn("turnLeft")} and ${kn("turnRight")} turn, click or ${kn("fire")} shoots, ` +
     `the mouse up and down looks up and down (or, with ${kn("mouse")} or the switch below, walks you forward and back), ` +
-    `${kn("arm1")} and ${kn("arm2")}, ${kn("swap")}, or the mouse wheel switch weapons, ${kn("run")} runs, ${kn("sound")} turns the sound off and on, and Esc pauses. ` +
+    `${kn("arm1")} and ${kn("arm2")}, ${kn("swap")}, or the mouse wheel switch weapons, ${kn("run")} runs, ${kn("sound")} turns the sound off and on, ${kn("music")} the music, and Esc pauses. ` +
     "Walk up to a neighbour sheltering from the storm and they'll tell you what they know, and Biscuit, Hank's dog, follows you and goes for the bugs. " +
     `Paused, ${kn("save")} saves your progress in this browser, and ${kn("load")} on the title picks it up again; the buttons below do the same, and Keys changes any key. ` +
     `A controller works too: the left stick walks, the right stick turns and looks, ${padList("fire")} shoots, ${padList("act")} starts, and ${padList("pause")} pauses; set its buttons under Keys. ` +
@@ -5118,12 +5121,12 @@ function describeKeys() {
 // 11 the sticks pressed in, 12 to 15 the D-pad, 16 the Xbox button.
 const PAD_DEFAULTS = {
   act: [0, 9], fire: [7, 5], run: [6, 10], swap: [3], arm1: [14], arm2: [15],
-  forward: [12], back: [13], pause: [9], sound: [8], save: [2], load: [3],
+  forward: [12], back: [13], pause: [9], sound: [8], music: [11], save: [2], load: [3],
 };
-const PAD_ORDER = ["act", "fire", "run", "swap", "arm1", "arm2", "pause", "sound", "save", "load", "forward", "back"];
+const PAD_ORDER = ["act", "fire", "run", "swap", "arm1", "arm2", "pause", "sound", "music", "save", "load", "forward", "back"];
 const PAD_WHAT = {
   act: "Start and go on (the title and pause screens)", fire: "Shoot", run: "Run", swap: "Switch weapon", arm1: "Pea shooter", arm2: "Lightning rod",
-  forward: "Move forward", back: "Move back", pause: "Pause", sound: "Sound on and off", save: "Save (when paused)", load: "Load your save (on the title)",
+  forward: "Move forward", back: "Move back", pause: "Pause", sound: "Sound on and off", music: "Music on and off", save: "Save (when paused)", load: "Load your save (on the title)",
 };
 // These work only on the title and pause screens, so they may share buttons with play (Menu pauses
 // a game, and on the pause screen goes on with it).
@@ -5171,6 +5174,7 @@ function padTick() {
   Object.assign(padIn, { fw: -ly * k + (padOn("forward") ? 1 : 0) - (padOn("back") ? 1 : 0), st: lx * k, turn: deadzone(rx), look: deadzone(ry) });
   if (padPressed("pause")) pause();
   else if (padPressed("sound")) toggleSound();
+  else if (padPressed("music")) toggleMusic();
   else if (padPressed("arm1")) swap(0);
   else if (padPressed("arm2")) swap(1);
   else if (padPressed("swap")) swap();
@@ -6175,6 +6179,8 @@ function setState(s, speak) {
   if (speak) said.textContent = speak;
   saveUI();
   padWake();
+  if (s === "playing") musicOn();
+  else musicOff();
 }
 let raf = 0, last = 0;
 function loop(now) {
@@ -6193,6 +6199,8 @@ function kick() {
 // A level from the start. The drain starts you with the ammo you brought down from the cellar.
 function start(n) {
   G.level = n;
+  MUS.level = -1;
+  musicOff();
   reset(n);
   if (n) {
     P.ammo = G.carry;
@@ -6247,7 +6255,65 @@ function toggleSound() {
   } catch {}
   if (ac) (sound ? ac.resume() : ac.suspend()).catch(() => {});
   note(sound ? "SOUND ON." : "SOUND OFF.");
+  if (sound) musicOn();
 }
+
+// ---------------------------------------------------------------- music
+// Two original, upbeat tracks made in code (src/music.mjs, copied in here by the build): one for the
+// cellar, one for the drain, busier in the Heisenbug's fight. They play while you play, fade on
+// pause, start from the top on a new level or a retry, and have their own switch (N, or Music
+// under the game), kept in this browser; M still turns every sound off.
+/*__MUSIC__*/
+let music = true;
+try {
+  music = localStorage.getItem("github-leaderboard.music") !== "off";
+} catch {}
+const MUS = { player: null, bus: null, timer: 0, level: -1 };
+function musicOn() {
+  if (!music || G.state !== "playing" || MUS.timer) return;
+  const a = audio();
+  if (!a) return;
+  if (!MUS.player) {
+    MUS.bus = a.createGain();
+    MUS.bus.gain.value = 0;
+    MUS.bus.connect(master);
+    MUS.player = makeMusic(a, MUS.bus);
+  }
+  const now = a.currentTime;
+  MUS.player.start(G.level, now + 0.06, MUS.level !== G.level);
+  MUS.level = G.level;
+  MUS.bus.gain.cancelScheduledValues(now);
+  MUS.bus.gain.setTargetAtTime(0.55, now, 0.12);
+  const hype = () => Boolean(G.boss) && G.boss.st !== "dead" && G.boss.st !== "dying";
+  MUS.timer = setInterval(() => MUS.player.tick(a.currentTime, hype()), 25);
+  cv.dataset.music = "playing";
+}
+function musicOff() {
+  if (MUS.timer) clearInterval(MUS.timer);
+  MUS.timer = 0;
+  if (MUS.bus && ac) {
+    MUS.bus.gain.cancelScheduledValues(ac.currentTime);
+    MUS.bus.gain.setTargetAtTime(0, ac.currentTime, 0.06);
+  }
+  cv.dataset.music = music ? "ready" : "off";
+}
+function toggleMusic() {
+  music = !music;
+  try {
+    localStorage.setItem("github-leaderboard.music", music ? "on" : "off");
+  } catch {}
+  $("#musicBtn").setAttribute("aria-pressed", String(music));
+  if (music) musicOn();
+  else musicOff();
+  if (G.state === "playing") note(music ? `MUSIC ON: ${(MUS.player?.name ?? SONGS[G.level % SONGS.length].name).toUpperCase()}.` : "MUSIC OFF.");
+  said.textContent = music ? "Music on." : "Music off.";
+}
+$("#musicBtn").setAttribute("aria-pressed", String(music));
+$("#musicBtn").addEventListener("click", () => {
+  toggleMusic();
+  cv.focus({ preventScroll: true });
+});
+cv.dataset.music = music ? "ready" : "off";
 // The mouse's up and down, from V or the switch under the game, remembered in this browser.
 function setMouseY(mode, tell) {
   mouseY = mode;
@@ -6295,6 +6361,7 @@ cv.addEventListener("keydown", (e) => {
     e.preventDefault();
     pause();
   } else if (isKey("sound", k)) toggleSound();
+  else if (isKey("music", k)) toggleMusic();
   else if (isKey("mouse", k)) setMouseY(mouseY === "look" ? "walk" : "look", true);
   else if (isKey("arm1", k) || isKey("arm2", k) || isKey("swap", k)) {
     e.preventDefault();

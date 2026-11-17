@@ -35,6 +35,7 @@ The sticks are fixed. The **left stick** walks and steps aside, and the **right 
 | Move forward / back | D-pad up / D-pad down |
 | Pause | Menu |
 | Sound on and off | View |
+| Music on and off | Press the right stick in |
 | Save your progress (paused) | X |
 | Load your save (on the title) | Y |
 
@@ -44,7 +45,7 @@ The sticks are fixed. The **left stick** walks and steps aside, and the **right 
 
 ## Change the buttons
 
-Under the game, open **Keys**, scroll to **Controller**, and choose **Set up its buttons**. The wizard goes through the 12 actions one at a time, "press the button for Shoot", and takes the next button you press.
+Under the game, open **Keys**, scroll to **Controller**, and choose **Set up its buttons**. The wizard goes through the 13 actions one at a time, "press the button for Shoot", and takes the next button you press.
 
 - **Skip** keeps an action's current button.
 - **Cancel** stops and changes nothing.
