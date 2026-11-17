@@ -155,10 +155,14 @@ const geoJs = `/* The shape of every county: ${JSON.parse(geoJson).license}. */\
 writeFileSync(new URL("us-counties.js", out), geoJs);
 data.geo = `us-counties.js?v=${createHash("sha256").update(geoJs).digest("hex").slice(0, 8)}`;
 const decodeGeo = readFileSync(new URL("../src/geo.mjs", import.meta.url), "utf8").replace(/^export function decodeGeo/m, "function decodeGeo");
+// Storm Cellar's music (src/music.mjs), copied in the same way, so the page and the test that
+// renders it offline run the same code.
+const musicCode = readFileSync(new URL("../src/music.mjs", import.meta.url), "utf8").replace(/^export /gm, "");
 
 const tpl = readFileSync(new URL("../web/template.html", import.meta.url), "utf8");
 const page = tpl
   .replace("/*__DECODE_GEO__*/", () => decodeGeo)
+  .replace("/*__MUSIC__*/", () => musicCode)
   .replace("/*__DATA__*/null", () => JSON.stringify(data).replace(/</g, String.fromCharCode(92) + "x3c"));
 // The Content Security Policy: what the page may load and run. Scripts only from the page itself,
 // each one named by its hash (so a script slipped into the page some other way never runs) or from

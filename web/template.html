@@ -94,12 +94,34 @@
   --flash: #ffffff;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--sky); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+html, body { margin: 0; color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+/* Only the page itself paints the sky, so the music's glow (body::before) can sit between it and
+   everything else. */
+html { background: var(--sky); }
 body { padding: 20px clamp(12px, 3vw, 32px) 40px; }
 a { color: var(--link); }
 header h1 { margin: 0; font-size: clamp(26px, 4vw, 40px); letter-spacing: 0.01em; }
-#theme { float: right; margin: clamp(4px, 1.4vw, 15px) 0 0 14px; }
+/* Above the title: its pulse to the music (a transform) would otherwise lay it over the switch. */
+#theme { float: right; margin: clamp(4px, 1.4vw, 15px) 0 0 14px; position: relative; z-index: 2; }
 header p { margin: 4px 0 0; color: var(--muted); max-width: 980px; }
+/* The page's music, and what moves to it: a spectrum along the top edge, the title and a glow
+   that pulse on the kick (--beat, 0 to 1, set each frame), and a gold flash round the edges on each
+   drop. None of it moves when the system asks for reduced motion. */
+.tunes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 8px 0 2px; }
+.tunes .tune-name { font-size: 13px; color: var(--muted); min-width: 0; }
+.tunes[data-state="playing"] .tune-name { color: var(--gold); font-weight: 600; }
+.tunes[data-state="playing"] #tunePlay { border-color: var(--gold); color: var(--gold); }
+.tunes .tune-vol { display: inline-flex; align-items: center; gap: 6px; }
+.tunes input[type="range"] { width: 96px; accent-color: var(--gold); }
+#viz { position: fixed; top: 0; left: 0; width: 100%; height: 44px; pointer-events: none; z-index: 40; display: none; }
+#kiai { position: fixed; inset: 0; pointer-events: none; z-index: 39; opacity: 0; box-shadow: inset 0 0 90px 12px var(--gold); }
+#kiai.on { animation: kiai 0.9s ease-out; }
+@keyframes kiai { from { opacity: 0.85; } to { opacity: 0; } }
+:root[data-theme="light"] #kiai { box-shadow: inset 0 0 70px 6px color-mix(in srgb, var(--gold) 60%, transparent); }
+#title { transform-origin: left center; transform: scale(calc(1 + var(--beat, 0) * 0.025)); text-shadow: 0 0 calc(var(--beat, 0) * 8px) var(--gold), 0 0 calc(var(--beat, 0) * 30px) var(--gold); }
+body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: -1; opacity: var(--glow, 0);
+  background: radial-gradient(ellipse 90% 55% at 50% 0%, var(--right), transparent 70%), radial-gradient(ellipse 60% 40% at 15% 100%, var(--left), transparent 70%); }
+@media (prefers-reduced-motion: reduce) { #title { transform: none; text-shadow: none; } body::before, #kiai, #viz { display: none !important; } }
 header p.fresh { display: inline-flex; align-items: center; gap: 8px; margin: 6px 0 2px; padding: 4px 12px; border: 1px solid var(--line);
   border-radius: 999px; background: var(--panel); color: var(--ink); font-size: 13.5px; }
 header p.fresh::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--live); box-shadow: 0 0 6px var(--live); flex: none; }
@@ -270,6 +292,8 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
 .saves .btn[hidden] { display: none; }
 .saves .btn:disabled { opacity: 0.5; cursor: default; }
 .saves .mousey { margin-left: auto; }
+#musicBtn { margin-left: auto; }
+#musicBtn + .mousey { margin-left: 0; }
 .keys { max-width: 880px; margin-top: 8px; }
 .keys summary { cursor: pointer; color: var(--gold); font-weight: 600; }
 .keys table { max-width: 560px; }
@@ -297,6 +321,8 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
 </script>
 </head>
 <body>
+<canvas id="viz" aria-hidden="true"></canvas>
+<div id="kiai" aria-hidden="true"></div>
 <header>
   <fieldset class="seg" id="theme" aria-label="Theme">
     <button type="button" value="dark" aria-pressed="true">Dark</button>
@@ -304,6 +330,12 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
   </fieldset>
   <h1 id="title">GitHub Contribution Tornado</h1>
   <p class="fresh" id="fresh"></p>
+  <div class="tunes" id="tunes" role="group" aria-label="Music for the page" data-state="off">
+    <button type="button" class="btn" id="tunePlay" aria-pressed="false">▶ Play music</button>
+    <span class="tune-name" id="tuneName" aria-live="polite">Three upbeat tracks, made in code</span>
+    <button type="button" class="btn" id="tuneNext" title="Next track">Next ›</button>
+    <label class="lbl tune-vol">Volume <input type="range" id="tuneVol" min="0" max="100" value="60"></label>
+  </div>
   <p id="sub"></p>
   <a class="repo" href="https://github.com/wbp318/github-leaderboard">Open source on GitHub: fix a placement, add a feature, star it ★</a>
 </header>
@@ -324,6 +356,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
     <button type="button" class="btn" id="gameForget" hidden>Delete save</button>
     <span class="lbl" id="saveNote"></span>
     <span class="lbl" id="padHere" hidden>Controller connected: its buttons are under Keys.</span>
+    <button type="button" class="btn toggle" id="musicBtn" aria-pressed="true" title="Music on and off (N)">Music</button>
     <span class="lbl mousey">Mouse up and down</span>
     <fieldset class="seg" id="mouseY" aria-label="Mouse up and down">
       <button type="button" data-m="look" aria-pressed="true">Look</button>
@@ -732,7 +765,7 @@ function renderYou() {
   ];
   for (const r of myRanks()) {
     const county = r.scope.split(":").length === 3;
-    tiles.push([r.place, county ? `#${r.rank}` : `#${fmt(r.rank)}`, county ? `of ${fmt(r.of)} counted` : `of ${fmt(r.of)} · top ${topPct(r)}%`]);
+    tiles.push([r.place, `#${fmt(r.rank)}`, `of ${fmt(r.of)}${county ? " counted" : ""} · top ${topPct(r)}%`]);
   }
   tiles.forEach(([k, v, n], i) => box.appendChild(h("div", { class: i === 0 ? "tile me" : "tile" }, [h("div", { class: "k", text: k }), h("div", { class: "v", text: v }), h("div", { class: "n", text: n })])));
 }
@@ -988,7 +1021,7 @@ function draw(dt) {
       : [[Math.PI, Math.PI * 1.5, g.rL, THEME.leftBack], [Math.PI * 1.5, Math.PI * 2, g.rR, THEME.rightBack]];
     for (const [a0, a1, rx, color] of parts) {
       c.strokeStyle = g.row.me && frontHalf ? (a0 === 0 ? THEME.rightMe : THEME.leftMe) : color;
-      c.lineWidth = frontHalf ? (hot ? 3.5 : g.row.me ? 2.6 : 2) : hot ? 2 : 1;
+      c.lineWidth = (frontHalf ? (hot ? 3.5 : g.row.me ? 2.6 : 2) : hot ? 2 : 1) * (1 + BEAT.v * 0.9);
       c.beginPath();
       c.ellipse(G.cx, g.y, rx, g.ry, 0, a0, a1);
       c.stroke();
@@ -3002,6 +3035,193 @@ function frame(now) {
     console.error(e);
   }
 }
+// ---------------------------------------------------------------- music for the page
+// The player at the top: three original tracks made in code (src/music.mjs, copied in here by the
+// build), one after another, about a minute and a half each. Browsers only let sound start from a
+// click or a key, so it starts from the button; if it was on last time, it starts again at the
+// first click or key anywhere. It stops while the page is hidden, and steps aside while Storm
+// Cellar plays its own music. Everything that moves to it reads the marks the music leaves.
+/*__MUSIC__*/
+// v jumps on each kick and fades; kiai is a drop's flash, fading; chorus holds through a chorus.
+const BEAT = { v: 0, kiai: 0, chorus: false };
+const TUNES = { ac: null, bus: null, an: null, player: null, timer: 0, raf: 0, on: false, hold: false, track: 0, vol: 0.6, last: 0 };
+const TUNES_KEY = "github-leaderboard.tunes";
+const tunesSaved = (k, v) => {
+  try {
+    if (v === undefined) return localStorage.getItem(k);
+    localStorage.setItem(k, v);
+  } catch {}
+  return null;
+};
+{
+  const v = Number(tunesSaved(`${TUNES_KEY}.volume`));
+  if (tunesSaved(`${TUNES_KEY}.volume`) !== null && v >= 0 && v <= 100) TUNES.vol = v / 100;
+  $("#tuneVol").value = String(Math.round(TUNES.vol * 100));
+}
+function tunesReady() {
+  if (TUNES.ac) return TUNES.ac;
+  const A = window.AudioContext || window.webkitAudioContext;
+  if (!A) return null;
+  try {
+    TUNES.ac = new A();
+    TUNES.bus = TUNES.ac.createGain();
+    TUNES.bus.gain.value = 0;
+    TUNES.an = TUNES.ac.createAnalyser();
+    TUNES.an.fftSize = 128;
+    TUNES.an.smoothingTimeConstant = 0.72;
+    TUNES.bus.connect(TUNES.an).connect(TUNES.ac.destination);
+    TUNES.player = makeMusic(TUNES.ac, TUNES.bus);
+    TUNES.player.start(TUNES.track, TUNES.ac.currentTime + 0.05, true);
+  } catch {
+    TUNES.ac = null;
+  }
+  return TUNES.ac;
+}
+// Plays when it's on, the page is in view, and the game isn't playing its own.
+function tunesUpdate() {
+  const box = $("#tunes");
+  const go = TUNES.on && !TUNES.hold && !document.hidden;
+  $("#tunePlay").setAttribute("aria-pressed", String(TUNES.on));
+  $("#tunePlay").textContent = TUNES.on ? "❚❚ Pause music" : "▶ Play music";
+  if (go && !TUNES.timer) {
+    const a = tunesReady();
+    if (!a) return;
+    a.resume?.().catch(() => {});
+    const now = a.currentTime;
+    TUNES.player.start(TUNES.track, now + 0.06, false);
+    TUNES.bus.gain.cancelScheduledValues(now);
+    TUNES.bus.gain.setTargetAtTime(TUNES.vol * 0.5, now, 0.15);
+    TUNES.timer = setInterval(tunesTick, 25);
+    $("#tuneName").textContent = `♪ ${TUNES.player.name}`;
+    TUNES.last = performance.now();
+    if (!TUNES.raf) TUNES.raf = requestAnimationFrame(tunesFrame);
+  } else if (!go && TUNES.timer) {
+    clearInterval(TUNES.timer);
+    TUNES.timer = 0;
+    const a = TUNES.ac, now = a.currentTime;
+    TUNES.bus.gain.cancelScheduledValues(now);
+    TUNES.bus.gain.setTargetAtTime(0, now, 0.08);
+  }
+  box.dataset.state = TUNES.timer ? "playing" : TUNES.on ? (TUNES.hold ? "held" : "waiting") : "off";
+  if (TUNES.on && TUNES.hold) $("#tuneName").textContent = "♪ Storm Cellar is playing its own music";
+}
+function tunesTick() {
+  const a = TUNES.ac;
+  TUNES.player.tick(a.currentTime, false);
+  // About a minute and a half a track, then the next.
+  if (TUNES.player.bars >= 56) tunesNext();
+}
+function tunesNext() {
+  TUNES.track = (TUNES.track + 1) % SONGS.length;
+  BEAT.chorus = false;
+  if (TUNES.ac) TUNES.player.start(TUNES.track, TUNES.ac.currentTime + 0.08, true);
+  $("#tuneName").textContent = TUNES.on ? `♪ ${SONGS[TUNES.track].name}` : `Next up: ${SONGS[TUNES.track].name}`;
+}
+// Called by Storm Cellar while its own music plays.
+function tunesHold(on) {
+  if (TUNES.hold === on) return;
+  TUNES.hold = on;
+  tunesUpdate();
+}
+// Each frame while it plays: the marks that are sounding now, the spectrum, and the pulse.
+function tunesFrame(t) {
+  TUNES.raf = 0;
+  const dt = Math.min(0.1, (t - TUNES.last) / 1000);
+  TUNES.last = t;
+  const moving = !reducedMotion.matches;
+  if (TUNES.timer && TUNES.ac) {
+    const now = TUNES.ac.currentTime - (TUNES.ac.outputLatency || TUNES.ac.baseLatency || 0);
+    for (const [, kind] of TUNES.player.take(now)) {
+      if (kind === "kick") BEAT.v = 1;
+      else if (kind === "clap") BEAT.v = Math.max(BEAT.v, 0.55);
+      else if (kind === "chorus") BEAT.chorus = true;
+      else if (kind === "intro" || kind === "verse" || kind === "break") BEAT.chorus = false;
+      else if (kind === "drop" && moving) {
+        BEAT.kiai = 1;
+        const k = $("#kiai");
+        k.classList.remove("on");
+        void k.offsetWidth;
+        k.classList.add("on");
+        if (weather.on) strike(geom());
+      }
+    }
+  }
+  BEAT.v = Math.max(0, BEAT.v - dt * 4);
+  BEAT.kiai = Math.max(0, BEAT.kiai - dt * 0.6);
+  if (!TUNES.timer) BEAT.chorus = false;
+  const root = document.documentElement.style;
+  root.setProperty("--beat", moving ? BEAT.v.toFixed(3) : "0");
+  // The glow throbs with the kick, and in a chorus stays lit between kicks.
+  root.setProperty("--glow", moving ? (BEAT.v * 0.55 + (BEAT.chorus ? 0.18 : 0) + BEAT.kiai * 0.2).toFixed(3) : "0");
+  paintViz(moving && Boolean(TUNES.timer));
+  if (TUNES.timer || BEAT.v > 0) TUNES.raf = requestAnimationFrame(tunesFrame);
+  else {
+    root.setProperty("--beat", "0");
+    root.setProperty("--glow", "0");
+  }
+}
+// The spectrum, hanging from the top edge: the low end in the tornado's red, the highs in its blue.
+const vizBins = new Uint8Array(64);
+function paintViz(show) {
+  const cv2 = $("#viz");
+  cv2.style.display = show ? "block" : "none";
+  if (!show) return;
+  const dpr = Math.min(2, window.devicePixelRatio || 1), W = innerWidth, H = 44;
+  if (cv2.width !== Math.round(W * dpr)) {
+    cv2.width = Math.round(W * dpr);
+    cv2.height = Math.round(H * dpr);
+  }
+  const c = cv2.getContext("2d");
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.clearRect(0, 0, W, H);
+  TUNES.an.getByteFrequencyData(vizBins);
+  const n = 48, w = W / n;
+  const grad = c.createLinearGradient(0, 0, W, 0);
+  grad.addColorStop(0, THEME.left);
+  grad.addColorStop(1, THEME.right);
+  c.fillStyle = grad;
+  // Brighter in a chorus, and with a glow of gold on the kick.
+  c.globalAlpha = Math.min(1, 0.72 + (BEAT.chorus ? 0.2 : 0) + BEAT.kiai * 0.3);
+  c.shadowColor = THEME.gold;
+  c.shadowBlur = 6 + BEAT.v * 14;
+  for (let i = 0; i < n; i++) {
+    const v = vizBins[Math.min(vizBins.length - 1, Math.floor(i * 1.15) + 1)] / 255;
+    const h = 3 + v * v * (H - 6) * (1 + BEAT.v * 0.3);
+    c.fillRect(i * w + 1, 0, Math.max(1, w - 2), Math.min(H - 3, h));
+  }
+  c.shadowBlur = 0;
+  c.globalAlpha = 1;
+}
+$("#tunePlay").addEventListener("click", () => {
+  TUNES.on = !TUNES.on;
+  tunesSaved(TUNES_KEY, TUNES.on ? "on" : "off");
+  tunesUpdate();
+});
+$("#tuneNext").addEventListener("click", () => {
+  tunesNext();
+  tunesUpdate();
+});
+$("#tuneVol").addEventListener("input", (e) => {
+  TUNES.vol = Number(e.target.value) / 100;
+  tunesSaved(`${TUNES_KEY}.volume`, String(e.target.value));
+  if (TUNES.timer) TUNES.bus.gain.setTargetAtTime(TUNES.vol * 0.5, TUNES.ac.currentTime, 0.05);
+});
+document.addEventListener("visibilitychange", tunesUpdate);
+// On last time: back on at the first click or key (the browser won't allow it any sooner).
+if (tunesSaved(TUNES_KEY) === "on") {
+  $("#tuneName").textContent = "♪ Music starts at your first click or key";
+  $("#tunes").dataset.state = "waiting";
+  const wake = (e) => {
+    removeEventListener("pointerdown", wake, true);
+    removeEventListener("keydown", wake, true);
+    if (e.target?.closest?.("#tunePlay")) return;
+    TUNES.on = true;
+    tunesUpdate();
+  };
+  addEventListener("pointerdown", wake, true);
+  addEventListener("keydown", wake, true);
+}
+
 draw(0);
 requestAnimationFrame(frame);
 </script>
@@ -4991,12 +5211,12 @@ const KEY_DEFAULTS = {
   forward: ["KeyW", "ArrowUp"], back: ["KeyS", "ArrowDown"], left: ["KeyA"], right: ["KeyD"],
   turnLeft: ["ArrowLeft"], turnRight: ["ArrowRight"], fire: ["Space", "KeyF"], run: ["ShiftLeft", "ShiftRight"],
   arm1: ["Digit1", "Numpad1"], arm2: ["Digit2", "Numpad2"], swap: ["KeyQ"],
-  pause: ["KeyP"], sound: ["KeyM"], mouse: ["KeyV"], save: ["KeyS"], load: ["KeyC"],
+  pause: ["KeyP"], sound: ["KeyM"], music: ["KeyN"], mouse: ["KeyV"], save: ["KeyS"], load: ["KeyC"],
 };
 const KEY_WHAT = {
   forward: "Move forward", back: "Move back", left: "Step left", right: "Step right", turnLeft: "Turn left", turnRight: "Turn right",
   fire: "Shoot", run: "Run", arm1: "Pea shooter", arm2: "Lightning rod", swap: "Switch weapon",
-  pause: "Pause (Escape too)", sound: "Sound on and off", mouse: "Mouse up and down: look or walk", save: "Save (when paused)", load: "Load your save (on the title)",
+  pause: "Pause (Escape too)", sound: "Sound on and off", music: "Music on and off", mouse: "Mouse up and down: look or walk", save: "Save (when paused)", load: "Load your save (on the title)",
 };
 const MENU = new Set(["save", "load"]);
 const FIXED = new Set(["Enter", "NumpadEnter", "Escape", "Tab"]);
@@ -5104,7 +5324,7 @@ function describeKeys() {
   $("#gameKeys").textContent =
     `Click the game or press Enter to play: either way the mouse steers from the start, alongside the keys, and Esc gives it back. ${move}, the mouse or ${kn("turnLeft")} and ${kn("turnRight")} turn, click or ${kn("fire")} shoots, ` +
     `the mouse up and down looks up and down (or, with ${kn("mouse")} or the switch below, walks you forward and back), ` +
-    `${kn("arm1")} and ${kn("arm2")}, ${kn("swap")}, or the mouse wheel switch weapons, ${kn("run")} runs, ${kn("sound")} turns the sound off and on, and Esc pauses. ` +
+    `${kn("arm1")} and ${kn("arm2")}, ${kn("swap")}, or the mouse wheel switch weapons, ${kn("run")} runs, ${kn("sound")} turns the sound off and on, ${kn("music")} the music, and Esc pauses. ` +
     "Walk up to a neighbour sheltering from the storm and they'll tell you what they know, and Biscuit, Hank's dog, follows you and goes for the bugs. " +
     `Paused, ${kn("save")} saves your progress in this browser, and ${kn("load")} on the title picks it up again; the buttons below do the same, and Keys changes any key. ` +
     `A controller works too: the left stick walks, the right stick turns and looks, ${padList("fire")} shoots, ${padList("act")} starts, and ${padList("pause")} pauses; set its buttons under Keys. ` +
@@ -5118,12 +5338,12 @@ function describeKeys() {
 // 11 the sticks pressed in, 12 to 15 the D-pad, 16 the Xbox button.
 const PAD_DEFAULTS = {
   act: [0, 9], fire: [7, 5], run: [6, 10], swap: [3], arm1: [14], arm2: [15],
-  forward: [12], back: [13], pause: [9], sound: [8], save: [2], load: [3],
+  forward: [12], back: [13], pause: [9], sound: [8], music: [11], save: [2], load: [3],
 };
-const PAD_ORDER = ["act", "fire", "run", "swap", "arm1", "arm2", "pause", "sound", "save", "load", "forward", "back"];
+const PAD_ORDER = ["act", "fire", "run", "swap", "arm1", "arm2", "pause", "sound", "music", "save", "load", "forward", "back"];
 const PAD_WHAT = {
   act: "Start and go on (the title and pause screens)", fire: "Shoot", run: "Run", swap: "Switch weapon", arm1: "Pea shooter", arm2: "Lightning rod",
-  forward: "Move forward", back: "Move back", pause: "Pause", sound: "Sound on and off", save: "Save (when paused)", load: "Load your save (on the title)",
+  forward: "Move forward", back: "Move back", pause: "Pause", sound: "Sound on and off", music: "Music on and off", save: "Save (when paused)", load: "Load your save (on the title)",
 };
 // These work only on the title and pause screens, so they may share buttons with play (Menu pauses
 // a game, and on the pause screen goes on with it).
@@ -5171,6 +5391,7 @@ function padTick() {
   Object.assign(padIn, { fw: -ly * k + (padOn("forward") ? 1 : 0) - (padOn("back") ? 1 : 0), st: lx * k, turn: deadzone(rx), look: deadzone(ry) });
   if (padPressed("pause")) pause();
   else if (padPressed("sound")) toggleSound();
+  else if (padPressed("music")) toggleMusic();
   else if (padPressed("arm1")) swap(0);
   else if (padPressed("arm2")) swap(1);
   else if (padPressed("swap")) swap();
@@ -6175,6 +6396,8 @@ function setState(s, speak) {
   if (speak) said.textContent = speak;
   saveUI();
   padWake();
+  if (s === "playing") musicOn();
+  else musicOff();
 }
 let raf = 0, last = 0;
 function loop(now) {
@@ -6193,6 +6416,8 @@ function kick() {
 // A level from the start. The drain starts you with the ammo you brought down from the cellar.
 function start(n) {
   G.level = n;
+  MUS.level = -1;
+  musicOff();
   reset(n);
   if (n) {
     P.ammo = G.carry;
@@ -6247,7 +6472,67 @@ function toggleSound() {
   } catch {}
   if (ac) (sound ? ac.resume() : ac.suspend()).catch(() => {});
   note(sound ? "SOUND ON." : "SOUND OFF.");
+  if (sound) musicOn();
 }
+
+// ---------------------------------------------------------------- music
+// Two original, upbeat tracks made in code (src/music.mjs, copied in here by the build): one for the
+// cellar, one for the drain, busier in the Heisenbug's fight. They play while you play, fade on
+// pause, start from the top on a new level or a retry, and have their own switch (N, or Music
+// under the game), kept in this browser; M still turns every sound off. (The music itself,
+// makeMusic and SONGS, is the page's: see "music for the page".)
+let music = true;
+try {
+  music = localStorage.getItem("github-leaderboard.music") !== "off";
+} catch {}
+const MUS = { player: null, bus: null, timer: 0, level: -1 };
+function musicOn() {
+  if (!music || G.state !== "playing" || MUS.timer) return;
+  const a = audio();
+  if (!a) return;
+  if (!MUS.player) {
+    MUS.bus = a.createGain();
+    MUS.bus.gain.value = 0;
+    MUS.bus.connect(master);
+    MUS.player = makeMusic(a, MUS.bus);
+  }
+  const now = a.currentTime;
+  MUS.player.start(G.level, now + 0.06, MUS.level !== G.level);
+  MUS.level = G.level;
+  MUS.bus.gain.cancelScheduledValues(now);
+  MUS.bus.gain.setTargetAtTime(0.55, now, 0.12);
+  const hype = () => Boolean(G.boss) && G.boss.st !== "dead" && G.boss.st !== "dying";
+  MUS.timer = setInterval(() => MUS.player.tick(a.currentTime, hype()), 25);
+  cv.dataset.music = "playing";
+  tunesHold(true);
+}
+function musicOff() {
+  if (MUS.timer) clearInterval(MUS.timer);
+  MUS.timer = 0;
+  if (MUS.bus && ac) {
+    MUS.bus.gain.cancelScheduledValues(ac.currentTime);
+    MUS.bus.gain.setTargetAtTime(0, ac.currentTime, 0.06);
+  }
+  cv.dataset.music = music ? "ready" : "off";
+  tunesHold(false);
+}
+function toggleMusic() {
+  music = !music;
+  try {
+    localStorage.setItem("github-leaderboard.music", music ? "on" : "off");
+  } catch {}
+  $("#musicBtn").setAttribute("aria-pressed", String(music));
+  if (music) musicOn();
+  else musicOff();
+  if (G.state === "playing") note(music ? `MUSIC ON: ${(MUS.player?.name ?? SONGS[G.level % SONGS.length].name).toUpperCase()}.` : "MUSIC OFF.");
+  said.textContent = music ? "Music on." : "Music off.";
+}
+$("#musicBtn").setAttribute("aria-pressed", String(music));
+$("#musicBtn").addEventListener("click", () => {
+  toggleMusic();
+  cv.focus({ preventScroll: true });
+});
+cv.dataset.music = music ? "ready" : "off";
 // The mouse's up and down, from V or the switch under the game, remembered in this browser.
 function setMouseY(mode, tell) {
   mouseY = mode;
@@ -6295,6 +6580,7 @@ cv.addEventListener("keydown", (e) => {
     e.preventDefault();
     pause();
   } else if (isKey("sound", k)) toggleSound();
+  else if (isKey("music", k)) toggleMusic();
   else if (isKey("mouse", k)) setMouseY(mouseY === "look" ? "walk" : "look", true);
   else if (isKey("arm1", k) || isKey("arm2", k) || isKey("swap", k)) {
     e.preventDefault();
