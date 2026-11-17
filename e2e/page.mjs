@@ -637,6 +637,89 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   check(!errors.some((e) => e.startsWith("game save:")), "no script errors saving and loading the game");
   await ctx.close();
 }
+// Storm Cellar's neighbours and Biscuit the dog: a new game saves Biscuit beside you; walking up to
+// Hank finds him, and what he says is spoken; a save keeps him found, and loaded again he says
+// something else and counts once; an older save, with no neighbours or dog, loads with Biscuit
+// beside you; Biscuit knocked out stays down after a load; and the cellar's tally and the last one
+// count the survivors, in the game's label and out loud.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1340, height: 900 } });
+  const np = await ctx.newPage();
+  watch(np, "game folk");
+  const KEY = "github-leaderboard.cellar";
+  const said = () => np.locator("#gameSaid").textContent();
+  const label = () => np.getAttribute("#game", "aria-label");
+  const stored = () => np.evaluate((k) => JSON.parse(localStorage.getItem(k)), KEY);
+  const isState = (s, timeout = 8000) => np.waitForFunction((s) => document.querySelector("#game").dataset.state === s, s, { timeout }).then(() => true, () => false);
+  // The page starts out saying "title": wait until the game has set itself up and drawn it.
+  const titled = () => np.waitForFunction(() => document.querySelector("#game").dataset.state === "title" && document.querySelector("#game").getContext("2d").getImageData(160, 30, 1, 1).data[0] > 0, null, { timeout: 8000 }).catch(() => {});
+  const atTitle = async () => {
+    await np.reload();
+    await titled();
+  };
+  const load = async (s) => {
+    await np.evaluate(([k, v]) => localStorage.setItem(k, JSON.stringify(v)), [KEY, s]);
+    await atTitle();
+    await np.focus("#game");
+    await np.keyboard.press("KeyC");
+    await np.waitForTimeout(250);
+  };
+  const saveNow = async () => {
+    await np.keyboard.press("Escape");
+    await np.keyboard.press("KeyS");
+    await np.waitForTimeout(150);
+    return stored();
+  };
+  const you = (x, y, a) => ({ x, y, a, hp: 100, ammo: 40, cells: 0, want: 0, has: [true, false], kills: 0, commits: 0, time: 5 });
+  const walkUntil = async (state) => {
+    await np.keyboard.down("ArrowUp");
+    const ok = await isState(state, 4000);
+    await np.keyboard.up("ArrowUp");
+    return ok;
+  };
+  await np.goto(url);
+  await titled();
+  check(/Walk up to a neighbour sheltering from the storm.+Biscuit, Hank's dog, follows you/.test(await np.locator("#gameKeys").textContent()), "the keys under the game tell of the neighbours and Biscuit");
+  await np.focus("#game");
+  await np.keyboard.press("Enter");
+  await np.waitForTimeout(250);
+  const fresh = await saveNow();
+  const [dx, dy, dhp, dko] = fresh?.dog ?? [];
+  check(fresh?.met?.length === 0 && dhp === 60 && dko === 0 && Math.hypot(dx - fresh.p.x, dy - fresh.p.y) < 2.5, "a new game has no one found yet, and Biscuit at your side, and saves him with you");
+  // An older save, with no neighbours found and no dog, right by Hank in the back room.
+  await load({ v: 1, at: Date.now(), level: 0, run: null, carry: 40, p: you(2.75, 19.5, Math.PI), items: fresh?.items ?? [], foes: fresh?.foes ?? [] });
+  check(/^You found Hank, sheltering from the storm: 1 of 3 survivors here\. Hank says, "Biscuit's going with you/.test(await said()), "walking up to a neighbour finds them, and what they say is spoken");
+  const met = await saveNow();
+  check(met?.met?.join() === "hank", "a save keeps them found");
+  check(met?.dog?.[2] === 60 && Math.hypot(met.dog[0] - met.p.x, met.dog[1] - met.p.y) < 2.5, "and an older save, with no dog in it, loads with Biscuit beside you");
+  await atTitle();
+  await np.focus("#game");
+  await np.keyboard.press("KeyC");
+  await np.waitForTimeout(250);
+  check(/^Hank says, "A hot coffee/.test(await said()), "loaded by Hank again, he says something else");
+  const again = await saveNow();
+  check(again?.met?.join() === "hank", "and still counts once");
+  await load({ ...again, dog: [3.5, 21.5, 0, 12] });
+  const ko = await saveNow();
+  check(ko?.dog?.[0] === 3.5 && ko.dog[1] === 21.5 && ko.dog[2] === 0 && ko.dog[3] > 0 && ko.dog[3] <= 12, "Biscuit, knocked out, stays down where he was after a load");
+  // At the cellar's exit, with Hank found; then the drain's ladder, with the Heisenbug squashed.
+  await load({ ...again, p: you(26.5, 4.5, 0) });
+  check(await walkUntil("cleared"), "walking into the cellar's exit clears it");
+  check(/with 1 of 3 survivors found/.test(await label()) && /and 1 of 3 survivors found\./.test(await said()), "the cellar's tally counts the survivors found, in its label and out loud");
+  await np.waitForTimeout(1800);
+  await np.keyboard.press("KeyS");
+  await np.waitForTimeout(150);
+  const top = await stored();
+  check(top?.fresh && top.run?.met === 1 && top.run.totalS === 3, "a save at the top of the drain keeps the cellar's count");
+  await np.keyboard.press("Enter");
+  await np.waitForTimeout(250);
+  const drain = await saveNow();
+  await load({ ...drain, run: top?.run, p: you(41.5, 23.5, 0), foes: (drain?.foes ?? []).map(([id, x, y, , , b]) => [id, x, y, 0, 1, b]) });
+  check(await walkUntil("won"), "with the Heisenbug squashed, the ladder out of the drain finishes the game");
+  check(/with 1 of 6 survivors found/.test(await label()) && /and 1 of 6 survivors found\./.test(await said()), "and the last tally counts the survivors on both levels, in its label and out loud");
+  check(!errors.some((e) => e.startsWith("game folk:")), "no script errors with the neighbours and Biscuit");
+  await ctx.close();
+}
 // Storm Cellar's mouse and keys: moving the mouse up looks up (the view changes with no turning);
 // the switch, or V, makes it walk instead, and is remembered. Any key can be changed: the new key
 // plays, a key in use swaps over, Enter is kept, and Reset puts every key back.
@@ -690,6 +773,38 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   check((await mk.evaluate(() => JSON.parse(localStorage.getItem("github-leaderboard.keys")).forward.join())) === "KeyW,ArrowUp", "Reset all keys puts them back");
   check(!errors.some((e) => e.startsWith("game keys:")), "no script errors with the mouse and keys");
   await ctx.close();
+}
+// The Content Security Policy: the page's scripts are named by hash and no other site's scripts are
+// allowed, so a script from a CDN, one slipped into the page, and a string run as code are all
+// refused. The string goes through setTimeout, since the test's own eval comes from DevTools, which
+// the policy lets through. (This tab
+// isn't watched: the refusals below log errors on purpose. Every other tab is, so any refusal of
+// the page's own code fails "no script errors".)
+{
+  const cs = await browser.newPage({ viewport: { width: 1340, height: 900 } });
+  await cs.goto(url);
+  await cs.waitForTimeout(300);
+  const policy = (await cs.getAttribute('meta[http-equiv="Content-Security-Policy"]', "content")) ?? "";
+  const scripts = policy.match(/script-src ([^;]*)/)?.[1] ?? "";
+  check(/^'self'( 'sha256-[A-Za-z0-9+/=]+'){3,}$/.test(scripts), `the page's policy allows only its own scripts (${scripts.split(" ").length - 1} by hash)`);
+  check(/default-src 'none'/.test(policy) && /img-src 'self' data: blob: https:\/\/avatars\.githubusercontent\.com;/.test(policy) && /connect-src 'self'/.test(policy), "and nothing else from anywhere but GitHub's avatars");
+  const tried = await cs.evaluate(
+    () =>
+      new Promise((done) => {
+        const seen = [];
+        document.addEventListener("securitypolicyviolation", (e) => seen.push(e.violatedDirective));
+        const outside = document.createElement("script");
+        outside.src = "https://cdn.jsdelivr.net/npm/left-pad@1.3.0/index.js";
+        document.head.appendChild(outside);
+        const inside = document.createElement("script");
+        inside.textContent = "window.__slipped = true";
+        document.head.appendChild(inside);
+        setTimeout("window.__evaled = true", 0);
+        setTimeout(() => done({ seen, slipped: Boolean(window.__slipped), evaled: Boolean(window.__evaled) }), 600);
+      }),
+  );
+  check(tried.seen.filter((d) => d.startsWith("script-src")).length >= 3 && !tried.slipped && !tried.evaled, `a CDN's script, a script slipped into the page, and a string run as code are all refused (${tried.seen.join(", ")})`);
+  await cs.close();
 }
 // Every county, on a map: its shapes load when it comes near (from a file:// page too), a state
 // zooms in, a county there sets the leaderboard, the keyboard moves and speaks, the colours follow
@@ -754,6 +869,57 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   check((await ph.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0, "and still nothing scrolls sideways");
   check(!errors.some((e) => e.startsWith("county map phone:")), "no script errors in the county map on a phone");
   await still.close();
+}
+// A game controller: an Xbox one is stood in for here (the browser's list of controllers is
+// replaced before the page loads). A starts, the left stick walks, Menu pauses, X saves, and the
+// wizard under Keys takes each button pressed, keeps the rest with Skip, and Reset puts them back.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1340, height: 900 } });
+  await ctx.addInitScript(() => {
+    const buttons = Array.from({ length: 17 }, () => ({ pressed: false, value: 0, touched: false }));
+    const pad = { id: "Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)", index: 0, connected: true, mapping: "standard", axes: [0, 0, 0, 0], buttons, timestamp: 0 };
+    window.__pad = pad;
+    navigator.getGamepads = () => [pad, null, null, null];
+  });
+  const gpPage = await ctx.newPage();
+  watch(gpPage, "controller");
+  const hold = async (i, ms = 120) => {
+    await gpPage.evaluate((b) => Object.assign(window.__pad.buttons[b], { pressed: true, value: 1 }), i);
+    await gpPage.waitForTimeout(ms);
+    await gpPage.evaluate((b) => Object.assign(window.__pad.buttons[b], { pressed: false, value: 0 }), i);
+    await gpPage.waitForTimeout(80);
+  };
+  const state = () => gpPage.getAttribute("#game", "data-state");
+  await gpPage.goto(url);
+  await gpPage.waitForFunction(() => document.querySelector("#game").dataset.state === "title", null, { timeout: 8000 });
+  await gpPage.evaluate(() => dispatchEvent(new Event("gamepadconnected")));
+  await gpPage.locator("#game").scrollIntoViewIfNeeded();
+  await gpPage.waitForTimeout(150);
+  check((await gpPage.locator("#padStatus").textContent()).startsWith("Connected: Xbox Wireless Controller.") && (await gpPage.locator("#padWizard").isEnabled()), "a controller is seen, and its wizard is offered");
+  await hold(0);
+  check((await state()) === "playing", "A starts the game");
+  const still = await gpPage.locator("#game").screenshot();
+  await gpPage.evaluate(() => (window.__pad.axes[1] = -1));
+  await gpPage.waitForTimeout(450);
+  await gpPage.evaluate(() => (window.__pad.axes[1] = 0));
+  check(Buffer.compare(still, await gpPage.locator("#game").screenshot()) !== 0, "the left stick walks");
+  await hold(9);
+  check((await state()) === "paused", "Menu pauses");
+  await hold(2);
+  check(Boolean(await gpPage.evaluate(() => localStorage.getItem("github-leaderboard.cellar"))), "and X saves");
+  await gpPage.click("#keysBox summary");
+  await gpPage.click("#padWizard");
+  check(/^1 of 12: press the button for Start/.test(await gpPage.locator("#padAsk").textContent()), "the wizard asks for each button in turn");
+  await hold(1);
+  await hold(4);
+  for (let i = 0; i < 10; i++) await gpPage.click("#padSkip");
+  const mine = await gpPage.evaluate(() => JSON.parse(localStorage.getItem("github-leaderboard.pad")));
+  check(mine?.act?.join() === "1" && mine.fire.join() === "4" && mine.run.join() === "6,10", "and takes the buttons pressed (B to start, LB to shoot), keeping the skipped ones");
+  check((await gpPage.locator("#padMsg").textContent()) === "Your controller is set up." && (await gpPage.locator("#padTable tbody tr:first-child td.k").innerText()) === "B", "then says so, and lists them");
+  await gpPage.click("#padReset");
+  check((await gpPage.evaluate(() => JSON.parse(localStorage.getItem("github-leaderboard.pad")).act.join())) === "0,9", "Reset controller buttons puts them back");
+  check(!errors.some((e) => e.startsWith("controller:")), "no script errors with a controller");
+  await ctx.close();
 }
 // The page stays a sensible size for a phone on a slow connection.
 {
