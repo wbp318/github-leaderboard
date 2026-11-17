@@ -2,6 +2,7 @@
 
 # Language stats
 *.md      linguist-detectable=true linguist-documentation=false
+*.ps1     linguist-detectable=true linguist-language=PowerShell
 docs/**   linguist-documentation=false
 
 # Made by scripts/make-geo.mjs
