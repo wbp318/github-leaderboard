@@ -37,7 +37,20 @@ watch(page, "desktop");
 await page.goto(url);
 await page.waitForTimeout(800);
 check((await page.title()).startsWith("GitHub Contribution Tornado"), "the page loads");
-check(/^Data refreshed .+ next refresh around/.test(await page.locator("#fresh").innerText()), "the top says when the data was refreshed and when it next will be");
+check(/^Data refreshed .+ · (next refresh around|the refresh due at)/.test(await page.locator("#fresh").innerText()), "the top says when the data was refreshed and when it next will be");
+// Data saved just now promises the next refresh; data from over a day ago says that refresh hasn't landed.
+const freshAt = (ago) =>
+  page.evaluate((ago) => {
+    const was = D.refreshed;
+    D.refreshed = Date.now() - ago;
+    renderFresh();
+    const t = document.querySelector("#fresh").textContent;
+    D.refreshed = was;
+    renderFresh();
+    return t;
+  }, ago);
+check(/^Data refreshed just now .+ · next refresh around .+, daily$/.test(await freshAt(0)), "fresh data: the top says when the next refresh is");
+check(/^Data refreshed 25 hours ago .+ · the refresh due at .+ hasn't landed yet; this page updates itself when it does$/.test(await freshAt(25 * 3600000)), "late data: the top says the refresh hasn't landed, not that it will come tomorrow");
 await page.locator("#cv").scrollIntoViewIfNeeded();
 await page.waitForTimeout(800);
 check((await lit(page)) > 1000, "the tornado draws");
