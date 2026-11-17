@@ -50,6 +50,7 @@ A year of GitHub contributions across the United States, drawn as a spinning tor
 - **Every county, on a map.** All 3,141 counties in the 50 states, coloured by contributions, people counted, or average. Click a state to zoom in, and a county to see its leaderboard; arrow keys, Enter, and Escape do the same. People are placed in a county by the town, city, university, or county named in their GitHub location, from the Census Bureau's lists of places. The map's shapes load only when you scroll near it.
 - **A tile map** of the 50 states, coloured the same ways.
 - **Tables** of the states, the regions and divisions, and each state's counties.
+- **Music, and the page moving to it.** **Play music**, at the top, plays three original, upbeat techno tracks made in code ("Storm Warning", "Flood Stage", and "Supercell"), one after another, with Next and a volume that's remembered. The page moves with it: a spectrum along the top edge in the tornado's red and blue, the title and a glow pulsing on every kick, the tornado's rings swelling to the beat, lightning striking on each drop, and a gold flash round the edges when a chorus hits. It steps aside while Storm Cellar plays its own, and nothing moves if your system asks for reduced motion.
 - **Light or dark.** The page follows your system's setting; the switch at the top changes it and remembers your choice.
 - **History.** In the states table, a small line for each state shows how its contributions have moved since the history started. Open a state's tornado for a chart of its total, day by day.
 

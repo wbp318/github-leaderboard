@@ -208,7 +208,7 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   const lightSystem = await browser.newContext({ colorScheme: "light", viewport: { width: 1340, height: 900 } });
   const day = await lightSystem.newPage();
   watch(day, "light");
-  const brightness = () => day.evaluate(() => getComputedStyle(document.body).backgroundColor.match(/\d+/g).slice(0, 3).reduce((a, n) => a + Number(n), 0) / 3);
+  const brightness = () => day.evaluate(() => getComputedStyle(document.documentElement).backgroundColor.match(/\d+/g).slice(0, 3).reduce((a, n) => a + Number(n), 0) / 3);
   const themeSwitch = (name) => day.locator("#theme button", { hasText: name });
   await day.goto(url);
   await day.waitForTimeout(500);
@@ -962,7 +962,7 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   await lab.addScriptTag({ content: code });
   const tracks = await lab.evaluate(async () => {
     const out = [];
-    for (const [level, hype] of [[0, false], [1, false], [1, true]]) {
+    for (const [level, hype] of [[0, false], [1, false], [1, true], [2, false]]) {
       const secs = 20, rate = 22050;
       const ctx = new OfflineAudioContext(1, secs * rate, rate);
       const g = ctx.createGain();
@@ -1011,6 +1011,54 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   check((await mu.getAttribute("#musicBtn", "aria-pressed")) === "false" && (await playingMusic()) === "off", "the Music switch under the game turns it off too");
   check(!errors.some((e) => e.startsWith("music")), "no script errors from the music");
   await ctx.close();
+}
+// The page's own music, in the header: play, the track's name, Next, the volume (remembered), the
+// spectrum and the pulse on the beat, stepping aside while the game plays its music and coming
+// back after; and with reduced motion, the music without anything moving.
+{
+  const ctx = await browser.newContext({ viewport: { width: 1340, height: 900 } });
+  const pm = await ctx.newPage();
+  watch(pm, "page music");
+  await pm.goto(url);
+  await pm.waitForTimeout(400);
+  const tunes = () => pm.getAttribute("#tunes", "data-state");
+  check((await tunes()) === "off" && !(await pm.locator("#cellar #tunePlay").count()), "the page's music is off at first, and its button is in the header, not by the game");
+  await pm.click("#tunePlay");
+  await pm.waitForTimeout(300);
+  check((await tunes()) === "playing" && (await pm.locator("#tuneName").textContent()) === "♪ Storm Warning", "Play music plays Storm Warning");
+  const beats = [];
+  for (let i = 0; i < 20; i++) {
+    beats.push(Number(await pm.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--beat"))));
+    await pm.waitForTimeout(60);
+  }
+  check(Math.max(...beats) > 0.3 && (await pm.locator("#viz").isVisible()), "the page pulses on the beat, and the spectrum shows along the top");
+  await pm.click("#tuneNext");
+  check((await pm.locator("#tuneName").textContent()) === "♪ Flood Stage", "Next plays the next track");
+  await pm.locator("#tuneVol").fill("30");
+  check((await pm.evaluate(() => localStorage.getItem("github-leaderboard.tunes.volume"))) === "30", "the volume is remembered");
+  await pm.locator("#game").scrollIntoViewIfNeeded();
+  await pm.focus("#game");
+  await pm.keyboard.press("Enter");
+  await pm.waitForTimeout(300);
+  check((await tunes()) === "held", "it steps aside while Storm Cellar plays its own music");
+  await pm.keyboard.press("Escape");
+  await pm.waitForTimeout(300);
+  check((await tunes()) === "playing", "and comes back when the game stops");
+  await pm.click("#tunePlay");
+  check((await tunes()) === "off" && (await pm.evaluate(() => localStorage.getItem("github-leaderboard.tunes"))) === "off", "Pause music stops it, and that's remembered");
+  check(!errors.some((e) => e.startsWith("page music:")), "no script errors from the page's music");
+  await ctx.close();
+  const calm = await browser.newContext({ viewport: { width: 1340, height: 900 }, reducedMotion: "reduce" });
+  const rm = await calm.newPage();
+  watch(rm, "page music calm");
+  await rm.goto(url);
+  await rm.waitForTimeout(300);
+  await rm.click("#tunePlay");
+  await rm.waitForTimeout(900);
+  const still = await rm.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--beat"));
+  check((await rm.getAttribute("#tunes", "data-state")) === "playing" && Number(still || 0) === 0 && !(await rm.locator("#viz").isVisible()), "with reduced motion the music plays, and nothing moves");
+  check(!errors.some((e) => e.startsWith("page music calm:")), "no script errors from the music with reduced motion");
+  await calm.close();
 }
 // The page stays a sensible size for a phone on a slow connection.
 {

@@ -1,8 +1,10 @@
-// Storm Cellar's music: two original, upbeat tracks, written and played here in code with the Web
-// Audio API, so there's nothing to download. "Storm Warning" for the cellar and "Flood Stage" for
-// the drain, both on the bright IV-V-iii-vi chord loop, at 150 and 156 beats a minute: a four-on-
-// the-floor kick that makes everything else pump, offbeat hats, claps on two and four, a rolling
-// bass, a sparkling arpeggio, and a lead with an echo. The Heisenbug's fight kicks it up a gear.
+// The page's music: three original, upbeat tracks, written and played here in code with the Web
+// Audio API, so there's nothing to download. "Storm Warning" (the cellar's), "Flood Stage" (the
+// drain's), and "Supercell", all on the bright IV-V-iii-vi chord loop, at 150 to 160 beats a minute:
+// a four-on-the-floor kick that makes everything else pump, offbeat hats, claps on two and four, a
+// rolling bass, a sparkling arpeggio, a lead with an echo, and a sub boom on every drop. Storm
+// Cellar plays the first two, busier in the Heisenbug's fight; the player at the top of the page
+// plays all three, and lights the page up to the beat from the marks it leaves (kicks, claps, drops).
 // Plain JavaScript with nothing from Node, because the page carries a copy (the build puts it in),
 // and the browser test renders it offline to check it's loud enough and never clips.
 
@@ -43,6 +45,23 @@ export const SONGS = [
       [[0, 77, 2], [2, 81, 2], [4, 86, 4], [8, 74, 8]],
     ],
   },
+  {
+    name: "Supercell",
+    bpm: 160,
+    // C, D, Bm, Em (in G).
+    chords: [[36, [64, 67, 72]], [38, [66, 69, 74]], [35, [66, 71, 74]], [40, [64, 67, 71]]],
+    arp: [0, 1, 2, 1, 3, 2, 4, 3, 5, 4, 3, 2, 3, 1, 2, 0],
+    lead: [
+      [[0, 76, 2], [2, 79, 2], [4, 84, 2], [6, 83, 2], [8, 79, 4], [12, 76, 2], [14, 79, 2]],
+      [[0, 78, 2], [2, 81, 2], [4, 86, 4], [8, 81, 2], [10, 78, 2], [12, 74, 4]],
+      [[0, 83, 3], [3, 86, 3], [6, 90, 2], [8, 88, 2], [10, 86, 2], [12, 83, 4]],
+      [[0, 88, 2], [2, 86, 2], [4, 83, 2], [6, 79, 2], [8, 76, 8]],
+      [[0, 79, 2], [2, 84, 2], [4, 88, 2], [6, 86, 2], [8, 84, 2], [10, 83, 2], [12, 79, 4]],
+      [[0, 81, 2], [2, 86, 2], [4, 90, 4], [8, 88, 2], [10, 86, 2], [12, 81, 4]],
+      [[0, 83, 2], [2, 86, 2], [4, 90, 2], [6, 88, 2], [8, 86, 2], [10, 83, 2], [12, 78, 4]],
+      [[0, 79, 2], [2, 83, 2], [4, 88, 4], [8, 76, 8]],
+    ],
+  },
 ];
 
 // A 32-bar arrangement, then from bar 4 round again: an intro (drums, bass, pad), a verse (the
@@ -54,11 +73,19 @@ export function sectionOf(bar) {
 }
 
 /**
- * The music for one AudioContext, into one node. start(level, at, fresh) sets the song (by level)
+ * The music for one AudioContext, into one node. start(song, at, fresh) sets the song (by number)
  * and when its next step plays (from the top if fresh); tick(now, hype) schedules what's due in the
- * next moment, louder and busier while hype (the Heisenbug's fight) is on.
+ * next moment, louder and busier while hype (the Heisenbug's fight) is on. take(until) hands back
+ * the marks scheduled up to then, [time, "kick" | "clap" | "drop" | "intro" | "verse" | "break" |
+ * "chorus"], for anything that moves to the beat; bars is how far into the song it is.
  */
 export function makeMusic(ac, out) {
+  const marks = [];
+  const mark = (t, kind) => {
+    marks.push([t, kind]);
+    // Nobody may be reading them (the game doesn't), so keep only the latest.
+    if (marks.length > 400) marks.splice(0, 200);
+  };
   const noise = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
   const nd = noise.getChannelData(0);
   for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
@@ -120,6 +147,7 @@ export function makeMusic(ac, out) {
     const o = osc("sine", 165, t, t + 0.36);
     o.frequency.exponentialRampToValueAtTime(44, t + 0.11);
     o.connect(amp(t, v, 0.002, 0.04, 0.28)).connect(mix);
+    mark(t, "kick");
     // Make room for it: everything soft dips, then swells back.
     duck.gain.cancelScheduledValues(t);
     duck.gain.setValueAtTime(0.35, t);
@@ -136,6 +164,14 @@ export function makeMusic(ac, out) {
     g.gain.setValueAtTime(v * 0.8, t + 0.034);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
     hiss(t, t + 0.25).connect(filter("bandpass", 1500, 0.9)).connect(g).connect(mix);
+    mark(t, "clap");
+  };
+  // The drop: a deep boom under the crash.
+  const boom = (t) => {
+    const o = osc("sine", 72, t, t + 1.3);
+    o.frequency.exponentialRampToValueAtTime(30, t + 1.1);
+    o.connect(amp(t, 0.85, 0.003, 0.05, 1.1)).connect(mix);
+    mark(t, "drop");
   };
   const crash = (t, v) => hiss(t, t + 1.6).connect(filter("highpass", 3200)).connect(amp(t, v, 0.002, 0, 1.4)).connect(mix);
   const riser = (t, dur, v) => {
@@ -194,6 +230,8 @@ export function makeMusic(ac, out) {
     else if ((loud || part === "verse") && s % 2 === 1) hat(t, loud ? 0.09 : 0.05, false);
     if ((part === "verse" || part === "chorus" || hype) && (s === 4 || s === 12)) clap(t, loud ? 0.42 : 0.32);
     if (s === 0 && (b === 4 || b === 16 || b === 24)) crash(t, 0.22);
+    if (s === 0 && (b === 16 || b === 24)) boom(t);
+    if (s === 0 && (b === 0 || b === 4 || b === 12 || b === 16)) mark(t, part);
     if (part === "break" && b === 15 && s === 0) riser(t, sp * 16, 0.18);
     // The rolling bass, between the kicks; every 16th in the fight.
     if (part !== "break" && (s % 4 !== 0 || hype)) bass(t, root + (s % 4 === 3 ? 12 : 0), sp * 0.9, hype ? 0.3 : 0.26);
@@ -216,6 +254,14 @@ export function makeMusic(ac, out) {
   return {
     get name() {
       return song.name;
+    },
+    get bars() {
+      return step / 16;
+    },
+    take(until) {
+      let i = 0;
+      while (i < marks.length && marks[i][0] <= until) i++;
+      return marks.splice(0, i);
     },
     start(level, at, fresh) {
       const s = SONGS[level % SONGS.length];
