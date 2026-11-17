@@ -337,6 +337,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
     <div class="bar"><button type="button" class="btn" id="keyReset">Reset all keys</button><span class="lbl" id="keyMsg" role="status" aria-live="polite"></span></div>
     <h4 class="padh">Controller</h4>
     <p class="note" id="padStatus">No controller yet. Plug one in (an Xbox controller works, by USB or Bluetooth) and press any button on it.</p>
+    <p class="note"><a href="https://github.com/wbp318/github-leaderboard/blob/main/docs/controller.md" target="_blank" rel="noopener">How to connect an Xbox controller, and what each button does</a></p>
     <div class="bar">
       <button type="button" class="btn" id="padWizard" disabled>Set up its buttons</button>
       <button type="button" class="btn" id="padReset">Reset controller buttons</button>
@@ -5101,7 +5102,7 @@ function describeKeys() {
   const wasd = ["forward", "back", "left", "right"].every((a) => JSON.stringify(BOUND[a]) === JSON.stringify(KEY_DEFAULTS[a]));
   const move = wasd ? "W A S D or the arrow keys move" : `${kn("forward")}, ${kn("back")}, ${kn("left")}, and ${kn("right")} move`;
   $("#gameKeys").textContent =
-    `Click the game or press Enter to play. ${move}, the mouse or ${kn("turnLeft")} and ${kn("turnRight")} turn, click or ${kn("fire")} shoots, ` +
+    `Click the game or press Enter to play: either way the mouse steers from the start, alongside the keys, and Esc gives it back. ${move}, the mouse or ${kn("turnLeft")} and ${kn("turnRight")} turn, click or ${kn("fire")} shoots, ` +
     `the mouse up and down looks up and down (or, with ${kn("mouse")} or the switch below, walks you forward and back), ` +
     `${kn("arm1")} and ${kn("arm2")}, ${kn("swap")}, or the mouse wheel switch weapons, ${kn("run")} runs, ${kn("sound")} turns the sound off and on, and Esc pauses. ` +
     "Walk up to a neighbour sheltering from the storm and they'll tell you what they know, and Biscuit, Hank's dog, follows you and goes for the bugs. " +
@@ -6153,6 +6154,7 @@ for (const [id, fn] of [["#gameSave", saveGame], ["#gameLoad", loadGame], ["#gam
   $(id).addEventListener("click", () => {
     fn();
     cv.focus({ preventScroll: true });
+    if (G.state === "playing") mouseIn();
   });
 }
 
@@ -6233,6 +6235,11 @@ function lock() {
     cv.requestPointerLock()?.catch?.(() => {});
   } catch {}
 }
+// The mouse takes over steering when a game starts from the keyboard or a button, not only from a
+// click, so keys and mouse work together from the first moment. Not on a touch screen.
+function mouseIn() {
+  if (pad.hidden && !locked) lock();
+}
 function toggleSound() {
   sound = !sound;
   try {
@@ -6278,6 +6285,9 @@ cv.addEventListener("keydown", (e) => {
       e.preventDefault();
       if (!e.repeat) loadGame();
     }
+    // Started or picked up from the keyboard, the mouse steers too, at once: keys and mouse together,
+    // as with a click. Escape gives the mouse back.
+    if (G.state === "playing") mouseIn();
     return;
   }
   const k = e.code;
