@@ -30,7 +30,7 @@ const lit = (page) =>
     for (let i = 3; i < d.length; i += 16) if (d[i] > 0) n++;
     return n;
   });
-// Storm Cellar's picture, read from its canvas. A screenshot of the element waits for it to stand
+// Ice Storm's picture, read from its canvas. A screenshot of the element waits for it to stand
 // still, and while the game plays it sometimes never does, which timed the test out in CI.
 const gameFrame = async (page) => Buffer.from(await page.evaluate(() => document.querySelector("#game").toDataURL()));
 const viewName = (page) => page.locator("#view").evaluate((s) => s.options[s.selectedIndex]?.text ?? "");
@@ -536,60 +536,52 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   check((await rm.locator("#weather").getAttribute("aria-pressed")) === "false", "with reduced motion, the storm starts off");
   await still.close();
 }
-// Storm Cellar, the game near the top: its title draws, Enter starts it from the keyboard, the arrow
-// keys turn the view and the weapon keys and mouse wheel switch weapons without scrolling the page,
-// Escape pauses it, and Tab moves on past it. On a touch phone it has a stick and a fire button,
-// and a Swap button once there's a second weapon, and still nothing scrolls sideways.
+// Ice Storm, the hockey game near the top: its title draws, Enter starts it from the keyboard, the
+// puck drops, the arrow keys skate without scrolling the page, pass and shoot keep it playing, its
+// label gives the score, Escape pauses it, Q quits to the title, and Tab moves on past it. On a touch
+// phone it has a pad and Pass, Shoot, and Burst, and still nothing scrolls sideways.
 {
-  // Lit pixels on the game's canvas, and a sum over the upper view, below the messages: the
-  // walls and ceiling, which change only when the view turns or moves.
+  // Lit pixels on the game's canvas: zero means it drew nothing.
   const pixels = (page) =>
     page.evaluate(() => {
       const c = document.querySelector("#game");
       const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
-      let lit = 0, view = 0;
-      for (let i = 0; i < d.length; i += 4) {
-        if (d[i] + d[i + 1] + d[i + 2] > 30) lit++;
-        const y = (i / 4 / c.width) | 0;
-        if (y >= 16 && y < 80) view = (view * 31 + d[i] + d[i + 1] * 3 + d[i + 2] * 7) % 1e9;
-      }
-      return { lit, view };
+      let lit = 0;
+      for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] > 30) lit++;
+      return lit;
     });
-  // The game sets itself up once the page is idle: wait for its title to appear.
-  const drawn = (page) => page.waitForFunction(() => document.querySelector("#game").getContext("2d").getImageData(160, 30, 1, 1).data[0] > 0, null, { timeout: 5000 }).catch(() => {});
+  // The game sets itself up once the page is idle: wait for its title.
+  const titled = (page) => page.waitForFunction(() => document.querySelector("#game").dataset.ready === "1" && document.querySelector("#game").dataset.state === "title", null, { timeout: 8000 }).catch(() => {});
   const g = await browser.newPage({ viewport: { width: 1340, height: 900 } });
   watch(g, "game");
   await g.goto(url);
-  await drawn(g);
+  await titled(g);
   const game = g.locator("#game");
-  check((await pixels(g)).lit > 20000, "the game draws its title screen");
-  check((await game.getAttribute("data-state")) === "title", "and waits to be played");
+  check((await pixels(g)) > 100000, "the game draws its title screen");
+  check((await game.getAttribute("data-state")) === "title" && /you're the Monroe Moccasins, at home to the Tupelo T-Rex/.test((await game.getAttribute("aria-label")) ?? ""), "and waits to be played: Monroe at home to Tupelo, at first");
   await game.focus();
   await g.keyboard.press("Enter");
   await g.waitForTimeout(300);
   check((await game.getAttribute("data-state")) === "playing", "Enter starts the game");
-  const before = (await pixels(g)).view;
+  check(/^Ice Storm, playing: Monroe 0, Tupelo 0, 1st period/.test((await game.getAttribute("aria-label")) ?? ""), "its label gives the score and the period");
+  await g.waitForFunction(() => document.querySelector("#game").dataset.phase === "live", null, { timeout: 6000 }).catch(() => {});
+  check((await game.getAttribute("data-phase")) === "live", "the puck drops, and play starts");
   const scrolled = await g.evaluate(() => scrollY);
-  await g.keyboard.down("ArrowLeft");
-  await g.waitForTimeout(400);
-  await g.keyboard.up("ArrowLeft");
-  await g.waitForTimeout(100);
-  check((await pixels(g)).view !== before, "the arrow keys turn the view");
+  const before = await gameFrame(g);
+  await g.keyboard.down("ArrowUp");
+  await g.waitForTimeout(500);
+  await g.keyboard.up("ArrowUp");
+  check(Buffer.compare(before, await gameFrame(g)) !== 0, "the arrow keys skate");
   check((await g.evaluate(() => scrollY)) === scrolled, "and don't scroll the page while the game has them");
-  check(/playing level 1\b/.test((await game.getAttribute("aria-label")) ?? ""), "its label says which level is being played");
-  // The cellar has only the one weapon, so these leave it in hand; level 2 has a second to switch to.
-  const box = await game.boundingBox();
-  await g.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  for (const k of ["Digit2", "Digit1", "KeyQ"]) await g.keyboard.press(k);
-  await g.mouse.wheel(0, 240);
+  for (const k of ["KeyZ", "KeyX", "Space", "ShiftLeft"]) await g.keyboard.press(k);
   await g.waitForTimeout(200);
-  check((await game.getAttribute("data-state")) === "playing" && (await g.evaluate(() => scrollY)) === scrolled, "1, 2, Q, and the mouse wheel switch weapons without scrolling the page");
+  check((await game.getAttribute("data-state")) === "playing" && (await g.evaluate(() => scrollY)) === scrolled, "pass, shoot, Space, and burst keep it playing, and the page still");
   await g.keyboard.press("Escape");
   await g.waitForTimeout(100);
-  check((await game.getAttribute("data-state")) === "paused", "Escape pauses it");
-  await g.mouse.wheel(0, 240);
-  await g.waitForTimeout(400);
-  check((await g.evaluate(() => scrollY)) > scrolled, "and then the mouse wheel over it scrolls the page as usual");
+  check((await game.getAttribute("data-state")) === "paused" && /^Ice Storm, paused/.test(await game.getAttribute("aria-label")), "Escape pauses it");
+  await g.keyboard.press("KeyQ");
+  await g.waitForTimeout(100);
+  check((await game.getAttribute("data-state")) === "title", "and Q quits to the title");
   await g.keyboard.press("Tab");
   check((await g.evaluate(() => document.activeElement?.id)) !== "game", "and Tab moves on past it");
   check(!errors.some((e) => e.startsWith("game:")), "no script errors in the game");
@@ -599,214 +591,93 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   const t = await touch.newPage();
   watch(t, "game phone");
   await t.goto(url);
-  await drawn(t);
-  check(await t.locator("#pad").isVisible(), "on a touch phone the game shows a stick and a fire button");
-  check(await t.locator("#swap").isHidden(), "and Swap waits until there's a second weapon");
+  await titled(t);
+  check(await t.locator("#pad").isVisible(), "on a touch phone the game shows a pad to skate with");
+  check((await t.locator("#passBtn").isVisible()) && (await t.locator("#shootBtn").isVisible()) && (await t.locator("#burstBtn").isVisible()), "and Pass, Shoot, and Burst");
   check((await t.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0, "and nothing scrolls sideways");
-  await t.locator("#fire").tap();
+  await t.locator("#shootBtn").tap();
   await t.waitForTimeout(300);
-  check((await t.locator("#game").getAttribute("data-state")) === "playing", "and Fire starts the game");
-  // A tap on the weapon at the status bar's left switches weapons, and doesn't shoot or stop the game.
-  const screen = await t.locator("#game").boundingBox();
-  await t.locator("#game").tap({ position: { x: screen.width * 0.08, y: screen.height * 0.93 } });
+  check((await t.locator("#game").getAttribute("data-state")) === "playing", "Shoot starts the game");
+  await t.locator("#passBtn").tap();
+  await t.locator("#burstBtn").tap();
   await t.waitForTimeout(200);
-  check((await t.locator("#game").getAttribute("data-state")) === "playing", "and tapping the weapon on the status bar keeps it playing");
+  check((await t.locator("#game").getAttribute("data-state")) === "playing", "and Pass and Burst keep it playing");
   check(!errors.some((e) => e.startsWith("game phone:")), "no script errors in the game on a phone");
   await touch.close();
 }
-// Storm Cellar saves your progress: paused, S saves where you are; after a reload the title offers
-// to go on, C puts you back in the same spot, a save from the top of the drain starts level 2, a
-// broken save is ignored, and Delete forgets it.
+// Ice Storm's teams, level, and period length: picked under the game, or the teams from the title
+// with the arrow keys; picking the other side's team swaps them; all of it is remembered, along with
+// your record; and none of it can change in the middle of a game.
 {
   const ctx = await browser.newContext({ viewport: { width: 1340, height: 900 } });
-  const sv = await ctx.newPage();
-  watch(sv, "game save");
-  const KEY = "github-leaderboard.cellar";
-  const state = () => sv.getAttribute("#game", "data-state");
-  const stored = () => sv.evaluate((k) => JSON.parse(localStorage.getItem(k)), KEY);
-  const atTitle = async () => {
-    await sv.reload();
-    await sv.waitForFunction(() => document.querySelector("#game").dataset.ready === "1" && document.querySelector("#game").dataset.state === "title", null, { timeout: 8000 });
-  };
-  await sv.goto(url);
-  await sv.waitForFunction(() => document.querySelector("#game").dataset.ready === "1" && document.querySelector("#game").dataset.state === "title", null, { timeout: 8000 });
-  check((await sv.locator("#gameLoad").isHidden()) && (await sv.locator("#gameSave").isVisible()) && (await sv.locator("#gameSave").isDisabled()), "with no save, there's no Continue, and Save progress shows but waits for a game");
-  await sv.focus("#game");
-  await sv.keyboard.press("Enter");
-  await sv.waitForTimeout(250);
-  check(await sv.locator("#gameSave").isEnabled(), "playing, Save progress can be pressed");
-  await sv.keyboard.down("ArrowUp");
-  await sv.waitForTimeout(600);
-  await sv.keyboard.up("ArrowUp");
-  await sv.keyboard.press("Escape");
-  await sv.keyboard.press("KeyS");
-  await sv.waitForTimeout(150);
-  const first = await stored();
-  check(first?.level === 0 && first.p?.hp === 100 && first.p.y < 21 && first.items.length > 0 && first.foes.length > 0, "paused, S saves where you are, what you carry, and the bugs and pickups");
-  check((await sv.locator("#gameSaid").textContent()).startsWith("Progress saved: level 1"), "and says so");
-  await atTitle();
-  check((await sv.locator("#gameLoad").innerText()).startsWith("Continue: level 1, the cellar") && /C to go on from your save/.test(await sv.getAttribute("#game", "aria-label")), "after a reload, the title offers to go on from the save");
-  await sv.focus("#game");
-  await sv.keyboard.press("KeyC");
-  await sv.waitForTimeout(200);
-  await sv.keyboard.press("Escape");
-  await sv.keyboard.press("KeyS");
-  await sv.waitForTimeout(150);
-  const again = await stored();
-  check(
-    (await state()) === "paused" && again.p.x === first.p.x && again.p.y === first.p.y && again.p.hp === first.p.hp && again.items.length === first.items.length && again.p.time >= first.p.time,
-    "C puts you back in the same spot, with the clock going on",
-  );
-  await sv.evaluate((k) => localStorage.setItem(k, JSON.stringify({ v: 1, at: Date.now(), level: 1, fresh: true, carry: 55, run: { kills: 9, total: 12, commits: 5, totalC: 5, time: 200 } })), KEY);
-  await atTitle();
-  await sv.click("#gameLoad");
-  await sv.waitForTimeout(200);
-  check(/playing level 2, the storm drain/.test(await sv.getAttribute("#game", "aria-label")), "a save from the top of the drain starts level 2");
-  await sv.evaluate((k) => localStorage.setItem(k, "{not a save"), KEY);
-  await atTitle();
-  check(await sv.locator("#gameLoad").isHidden(), "a broken save is ignored");
-  await sv.evaluate((k) => localStorage.setItem(k, JSON.stringify({ v: 1, at: Date.now(), level: 1, fresh: true, carry: 40, run: null })), KEY);
-  await atTitle();
-  await sv.click("#gameForget");
-  check((await sv.evaluate((k) => localStorage.getItem(k), KEY)) === null && (await sv.locator("#gameLoad").isHidden()), "Delete save forgets it");
-  check(!errors.some((e) => e.startsWith("game save:")), "no script errors saving and loading the game");
+  const tm = await ctx.newPage();
+  watch(tm, "game teams");
+  await tm.goto(url);
+  await tm.waitForFunction(() => document.querySelector("#game").dataset.ready === "1", null, { timeout: 8000 });
+  const label = () => tm.getAttribute("#game", "aria-label");
+  check((await tm.locator("#teamMe option").count()) === 14, "fourteen teams to pick from");
+  await tm.selectOption("#teamMe", "tupelo");
+  check(/you're the Tupelo T-Rex, at home to the Monroe Moccasins/.test(await label()), "picking the other side's team swaps the two");
+  await tm.focus("#game");
+  await tm.keyboard.press("ArrowRight");
+  check((await tm.inputValue("#teamMe")) === "lakecharles" && /you're the Lake Charles Ice Pirates/.test(await label()), "on the title, the right arrow picks the next team");
+  await tm.keyboard.press("ArrowDown");
+  check((await tm.inputValue("#teamThem")) === "tupelo", "and down the other side's (skipping yours)");
+  await tm.click('#level button[data-l="0"]');
+  await tm.selectOption("#periodLen", "120");
+  await tm.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem("github-leaderboard.hockey"));
+    s.record = { w: 3, l: 1, t: 0 };
+    localStorage.setItem("github-leaderboard.hockey", JSON.stringify(s));
+  });
+  await tm.reload();
+  await tm.waitForFunction(() => document.querySelector("#game").dataset.ready === "1", null, { timeout: 8000 });
+  check((await tm.inputValue("#teamMe")) === "lakecharles" && (await tm.inputValue("#teamThem")) === "tupelo" && (await tm.inputValue("#periodLen")) === "120" && (await tm.getAttribute('#level button[data-l="0"]', "aria-pressed")) === "true", "after a reload, the teams, the period length, and the level are as they were left");
+  check((await tm.locator("#record").textContent()) === "Your record: 3 won, 1 lost, 0 tied.", "and your record is under the game");
+  await tm.focus("#game");
+  await tm.keyboard.press("Enter");
+  await tm.waitForTimeout(200);
+  check((await tm.locator("#teamMe").isDisabled()) && (await tm.locator('#level button[data-l="1"]').isDisabled()), "during a game the teams and level can't change");
+  await tm.keyboard.press("Escape");
+  await tm.keyboard.press("KeyQ");
+  check(await tm.locator("#teamMe").isEnabled(), "and back at the title they can");
+  check(!errors.some((e) => e.startsWith("game teams:")), "no script errors picking teams");
   await ctx.close();
 }
-// Storm Cellar's neighbours and Biscuit the dog: a new game saves Biscuit beside you; walking up to
-// Hank finds him, and what he says is spoken; a save keeps him found, and loaded again he says
-// something else and counts once; an older save, with no neighbours or dog, loads with Biscuit
-// beside you; Biscuit knocked out stays down after a load; and the cellar's tally and the last one
-// count the survivors, in the game's label and out loud.
-{
-  const ctx = await browser.newContext({ viewport: { width: 1340, height: 900 } });
-  const np = await ctx.newPage();
-  watch(np, "game folk");
-  const KEY = "github-leaderboard.cellar";
-  const said = () => np.locator("#gameSaid").textContent();
-  const label = () => np.getAttribute("#game", "aria-label");
-  const stored = () => np.evaluate((k) => JSON.parse(localStorage.getItem(k)), KEY);
-  const isState = (s, timeout = 8000) => np.waitForFunction((s) => document.querySelector("#game").dataset.state === s, s, { timeout }).then(() => true, () => false);
-  // The page starts out saying "title": wait until the game has set itself up and drawn it.
-  const titled = () => np.waitForFunction(() => document.querySelector("#game").dataset.ready === "1" && document.querySelector("#game").dataset.state === "title" && document.querySelector("#game").getContext("2d").getImageData(160, 30, 1, 1).data[0] > 0, null, { timeout: 8000 }).catch(() => {});
-  const atTitle = async () => {
-    await np.reload();
-    await titled();
-  };
-  const load = async (s) => {
-    await np.evaluate(([k, v]) => localStorage.setItem(k, JSON.stringify(v)), [KEY, s]);
-    await atTitle();
-    await np.focus("#game");
-    await np.keyboard.press("KeyC");
-    await np.waitForTimeout(250);
-  };
-  const saveNow = async () => {
-    await np.keyboard.press("Escape");
-    await np.keyboard.press("KeyS");
-    await np.waitForTimeout(150);
-    return stored();
-  };
-  const you = (x, y, a) => ({ x, y, a, hp: 100, ammo: 40, cells: 0, want: 0, has: [true, false], kills: 0, commits: 0, time: 5 });
-  const walkUntil = async (state) => {
-    await np.keyboard.down("ArrowUp");
-    const ok = await isState(state, 4000);
-    await np.keyboard.up("ArrowUp");
-    return ok;
-  };
-  await np.goto(url);
-  await titled();
-  check(/Walk up to a neighbour sheltering from the storm.+Biscuit, Hank's dog, follows you/.test(await np.locator("#gameKeys").textContent()), "the keys under the game tell of the neighbours and Biscuit");
-  await np.focus("#game");
-  await np.keyboard.press("Enter");
-  await np.waitForTimeout(250);
-  const fresh = await saveNow();
-  const [dx, dy, dhp, dko] = fresh?.dog ?? [];
-  check(fresh?.met?.length === 0 && dhp === 60 && dko === 0 && Math.hypot(dx - fresh.p.x, dy - fresh.p.y) < 2.5, "a new game has no one found yet, and Biscuit at your side, and saves him with you");
-  // An older save, with no neighbours found and no dog, right by Hank in the back room.
-  await load({ v: 1, at: Date.now(), level: 0, run: null, carry: 40, p: you(2.75, 19.5, Math.PI), items: fresh?.items ?? [], foes: fresh?.foes ?? [] });
-  check(/^You found Hank, sheltering from the storm: 1 of 3 survivors here\. Hank says, "Biscuit's going with you/.test(await said()), "walking up to a neighbour finds them, and what they say is spoken");
-  const met = await saveNow();
-  check(met?.met?.join() === "hank", "a save keeps them found");
-  check(met?.dog?.[2] === 60 && Math.hypot(met.dog[0] - met.p.x, met.dog[1] - met.p.y) < 2.5, "and an older save, with no dog in it, loads with Biscuit beside you");
-  await atTitle();
-  await np.focus("#game");
-  await np.keyboard.press("KeyC");
-  await np.waitForTimeout(250);
-  check(/^Hank says, "A hot coffee/.test(await said()), "loaded by Hank again, he says something else");
-  const again = await saveNow();
-  check(again?.met?.join() === "hank", "and still counts once");
-  await load({ ...again, dog: [3.5, 21.5, 0, 12] });
-  const ko = await saveNow();
-  check(ko?.dog?.[0] === 3.5 && ko.dog[1] === 21.5 && ko.dog[2] === 0 && ko.dog[3] > 0 && ko.dog[3] <= 12, "Biscuit, knocked out, stays down where he was after a load");
-  // At the cellar's exit, with Hank found; then the drain's ladder, with the Heisenbug squashed.
-  await load({ ...again, p: you(26.5, 4.5, 0) });
-  check(await walkUntil("cleared"), "walking into the cellar's exit clears it");
-  check(/with 1 of 3 survivors found/.test(await label()) && /and 1 of 3 survivors found\./.test(await said()), "the cellar's tally counts the survivors found, in its label and out loud");
-  await np.waitForTimeout(1800);
-  await np.keyboard.press("KeyS");
-  await np.waitForTimeout(150);
-  const top = await stored();
-  check(top?.fresh && top.run?.met === 1 && top.run.totalS === 3, "a save at the top of the drain keeps the cellar's count");
-  await np.keyboard.press("Enter");
-  await np.waitForTimeout(250);
-  const drain = await saveNow();
-  await load({ ...drain, run: top?.run, p: you(41.5, 23.5, 0), foes: (drain?.foes ?? []).map(([id, x, y, , , b]) => [id, x, y, 0, 1, b]) });
-  check(await walkUntil("won"), "with the Heisenbug squashed, the ladder out of the drain finishes the game");
-  check(/with 1 of 6 survivors found/.test(await label()) && /and 1 of 6 survivors found\./.test(await said()), "and the last tally counts the survivors on both levels, in its label and out loud");
-  check(!errors.some((e) => e.startsWith("game folk:")), "no script errors with the neighbours and Biscuit");
-  await ctx.close();
-}
-// Storm Cellar's mouse and keys: moving the mouse up looks up (the view changes with no turning);
-// the switch, or V, makes it walk instead, and is remembered. Any key can be changed: the new key
-// plays, a key in use swaps over, Enter is kept, and Reset puts every key back.
+// Ice Storm's keys: any can be changed; the new key plays, a key in use swaps over, Enter is kept,
+// the words under the game follow, and Reset puts every key back.
 {
   const ctx = await browser.newContext({ viewport: { width: 1340, height: 900 } });
   const mk = await ctx.newPage();
   watch(mk, "game keys");
   await mk.goto(url);
   await mk.waitForFunction(() => document.querySelector("#game").dataset.ready === "1" && document.querySelector("#game").dataset.state === "title", null, { timeout: 8000 });
-  const frame = () => gameFrame(mk);
-  await mk.click("#game");
-  await mk.waitForTimeout(250);
-  const box = await mk.locator("#game").boundingBox();
-  const level = await frame();
-  for (const dy of [-40, -80, -120]) await mk.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + dy);
-  await mk.waitForTimeout(250);
-  const locked = await mk.evaluate(() => document.pointerLockElement?.id === "game");
-  check(!locked || Buffer.compare(level, await frame()) !== 0, `moving the mouse up looks up${locked ? "" : " (no pointer lock here, so not checked)"}`);
-  await mk.keyboard.press("KeyV");
-  await mk.waitForTimeout(100);
-  check((await mk.locator("#mouseY button[aria-pressed=true]").innerText()) === "Walk", "V switches the mouse to walking");
-  await mk.keyboard.press("Escape");
-  await mk.reload();
-  await mk.waitForFunction(() => document.querySelector("#game").dataset.ready === "1" && document.querySelector("#game").dataset.state === "title", null, { timeout: 8000 });
-  check((await mk.locator("#mouseY button[aria-pressed=true]").innerText()) === "Walk", "and it's remembered");
-  await mk.click('#mouseY button[data-m="look"]');
   await mk.click("#keysBox summary");
-  check((await mk.locator("#keyTable tbody tr").count()) >= 16, "Keys lists every action");
-  await mk.click('#keyTable button[data-a="forward"]');
+  check((await mk.locator("#keyTable tbody tr").count()) === 11, "Keys lists every action");
+  await mk.click('#keyTable button[data-a="up"]');
   await mk.keyboard.press("KeyI");
-  check((await mk.locator('#keyTable button[data-a="forward"]').locator("xpath=../../td[2]").innerText()) === "I", "a new key for moving forward takes");
-  await mk.click('#keyTable button[data-a="fire"]');
+  check((await mk.locator('#keyTable button[data-a="up"]').locator("xpath=../../td[2]").innerText()) === "I", "a new key for skating up takes");
+  await mk.click('#keyTable button[data-a="shoot"]');
   await mk.keyboard.press("Enter");
   check(/kept for starting and pausing/.test(await mk.locator("#keyMsg").textContent()), "Enter can't be taken");
   await mk.keyboard.press("Escape");
-  await mk.click('#keyTable button[data-a="back"]');
+  await mk.click('#keyTable button[data-a="down"]');
   await mk.keyboard.press("KeyI");
-  const swapped = await mk.evaluate(() => JSON.parse(localStorage.getItem("github-leaderboard.keys")));
-  check(swapped.back.join() === "KeyI" && swapped.forward.join() === "KeyS,ArrowDown", "a key already in use swaps over");
+  const swapped = await mk.evaluate(() => JSON.parse(localStorage.getItem("github-leaderboard.hockey.keys")));
+  check(swapped.down.join() === "KeyI" && swapped.up.join() === "ArrowDown,KeyS", "a key already in use swaps over");
+  check(/Down arrow or S, I, Left arrow or A, and Right arrow or D skate/.test(await mk.locator("#gameKeys").textContent()), "the keys under the game say so");
   await mk.focus("#game");
   await mk.keyboard.press("Enter");
-  await mk.waitForTimeout(200);
-  const before = await frame();
-  await mk.keyboard.down("KeyS");
+  await mk.waitForFunction(() => document.querySelector("#game").dataset.phase === "live", null, { timeout: 6000 }).catch(() => {});
+  const before = await gameFrame(mk);
+  await mk.keyboard.down("KeyI");
   await mk.waitForTimeout(500);
-  await mk.keyboard.up("KeyS");
-  check(Buffer.compare(before, await frame()) !== 0, "and the game plays with the changed keys");
-  check(/Esc gives it back\. S or Down arrow, I, A, and D move/.test(await mk.locator("#gameKeys").textContent()), "the keys under the game say so");
+  await mk.keyboard.up("KeyI");
+  check(Buffer.compare(before, await gameFrame(mk)) !== 0, "and the game plays with the changed keys");
   await mk.keyboard.press("Escape");
   await mk.click("#keyReset");
-  check((await mk.evaluate(() => JSON.parse(localStorage.getItem("github-leaderboard.keys")).forward.join())) === "KeyW,ArrowUp", "Reset all keys puts them back");
-  check(!errors.some((e) => e.startsWith("game keys:")), "no script errors with the mouse and keys");
+  check((await mk.evaluate(() => JSON.parse(localStorage.getItem("github-leaderboard.hockey.keys")).up.join())) === "ArrowUp,KeyW", "Reset all keys puts them back");
+  check(!errors.some((e) => e.startsWith("game keys:")), "no script errors changing keys");
   await ctx.close();
 }
 // The Content Security Policy: the page's scripts are named by hash and no other site's scripts are
@@ -967,8 +838,9 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   await still.close();
 }
 // A game controller: an Xbox one is stood in for here (the browser's list of controllers is
-// replaced before the page loads). A starts, the left stick walks, Menu pauses, X saves, and the
-// wizard under Keys takes each button pressed, keeps the rest with Skip, and Reset puts them back.
+// replaced before the page loads). On the title the D-pad picks your team, A starts, the left stick
+// skates, Menu pauses, Y quits, and the wizard under Keys takes each button pressed, keeps the rest
+// with Skip, and Reset puts them back.
 {
   const ctx = await browser.newContext({ viewport: { width: 1340, height: 900 } });
   await ctx.addInitScript(() => {
@@ -992,63 +864,38 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   await gpPage.locator("#game").scrollIntoViewIfNeeded();
   await gpPage.waitForTimeout(150);
   check((await gpPage.locator("#padStatus").textContent()).startsWith("Connected: Xbox Wireless Controller.") && (await gpPage.locator("#padWizard").isEnabled()), "a controller is seen, and its wizard is offered");
+  await hold(15);
+  check((await gpPage.inputValue("#teamMe")) === "lakecharles", "on the title, the D-pad picks your team");
   await hold(0);
   check((await state()) === "playing", "A starts the game");
+  await gpPage.waitForFunction(() => document.querySelector("#game").dataset.phase === "live", null, { timeout: 6000 }).catch(() => {});
   const still = await gameFrame(gpPage);
   await gpPage.evaluate(() => (window.__pad.axes[1] = -1));
   await gpPage.waitForTimeout(450);
   await gpPage.evaluate(() => (window.__pad.axes[1] = 0));
-  check(Buffer.compare(still, await gameFrame(gpPage)) !== 0, "the left stick walks");
+  check(Buffer.compare(still, await gameFrame(gpPage)) !== 0, "the left stick skates");
   await hold(9);
   check((await state()) === "paused", "Menu pauses");
-  await hold(2);
-  check(Boolean(await gpPage.evaluate(() => localStorage.getItem("github-leaderboard.cellar"))), "and X saves");
+  await hold(3);
+  check((await state()) === "title", "and Y quits to the title");
   await gpPage.click("#keysBox summary");
   await gpPage.click("#padWizard");
-  check(/^1 of 13: press the button for Start/.test(await gpPage.locator("#padAsk").textContent()), "the wizard asks for each button in turn");
+  check(/^1 of 8: press the button for Start/.test(await gpPage.locator("#padAsk").textContent()), "the wizard asks for each button in turn");
   await hold(1);
   await hold(4);
-  for (let i = 0; i < 11; i++) await gpPage.click("#padSkip");
-  const mine = await gpPage.evaluate(() => JSON.parse(localStorage.getItem("github-leaderboard.pad")));
-  check(mine?.act?.join() === "1" && mine.fire.join() === "4" && mine.run.join() === "6,10", "and takes the buttons pressed (B to start, LB to shoot), keeping the skipped ones");
+  for (let i = 0; i < 6; i++) await gpPage.click("#padSkip");
+  const mine = await gpPage.evaluate(() => JSON.parse(localStorage.getItem("github-leaderboard.hockey.pad")));
+  check(mine?.act?.join() === "1" && mine.pass.join() === "4" && mine.shoot.join() === "2,1", "and takes the buttons pressed (B to start, LB to pass), keeping the skipped ones");
   check((await gpPage.locator("#padMsg").textContent()) === "Your controller is set up." && (await gpPage.locator("#padTable tbody tr:first-child td.k").innerText()) === "B", "then says so, and lists them");
   await gpPage.click("#padReset");
-  check((await gpPage.evaluate(() => JSON.parse(localStorage.getItem("github-leaderboard.pad")).act.join())) === "0,9", "Reset controller buttons puts them back");
+  check((await gpPage.evaluate(() => JSON.parse(localStorage.getItem("github-leaderboard.hockey.pad")).act.join())) === "0,9", "Reset controller buttons puts them back");
   check(!errors.some((e) => e.startsWith("controller:")), "no script errors with a controller");
   await ctx.close();
 }
-// Keys and mouse together: a game started from the keyboard takes the mouse at once (as a click
-// does), so W and the mouse both work, and Escape gives the mouse back and pauses.
-{
-  const ctx = await browser.newContext({ viewport: { width: 1340, height: 900 } });
-  const km = await ctx.newPage();
-  watch(km, "keys and mouse");
-  await km.goto(url);
-  await km.waitForFunction(() => document.querySelector("#game").dataset.ready === "1" && document.querySelector("#game").dataset.state === "title", null, { timeout: 8000 });
-  await km.locator("#game").scrollIntoViewIfNeeded();
-  const box = await km.locator("#game").boundingBox();
-  await km.focus("#game");
-  await km.keyboard.press("Enter");
-  await km.waitForTimeout(250);
-  check((await km.evaluate(() => document.pointerLockElement?.id)) === "game", "starting with Enter hands the mouse to the game too");
-  const before = await gameFrame(km);
-  await km.keyboard.down("KeyW");
-  for (let i = 1; i <= 6; i++) {
-    await km.mouse.move(box.x + box.width / 2 + i * 30, box.y + box.height / 2);
-    await km.waitForTimeout(50);
-  }
-  await km.keyboard.up("KeyW");
-  check(Buffer.compare(before, await gameFrame(km)) !== 0 && (await km.getAttribute("#game", "data-state")) === "playing", "and W and the mouse work together");
-  await km.keyboard.press("Escape");
-  await km.waitForTimeout(200);
-  check((await km.evaluate(() => document.pointerLockElement)) === null && (await km.getAttribute("#game", "data-state")) === "paused", "Escape gives the mouse back and pauses");
-  check(!errors.some((e) => e.startsWith("keys and mouse:")), "no script errors with keys and mouse together");
-  await ctx.close();
-}
-// Storm Cellar's music. Both tracks, and the Heisenbug's fight, rendered offline (on a blank page,
-// from src/music.mjs, the code the build copies into the game): sound all the way through, and
-// never clipping. Then in the game: it plays while you play, N and the Music switch turn it off
-// and on (remembered), and a pause stops it.
+// The page's music: all three tracks rendered offline (on a blank page, from src/music.mjs, the
+// code the build copies into the page): sound all the way through, and never clipping. Then Ice
+// Storm's organ: it plays while you play, N and the Organ switch turn it off and on (remembered),
+// and a pause stops it.
 {
   const { readFileSync: read } = await import("node:fs");
   const code = read(new URL("../src/music.mjs", import.meta.url), "utf8").replace(/^export /gm, "");
@@ -1058,7 +905,7 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   await lab.addScriptTag({ content: code });
   const tracks = await lab.evaluate(async () => {
     const out = [];
-    for (const [level, hype] of [[0, false], [1, false], [1, true], [2, false]]) {
+    for (const level of [0, 1, 2]) {
       const secs = 20, rate = 22050;
       const ctx = new OfflineAudioContext(1, secs * rate, rate);
       const g = ctx.createGain();
@@ -1066,7 +913,7 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
       g.connect(ctx.destination);
       const m = makeMusic(ctx, g);
       m.start(level, 0.05, true);
-      for (let t = 0; t < secs - 0.3; t += 0.05) m.tick(t, hype);
+      for (let t = 0; t < secs - 0.3; t += 0.05) m.tick(t);
       const d = (await ctx.startRendering()).getChannelData(0);
       let peak = 0, quiet = 0;
       for (let s = 0; s < secs - 1; s++) {
@@ -1077,11 +924,11 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
         }
         if (Math.sqrt(e / rate) < 0.003) quiet++;
       }
-      out.push({ name: m.name, hype, peak, quiet });
+      out.push({ name: m.name, peak, quiet });
     }
     return out;
   });
-  for (const t of tracks) check(t.peak > 0.05 && t.peak < 0.95 && t.quiet === 0, `"${t.name}"${t.hype ? " in the Heisenbug's fight" : ""} has sound all the way through and never clips (peak ${t.peak.toFixed(2)})`);
+  for (const t of tracks) check(t.peak > 0.05 && t.peak < 0.95 && t.quiet === 0, `"${t.name}" has sound all the way through and never clips (peak ${t.peak.toFixed(2)})`);
   await lab.close();
 
   const ctx = await browser.newContext({ viewport: { width: 1340, height: 900 } });
@@ -1093,7 +940,7 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   await mu.focus("#game");
   await mu.keyboard.press("Enter");
   await mu.waitForTimeout(400);
-  check((await playingMusic()) === "playing", "the music starts when you play");
+  check((await playingMusic()) === "playing", "the organ is on when you play");
   await mu.keyboard.press("KeyN");
   await mu.waitForTimeout(100);
   check((await playingMusic()) === "off" && (await mu.evaluate(() => localStorage.getItem("github-leaderboard.music"))) === "off", "N turns it off, and that's remembered");
@@ -1104,12 +951,12 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   await mu.waitForTimeout(150);
   check((await playingMusic()) === "ready", "a pause stops it");
   await mu.click("#musicBtn");
-  check((await mu.getAttribute("#musicBtn", "aria-pressed")) === "false" && (await playingMusic()) === "off", "the Music switch under the game turns it off too");
+  check((await mu.getAttribute("#musicBtn", "aria-pressed")) === "false" && (await playingMusic()) === "off", "the Organ switch under the game turns it off too");
   check(!errors.some((e) => e.startsWith("music")), "no script errors from the music");
   await ctx.close();
 }
 // The page's own music, in the header: play, the track's name, Next, the volume (remembered), the
-// spectrum and the pulse on the beat, stepping aside while the game plays its music and coming
+// spectrum and the pulse on the beat, waiting while Ice Storm is played and coming
 // back after; and with reduced motion, the music without anything moving.
 {
   const ctx = await browser.newContext({ viewport: { width: 1340, height: 900 } });
@@ -1118,7 +965,7 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   await pm.goto(url);
   await pm.waitForTimeout(400);
   const tunes = () => pm.getAttribute("#tunes", "data-state");
-  check((await tunes()) === "off" && !(await pm.locator("#cellar #tunePlay").count()), "the page's music is off at first, and its button is in the header, not by the game");
+  check((await tunes()) === "off" && !(await pm.locator("#hockey #tunePlay").count()), "the page's music is off at first, and its button is in the header, not by the game");
   await pm.click("#tunePlay");
   await pm.waitForTimeout(300);
   check((await tunes()) === "playing" && (await pm.locator("#tuneName").textContent()) === "♪ Storm Warning", "Play music plays Storm Warning");
@@ -1137,7 +984,7 @@ check((await lit(phone)) > 1000, "the tornado draws on a phone");
   await pm.focus("#game");
   await pm.keyboard.press("Enter");
   await pm.waitForTimeout(300);
-  check((await tunes()) === "held", "it steps aside while Storm Cellar plays its own music");
+  check((await tunes()) === "held", "it waits while Ice Storm is played");
   await pm.keyboard.press("Escape");
   await pm.waitForTimeout(300);
   check((await tunes()) === "playing", "and comes back when the game stops");

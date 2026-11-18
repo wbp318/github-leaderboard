@@ -1,10 +1,9 @@
 // The page's music: three original, upbeat tracks, written and played here in code with the Web
-// Audio API, so there's nothing to download. "Storm Warning" (the cellar's), "Flood Stage" (the
-// drain's), and "Supercell", all on the bright IV-V-iii-vi chord loop, at 150 to 160 beats a minute:
-// a four-on-the-floor kick that makes everything else pump, offbeat hats, claps on two and four, a
-// rolling bass, a sparkling arpeggio, a lead with an echo, and a sub boom on every drop. Storm
-// Cellar plays the first two, busier in the Heisenbug's fight; the player at the top of the page
-// plays all three, and lights the page up to the beat from the marks it leaves (kicks, claps, drops).
+// Audio API, so there's nothing to download. "Storm Warning", "Flood Stage", and "Supercell", all on
+// the bright IV-V-iii-vi chord loop, at 150 to 160 beats a minute: a four-on-the-floor kick that makes
+// everything else pump, offbeat hats, claps on two and four, a rolling bass, a sparkling arpeggio, a
+// lead with an echo, and a sub boom on every drop. The player at the top of the page plays all three,
+// one after another, and lights the page up to the beat from the marks it leaves (kicks, claps, drops).
 // Plain JavaScript with nothing from Node, because the page carries a copy (the build puts it in),
 // and the browser test renders it offline to check it's loud enough and never clips.
 
@@ -74,8 +73,8 @@ export function sectionOf(bar) {
 
 /**
  * The music for one AudioContext, into one node. start(song, at, fresh) sets the song (by number)
- * and when its next step plays (from the top if fresh); tick(now, hype) schedules what's due in the
- * next moment, louder and busier while hype (the Heisenbug's fight) is on. take(until) hands back
+ * and when its next step plays (from the top if fresh); tick(now) schedules what's due in the next
+ * moment. take(until) hands back
  * the marks scheduled up to then, [time, "kick" | "clap" | "drop" | "intro" | "verse" | "break" |
  * "chorus"], for anything that moves to the beat; bars is how far into the song it is.
  */
@@ -218,27 +217,26 @@ export function makeMusic(ac, out) {
     return by;
   };
   let tune = melody(song);
-  function play(i, t, hype) {
+  function play(i, t) {
     const sp = 60 / song.bpm / 4;
     const bar = Math.floor(i / 16), s = i % 16, { b, part } = sectionOf(bar);
     const [root, triad] = song.chords[b % 4];
-    const loud = part === "chorus" || hype;
+    const loud = part === "chorus";
     // Drums.
     if (part !== "break" && s % 4 === 0) kick(t, 0.95);
-    if (hype && part !== "break" && s === 14) kick(t, 0.7);
     if (s % 4 === 2) hat(t, loud ? 0.2 : 0.14, part === "chorus");
     else if ((loud || part === "verse") && s % 2 === 1) hat(t, loud ? 0.09 : 0.05, false);
-    if ((part === "verse" || part === "chorus" || hype) && (s === 4 || s === 12)) clap(t, loud ? 0.42 : 0.32);
+    if ((part === "verse" || part === "chorus") && (s === 4 || s === 12)) clap(t, loud ? 0.42 : 0.32);
     if (s === 0 && (b === 4 || b === 16 || b === 24)) crash(t, 0.22);
     if (s === 0 && (b === 16 || b === 24)) boom(t);
     if (s === 0 && (b === 0 || b === 4 || b === 12 || b === 16)) mark(t, part);
     if (part === "break" && b === 15 && s === 0) riser(t, sp * 16, 0.18);
-    // The rolling bass, between the kicks; every 16th in the fight.
-    if (part !== "break" && (s % 4 !== 0 || hype)) bass(t, root + (s % 4 === 3 ? 12 : 0), sp * 0.9, hype ? 0.3 : 0.26);
+    // The rolling bass, between the kicks.
+    if (part !== "break" && s % 4 !== 0) bass(t, root + (s % 4 === 3 ? 12 : 0), sp * 0.9, 0.26);
     // The arpeggio, up and down the chord.
     if (part !== "intro") {
       const tones = [...triad, ...triad.map((m) => m + 12)];
-      arp(t, tones[song.arp[s]] + (hype ? 12 : 0), part === "break" ? 0.06 : 0.045);
+      arp(t, tones[song.arp[s]], part === "break" ? 0.06 : 0.045);
     }
     // The pad, a bar at a time.
     if (s === 0) pad(t, triad, sp * 16, part === "break" ? 0.05 : 0.03);
@@ -273,11 +271,11 @@ export function makeMusic(ac, out) {
       next = at;
       echo.delayTime.setValueAtTime((60 / song.bpm) * 0.75, at);
     },
-    tick(now, hype) {
+    tick(now) {
       const sp = 60 / song.bpm / 4;
       if (next < now - 0.2) next = now + 0.02;
       while (next < now + 0.15) {
-        play(step, next, hype);
+        play(step, next);
         step++;
         next += sp;
       }
