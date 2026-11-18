@@ -27,10 +27,14 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 | [src/opt-out.txt](src/opt-out.txt) | People who asked to be left off. |
 | [src/exclude.mjs](src/exclude.mjs) | Who is left off: bot and test accounts, and the opt-out list. |
 | [scripts/collect.mjs](scripts/collect.mjs) | Gathers people and their contributions from GitHub's API into `data/`. |
+| [src/schedule.mjs](src/schedule.mjs) | Who the collector looks up each run: each state's 80 likeliest-busiest every day, everyone else active (up to 1,000 a state) once a week on a weekday from their login, and the viewer and Add me people every run. |
 | [scripts/audit.mjs](scripts/audit.mjs) | Writes `data/audit.md`: what each rule placed and what it turned away. |
 | [scripts/build.mjs](scripts/build.mjs) | Places everyone, adds it all up, and writes the page. |
 | [src/sample.mjs](src/sample.mjs) | Who each state is compared on: the 80 likeliest to be busiest. Shared by the build and the history. |
 | [src/badge.mjs](src/badge.mjs) | The README badge: everyone's state and county rank, drawn as an SVG the build writes to `site/badge/<login>.svg` every day. |
+| [scripts/make-geo.mjs](scripts/make-geo.mjs) | Makes `web/us-counties.json`, the county map's shapes, from us-atlas, simplified, with neighbouring counties sharing their lines. Run it by hand; the output is committed. |
+| [src/geo.mjs](src/geo.mjs) | Turns those shapes into SVG paths. The build copies it into the page, so the page and its tests run the same code. |
+| [src/music.mjs](src/music.mjs) | The page's music: three original tracks, written and played in code with Web Audio. The build copies it into the page, and the browser test renders each track offline. |
 | [scripts/history.mjs](scripts/history.mjs) | Adds the day to `data/history.json` ([src/history.mjs](src/history.mjs) describes it), the daily record behind the page's sparklines and chart. |
 | [scripts/fetch-data.mjs](scripts/fetch-data.mjs) | Downloads the latest data from the `data` branch. |
 | [scripts/add-me.mjs](scripts/add-me.mjs) | Checks an "Add me" request and writes the bot's reply. |
@@ -39,6 +43,10 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 | [test/states.test.mjs](test/states.test.mjs) | Locations and where they belong. |
 | [test/counties.test.mjs](test/counties.test.mjs) | Locations and the county or parish they name. |
 | [test/refresh.test.mjs](test/refresh.test.mjs) | When the daily refresh is due. |
+| [test/schedule.test.mjs](test/schedule.test.mjs) | Who is looked up, and when. |
+| [test/history.test.mjs](test/history.test.mjs) | The daily history: what a day's record holds, merging, and keeping a year small. |
+| [test/badge.test.mjs](test/badge.test.mjs) | The README badge: its ranks match Find yourself's, and its text is escaped and fits. |
+| [test/geo.test.mjs](test/geo.test.mjs) | The county map's shapes: every county once, real shapes, shared lines, and a file small enough to send. |
 | [test/hockey.test.mjs](test/hockey.test.mjs) | Ice Storm: whole games, the computer on both sides, and the posts, the goalie, passes, checks, faceoffs, and the controls. |
 | [e2e/page.mjs](e2e/page.mjs) | Opens the built page in a browser and checks it works. |
 | [scripts/check-data.mjs](scripts/check-data.mjs), [scripts/check-links.mjs](scripts/check-links.mjs) | Refuse to publish broken data; catch broken doc links. |
