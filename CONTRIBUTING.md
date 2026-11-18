@@ -34,15 +34,17 @@ Open `site/leaderboard.html` in a browser. Change [web/template.html](web/templa
 | [scripts/history.mjs](scripts/history.mjs) | Adds the day to `data/history.json` ([src/history.mjs](src/history.mjs) describes it), the daily record behind the page's sparklines and chart. |
 | [scripts/fetch-data.mjs](scripts/fetch-data.mjs) | Downloads the latest data from the `data` branch. |
 | [scripts/add-me.mjs](scripts/add-me.mjs) | Checks an "Add me" request and writes the bot's reply. |
-| [web/template.html](web/template.html) | The page: the canvas tornado, the map, the tables, and the Storm Cellar game near the top (under the county map), all in one file. The game is the last script, in a block of its own, with each level a map drawn in text (`LEVELS`). |
+| [web/template.html](web/template.html) | The page: the canvas tornado, the map, the tables, and Ice Storm, the hockey game near the top (under the county map), all in one file. The game is the last script, in a block of its own: the camera, the rink, the players, the crests, the sound, and the keys, controller, and touch pad. |
+| [src/hockey.mjs](src/hockey.mjs) | Ice Storm's hockey: the rink, the skating and the puck, the computer's players and goalies, and the rules. The build copies it into the game's script. |
 | [test/states.test.mjs](test/states.test.mjs) | Locations and where they belong. |
 | [test/counties.test.mjs](test/counties.test.mjs) | Locations and the county or parish they name. |
 | [test/refresh.test.mjs](test/refresh.test.mjs) | When the daily refresh is due. |
+| [test/hockey.test.mjs](test/hockey.test.mjs) | Ice Storm: whole games, the computer on both sides, and the posts, the goalie, passes, checks, faceoffs, and the controls. |
 | [e2e/page.mjs](e2e/page.mjs) | Opens the built page in a browser and checks it works. |
 | [scripts/check-data.mjs](scripts/check-data.mjs), [scripts/check-links.mjs](scripts/check-links.mjs) | Refuse to publish broken data; catch broken doc links. |
 | [docs/placement.md](docs/placement.md) | How the placement rules work, and the audit. |
 | [docs/data.md](docs/data.md) | Every data file and field, and the collector's settings. |
-| [docs/controller.md](docs/controller.md) | Playing Storm Cellar with an Xbox controller: connecting it, the buttons, the wizard, and what to try when it isn't seen. |
+| [docs/controller.md](docs/controller.md) | Playing Ice Storm with an Xbox controller: connecting it, the buttons, the wizard, and what to try when it isn't seen. |
 | [docs/optimjack.md](docs/optimjack.md) | The November 2026 third-party script attack, and the page's Content Security Policy. |
 | [.github/workflows/refresh.yml](.github/workflows/refresh.yml) | The daily refresh and the deploy to GitHub Pages. |
 | [scripts/refresh-due.mjs](scripts/refresh-due.mjs), [src/refresh.mjs](src/refresh.mjs) | Whether the daily refresh is due: the workflow is triggered every hour, because GitHub starts scheduled runs late, and only the first trigger after the day's time refreshes. |
@@ -95,7 +97,7 @@ CI ([refresh.yml](.github/workflows/refresh.yml)) checks every pull request:
 
 | Check | Run it yourself |
 |---|---|
-| The placement rules | `npm test` |
+| The placement rules, and Ice Storm's hockey | `npm test` |
 | Every script parses, and no doc links to a missing file | `npm run check:links` |
 | The workflows ([actionlint](https://github.com/rhysd/actionlint)) | `docker run --rm -v "$PWD:/repo" --workdir /repo rhysd/actionlint:1.7.12` |
 | The data looks whole | `npm run check:data` |
