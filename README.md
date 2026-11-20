@@ -3,6 +3,16 @@
 [![Refresh and deploy](https://github.com/wbp318/github-leaderboard/actions/workflows/refresh.yml/badge.svg)](https://github.com/wbp318/github-leaderboard/actions/workflows/refresh.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+A year of GitHub contributions across the United States, drawn as a spinning tornado: all 50 states, the nine Census divisions and four regions, every county in the country on a map, and leaderboards in eight categories. About 34,000 developers found, the likeliest-busiest 80 in each state compared, refreshed every day by GitHub Actions. One HTML page and the shapes of the counties, no frameworks, no dependencies, and nothing loaded from anywhere else.
+
+**See it live: https://wbp318.github.io/github-leaderboard/** and type your GitHub login to see where you rank. Not on it? One click adds you.
+
+![The page moving to its own music: a spectrum blazing along the top in red and blue, a glow throbbing behind the tornado, and on the drop, lightning striking the busiest ring and the edges flashing gold](docs/page-music.gif)
+
+![The tornado for Mississippi, county by county: each ring split into public commits and everything else, with Hinds picked from the keyboard and its numbers beside it](docs/screenshot.png)
+
+![Ice Storm, the hockey game near the top of the page: the Monroe Moccasins in white carrying the puck into the Tupelo T-Rex zone, the T-Rex goalie in his crease, seen from up in the stands, with the crowd behind the glass and the scoreboard across the top](docs/ice-storm.png)
+
 > [!TIP]
 > **Runs best in Chromium.** The tornado is a live canvas animation, and it is at its smoothest in Chromium and the browsers built on it (Chrome, Edge, Brave, Arc, Opera, Vivaldi). Firefox and Safari work too, just not as smoothly.
 >
@@ -26,16 +36,6 @@ Register-ScheduledTask -TaskName "Update Chromium" -Force `
 
 To stop it: `Unregister-ScheduledTask -TaskName "Update Chromium"`.
 </details>
-
-A year of GitHub contributions across the United States, drawn as a spinning tornado: all 50 states, the nine Census divisions and four regions, every county in the country on a map, and leaderboards in eight categories. About 34,000 developers found, the likeliest-busiest 80 in each state compared, refreshed every day by GitHub Actions. One HTML page and the shapes of the counties, no frameworks, no dependencies, and nothing loaded from anywhere else.
-
-**See it live: https://wbp318.github.io/github-leaderboard/** and type your GitHub login to see where you rank. Not on it? One click adds you.
-
-![The page moving to its own music: a spectrum blazing along the top in red and blue, a glow throbbing behind the tornado, and on the drop, lightning striking the busiest ring and the edges flashing gold](docs/page-music.gif)
-
-![The tornado for Mississippi, county by county: each ring split into public commits and everything else, with Hinds picked from the keyboard and its numbers beside it](docs/screenshot.png)
-
-![Ice Storm, the hockey game near the top of the page: the Monroe Moccasins in white carrying the puck into the Tupelo T-Rex zone, the T-Rex goalie in his crease, seen from up in the stands, with the crowd behind the glass and the scoreboard across the top](docs/ice-storm.png)
 
 ## What is on the page
 
@@ -94,7 +94,7 @@ To collect from GitHub yourself (about an hour for every state), see [CONTRIBUTI
 src/        placement rules: states.mjs, counties.mjs, counties/ (us.json, aliases, 5 hand-made states), opt-out.txt; badge.mjs, geo.mjs (decodes the county map)
 scripts/    collect, audit, build, fetch-data
 web/        template.html, the whole page; us-counties.json, the county map's shapes
-site/       what GitHub Pages serves (leaderboard.html, us-counties.js, and badge/ are built)
+site/       what GitHub Pages serves (leaderboard.html, us-counties.js, and badge/ are built; index.html and social.png, the picture a shared link shows, are kept here)
 test/       placement test cases
 docs/       placement.md, data.md, the screenshots
 .github/    the daily workflow, issue forms

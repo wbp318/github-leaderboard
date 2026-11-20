@@ -8,10 +8,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GitHub Contribution Tornado</title>
 <meta name="description" content="A spinning tornado of a year of GitHub contributions across the United States: every state, division, and region; every county on a map; and leaderboards in eight categories. Open source and refreshed daily.">
+<!-- How a link to the page looks when it's shared (Discord, Slack, Reddit, X, LinkedIn). The same
+     tags are in site/index.html, the address people share. social.png is also the repository's
+     social preview, set by hand in its settings. -->
+<meta property="og:site_name" content="GitHub Contribution Tornado">
 <meta property="og:title" content="GitHub Contribution Tornado">
-<meta property="og:description" content="A year of GitHub contributions across the United States, by state, division, region, and county, with every county on a map. Refreshed daily.">
+<meta property="og:description" content="A year of GitHub contributions across the United States, by state, division, region, and county, with every county on a map. Type your GitHub login to see where you rank. Refreshed daily.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://wbp318.github.io/github-leaderboard/">
+<meta property="og:image" content="https://wbp318.github.io/github-leaderboard/social.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="GitHub Contribution Tornado: a spinning tornado of red and blue rings, one for each part of the country, beside the title and a box asking where you rank.">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#0b1430">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230b1430'/><g fill='none' stroke-width='3.2' stroke-linecap='round'><path d='M4.2 7H15.2' stroke='%23e66767'/><path d='M15.2 7H26.2' stroke='%233987e5'/><path d='M8.2 12.5H16.2' stroke='%23e66767'/><path d='M16.2 12.5H24.2' stroke='%233987e5'/><path d='M11.6 18H17' stroke='%23e66767'/><path d='M17 18H22.4' stroke='%233987e5'/><path d='M14.6 23H17.6' stroke='%23e66767'/><path d='M17.6 23H20.6' stroke='%233987e5'/></g><circle cx='17.8' cy='27.6' r='1.9' fill='%23f2b705'/></svg>">
 <style>
@@ -558,7 +567,7 @@ footer { margin-top: 28px; color: var(--muted); font-size: 12.5px; max-width: 98
   </div>
 </section>
 
-<footer><p id="method"></p><p>Built with no frameworks: one HTML file, a canvas, and GitHub's API. The code, the placement rules, and the daily refresh are at <a href="https://github.com/wbp318/github-leaderboard">github.com/wbp318/github-leaderboard</a>. Someone in the wrong state? <a href="https://github.com/wbp318/github-leaderboard/issues/new">Open an issue</a> or add a test case and send a pull request.</p></footer>
+<footer><p id="method"></p><p>Built with no frameworks: one HTML file, a canvas, and GitHub's API. The code, the placement rules, and the daily refresh are at <a href="https://github.com/wbp318/github-leaderboard">github.com/wbp318/github-leaderboard</a>. Someone in the wrong state? <a href="https://github.com/wbp318/github-leaderboard/issues/new">Open an issue</a> or add a test case and send a pull request.</p><p>Everything here comes from public GitHub profiles. Rather not be on it? Add your login to <a href="https://github.com/wbp318/github-leaderboard/blob/main/src/opt-out.txt">the opt-out list</a>, or <a href="https://github.com/wbp318/github-leaderboard/issues/new">open an issue</a> and it will be done for you.</p></footer>
 
 <script>
 "use strict";
